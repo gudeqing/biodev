@@ -3,6 +3,8 @@ from __future__ import print_function
 from collections import defaultdict
 from scipy.stats import hypergeom
 import numpy as np
+import subprocess
+import os
 import argparse
 import glob
 from textwrap import wrap
@@ -13,21 +15,20 @@ import matplotlib.pyplot as plt
 __author__ = "gdq"
 
 
-def parse_gene_annot(map_file, header=True):
+def parse_gene_annot(map_file, header=False):
     """
     parse gene_classification file such as:
     ----------------------
     GOLocus Tag Accession
-    PA0001  GO:0006260
+    PA0001  x
     PA0001  GO:0003677
     ...
-    PA0009  GO:0003688
+    PA0009  K03688
     **Note, also support line likes: "PA0001  GO:0006260;GO:0003677"
     ----------------------
     """
     gene_class = defaultdict(set)
     class_gene = defaultdict(set)
-    d_r = defaultdict(set)
     f = open(map_file)
     if header:
         head = f.readline()
@@ -36,6 +37,8 @@ def parse_gene_annot(map_file, header=True):
             if len(line.strip().split()) <= 1:
                 continue
             a, b = line.strip().split()
+            if a.startswith('ko:'):
+                a = a[4:]
             if ";" in b:
                 cls = b.split(";")
                 gene_class[a].update(cls)
@@ -180,14 +183,18 @@ def enrichment_bar(xdata, ydata, category, stat_value, stat_cutoff=[0.001, 0.01,
 
 
 def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gene_number, gene2ec_dict, gene2k_dict,
-                           path_annot_dict):
-    pop_number = total_gene_number
-    study_number = len(deg_dict)
+                           path_annot_dict, only_consider_path_annotated_genes=True):
+    if only_consider_path_annotated_genes:
+        pop_number = len(gene_class_dict)
+        study_number = len(set(deg_dict.keys()) & set(gene_class_dict.keys()))
+    else:
+        pop_number = total_gene_number
+        study_number = len(deg_dict)
     # get all DE gene associated classification, named considered_classes
     considered_classes = set()
     for gene in deg_dict.keys():
         if gene not in gene_class_dict:
-            # print(gene, 'not annotated')
+            print(gene, 'has no pathway id (such as path:ko00010)')
             pass
         else:
             considered_classes.update(gene_class_dict[gene])
@@ -317,19 +324,25 @@ def hypergeom_test(data, sort_fdr=True):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-deg', required=True, help='file with two columns: gene\tup/down')
-    parser.add_argument('-g2p', required=False, default=None, help='file with two columns: gene\tpath:konumber')
-    parser.add_argument('-g2k', required=True, help='file with two columns: gene\tgene_Knumber')
-    parser.add_argument('-bgn', required=True, type=int, help='int, total background gene number')
-    parser.add_argument('-k2e', default='/mnt/ilustre/users/deqing.gu/Databases/Enrichment/K2enzyme.tab',
-                        help='K and enzyme mapping file; Default file is in ~deqing.gu/Databases/Enrichment/')
-    parser.add_argument('-brite', default='/mnt/ilustre/users/deqing.gu/Databases/Enrichment/br08901.txt',
-                        help='The brite file can be download from http://www.kegg.jp/kegg-bin/get_htext?br08901; Default file is in ~deqing.gu/Databases/Enrichment/')
+    parser.add_argument('-deg', required=True, help='file with two columns: gene\tup/down; No header')
+    parser.add_argument('-g2k', required=True, help='file with two columns: gene\tgene_Knumber; No header')
+    parser.add_argument('-bgn', required=True, type=int,
+                        help='int, total background gene number. Not used if only_consider_path_annotated_genes set')
+    parser.add_argument('-brite', required=True, type=str,
+                        help='The brite file can be download from http://www.kegg.jp/kegg-bin/get_htext?br08901, download htext')
+    parser.add_argument('-g2p', required=False, default=None,
+                        help='file with two columns: gene\tpath:konumber. if not provided, we will use g2k and k2p info to get this info.')
+    parser.add_argument('-k2p', required=False, default=None,
+                        help='if not provided, wget from default link http://rest.kegg.jp/link/pathway/orthology/')
+    parser.add_argument('-k2e', default=None, required=False,
+                        help='if not provided, wget from default link http://rest.kegg.jp/link/enzyme/orthology/')
     parser.add_argument('--FDR', default=False, action='store_true', help='if used, FDR will be used for plotting')
     parser.add_argument('-dn', metavar='draw_number', default=0, type=int,
                         help='plot with the top "dn" terms. Default: draw all terms whose pvalue/fdr<1')
     parser.add_argument('--rm_HD_DD', default=False, action='store_true',
                         help='Do not draw term classified as HumanDisease and DrugDevelopement')
+    parser.add_argument('--only_consider_path_annotated_genes', default=False, action='store_true',
+                        help='if set, pop number and study number will only consider genes with path annotated.')
     args = parser.parse_args()
 
     g2p_file = args.g2p
@@ -344,17 +357,27 @@ if __name__ == '__main__':
 
     # calculating result
     k_gene, gene_k = parse_gene_annot(g2k_file)
+    if args.k2e is None:
+        subprocess.check_call('wget http://rest.kegg.jp/link/enzyme/orthology/', shell=True)
+        os.rename("index.html", "k2e.pair")
+        k2e_file = "k2e.pair"
     enzyme_k, k_enzyme = parse_gene_annot(k2e_file)
-    path_annot_dict = parse_br08901(brite_file)
+    path_describe_dict = parse_br08901(brite_file)
     if args.g2p is None:
-        p_k, k_p = parse_gene_annot('/mnt/ilustre/users/deqing.gu/Databases/Enrichment/K2path.info')
+        if args.k2p is None:
+            subprocess.check_call('wget http://rest.kegg.jp/link/pathway/orthology/', shell=True)
+            os.rename("index.html", "k2p.pair")
+            k2p_file = 'k2p.pair'
+        else:
+            k2p_file = args.k2p
+        p_k, k_p = parse_gene_annot(k2p_file)
         p_gene, gene_p = defaultdict(set), defaultdict(set)
         for each_gene in gene_k:
             for each_k in gene_k[each_gene]:
                 if each_k in k_p:
                     gene_p[each_gene].update(k_p[each_k])
                 else:
-                    print(each_k, 'not in /mnt/ilustre/users/deqing.gu/Databases/Enrichment/K2path.info')
+                    print(each_k, 'not in k2path info')
         for each_p in p_k:
             for each_k in p_k[each_p]:
                 if each_k in k_gene:
@@ -371,7 +394,8 @@ if __name__ == '__main__':
     deg_files = glob.glob(deg_file)
     for deg_file in deg_files:
         deg_list = read_diff_genes(deg_file)
-        data = prepare_hypergeom_data(p_gene, gene_p, deg_list, gene_number, g2e_dict, gene_k, path_annot_dict)
+        data = prepare_hypergeom_data(p_gene, gene_p, deg_list, gene_number, g2e_dict, gene_k, path_describe_dict,
+                                      only_consider_path_annotated_genes=args.only_consider_path_annotated_genes)
         result = hypergeom_test(data, sort_fdr=FDR)
         f = open(deg_file + '.kegg_enrichment.xls', 'w')
         f.write(
@@ -396,6 +420,8 @@ if __name__ == '__main__':
                 num = sum([1 for x in tmp_result[:, 6] if float(x) < 1])
             filtered_result = tmp_result[0:num, :]
         else:
+            if draw_number > tmp_result.shape[0]:
+                draw_number = tmp_result.shape[0]
             filtered_result = tmp_result[0:draw_number, :]
 
         result = filtered_result
