@@ -19,6 +19,7 @@ with open(plant_db_pep_file) as fr:
     species = match_pattern.match(first_line).groups()[0].lower()
     plant_db_species.add(species)
     fw = open(species.replace(" ", "_")+'.pep.fa', 'w')
+    fw.write(first_line)
     seq = ''
     for line in fr:
         find = match_pattern.match(line)
@@ -35,5 +36,6 @@ with open(plant_db_pep_file) as fr:
         else:
             seq += line
 not_in_our_db_species = plant_db_species - our_species
-print(not_in_our_db_species)
-print(len(not_in_our_db_species))
+print("plant_db_species ({})".format(len(plant_db_species)), plant_db_species)
+print("our_db_species ({})".format(len(our_species)), our_species)
+print('not_in_our_db ({}):'.format(len(not_in_our_db_species)), not_in_our_db_species)
