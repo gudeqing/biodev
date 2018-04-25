@@ -36,6 +36,6 @@ with open(plant_db_pep_file) as fr:
         else:
             seq += line
 not_in_our_db_species = plant_db_species - our_species
-print("plant_db_species ({})".format(len(plant_db_species)), plant_db_species)
-print("our_db_species ({})".format(len(our_species)), our_species)
+# print("plant_db_species ({})".format(len(plant_db_species)), plant_db_species)
+# print("our_db_species ({})".format(len(our_species)), our_species)
 print('not_in_our_db ({}):'.format(len(not_in_our_db_species)), not_in_our_db_species)

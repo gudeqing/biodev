@@ -1,0 +1,59 @@
+Family	SubFamily	DNA-binding domain	Auxiliary domain	Forbidden domain
+AP2/ERF	AP2	AP2 (>=2) (PF00847)	-	-
+AP2/ERF	ERF	AP2 (1) (PF00847)	-	-
+AP2/ERF	RAV	AP2 (PF00847) and B3 (PF02362)	-	-
+B3 superfamily	ARF	B3 (PF02362)	Auxin_resp (PF06507)	-
+B3 superfamily	B3	B3 (PF02362)	-	-
+BBR-BPC	BBR-BPC	GAGA_bind (PF06217)	-	-
+BES1	BES1	DUF822 (PF05687)	-	-
+bHLH	bHLH	HLH (PF00010)	-	-
+bZIP	bZIP	bZIP_1 (PF00170)	-	-
+C2C2	CO-like	zf-B_box (PF00643)	CCT (PF06203)	-
+C2C2	Dof	Zf-Dof (PF02701)	-	-
+C2C2	GATA	GATA-zf (PF00320)	-	-
+C2C2	LSD	Zf-LSD1 (PF06943)	-	Peptidase_C14 (PF00656)
+C2C2	YABBY	YABBY (PF04690)	-	-
+C2H2	C2H2	zf-C2H2 (PF00096)	-	RNase_T (PF00929)
+C3H	C3H	Zf-CCCH (PF00642)	-	RRM_1 (PF00076) or Helicase_C (PF00271)
+CAMTA	CAMTA	CG1 (PF03859)	-	-
+CPP	CPP	TCR (PF03638)	-	-
+DBB	DBB	zf-B_box (>=2) (PF00643)	-	-
+E2F/DP	E2F/DP	E2F_TDP (PF02319)	-	-
+EIL	EIL	EIN3 (PF04873)	-	-
+FAR1	FAR1	FAR1 (PF03101)	-	-
+GARP	ARR-B	G2-like (self-build)	Response_reg (PF00072)	-
+GARP	G2-like	G2-like (self-build)	-	-
+GeBP	GeBP	DUF573 (PF04504)	-	-
+GRAS	GRAS	GRAS (PF03514)	-	-
+GRF	GRF	WRC (PF08879)	QLQ (PF08880)	-
+HB	HD-ZIP	Homeobox (PF00046)	HD-ZIP_I/II (self-build) or SMART (PF01852)	-
+HB	TALE	Homeobox (PF00046)	BELL (self-build)or ELK (PF03789)	-
+HB	WOX	homeobox (PF00046)	Wus type homeobox (self-build)	-
+HB	HB-PHD	homeobox (PF00046)	PHD (PF00628)	-
+HB	HB-other	homeobox (PF00046)	-	-
+HRT-like	HRT-like	HRT-like (self-build)	-	-
+HSF	HSF	HSF_dna_bind (PF00447)	-	-
+LBD (AS2/LOB)	LBD (AS2/LOB)	DUF260 (PF03195)	-	-
+LFY	LFY	FLO_LFY (PF01698)	-	-
+MADS	M_type	SRF-TF (PF00319)	-	-
+MADS	MIKC	SRF-TF (PF00319)	K-box (PF01486)	-
+MYB superfamily	MYB	Myb_dna_bind (>=2) (PF00249)	-	SWIRM (PF04433)
+MYB superfamily	MYB_related	Myb_dna_bind (1) (PF00249)	-	SWIRM (PF04433)
+NAC	NAC	NAM (PF02365)	-	-
+NF-X1	NF-X1	Zf-NF-X1 (PF01422)	-	-
+NF-Y	NF-YA	CBFB_NFYA (PF02045)	-	-
+NF-Y	NF-YB	NF-YB (self-build)	-	-
+NF-Y	NF-YC	NF-YC (self-build)	-	-
+Nin-like	Nin-like	RWP-RK (PF02042)	-	-
+NZZ/SPL	NZZ/SPL	NOZZLE (PF08744)	-	-
+S1Fa-like	S1Fa-like	S1FA (PF04689)	-	-
+SAP	SAP	SAP (self-build)	-	-
+SBP	SBP	SBP (PF03110)	-	-
+SRS	SRS	DUF702 (PF05142)	-	-
+STAT	STAT	STAT (self-build)	-	-
+TCP	TCP	TCP (PF03634)	-	-
+Trihelix	Trihelix	Trihelix (self-build)	-	-
+VOZ	VOZ	VOZ (self-build)	-	-
+Whirly	Whirly	Whirly (PF08536)	-	-
+WRKY	WRKY	WRKY (PF03106)	-	-
+ZF-HD	ZF-HD	ZF-HD_dimer (PF04770)	-	-
