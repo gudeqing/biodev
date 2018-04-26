@@ -1,7 +1,9 @@
 # coding=utf-8
 import argparse
 import subprocess
+import shlex
 import pandas as pd
+import json
 import re
 
 
@@ -18,7 +20,8 @@ def run_hmmscan(args):
     if args.other_args:
         cmd += other_args
     cmd += " {hmm_db} {fasta}".format(hmm_db=args.hmmdb, fasta=args.seqfile)
-    subprocess.check_call(cmd, shell=True)
+    print(cmd)
+    subprocess.check_call(shlex.split(cmd))
 
     # reformat domtblout
     with open(args.domtblout) as fr, open("domain_predict.txt", 'w') as fw:
@@ -54,6 +57,7 @@ def run_hmmscan(args):
                 continue
             else:
                 fw.write(line.replace(" ", '\t', 22))
+    return args.domtblout
 
 
 def get_domain_stat(domain_predict):
@@ -134,14 +138,162 @@ def judge_animal_tf(domain_stat_dict, rule_dict):
         return query2family
 
 
-def get
+def get_predicted_tf_fasta(in_file, target_ids, out_file, exclude_mode=False):
+    with open(in_file) as f1, open(out_file, 'w') as f2:
+        for line in f1:
+            if line.startswith('#'):
+                continue
+            if line.startswith('>'):
+                id_ = line.lstrip('>').split()[0]
+                if exclude_mode:
+                    if (id_ not in target_ids):
+                        f2.write(line)
+                else:
+                    if (id_ in target_ids):
+                        f2.write(line)
+            else:
+                if exclude_mode:
+                    if (id_ not in target_ids):
+                        f2.write(line)
+                else:
+                    if (id_ in target_ids):
+                        f2.write(line)
 
-def run_blast(**kwargs):
+
+def parse_plant_tf_judge_rules(raw_rules):
     """
-    比对的目的是为了能够分配一个已知的TF_id，后续靶基因预测可以根据这个已知的TF_id获得转录因子靶向Motif.
-    :param kwargs:
+    最后依据judge_rule_dict的转录因子判定规则:
+        1. key包含的所有pfam_id都要被蛋白包含，且每个pfam_id的个数在指定的列表范围，满足此条件后才可进入2，3判读
+        2. 对于auxiliary列表包含的pfam_id，如某蛋白含有其中任何一个pfam_id且满足1条件，判定具体到subfamily，否则为母类。
+        3. 对于forbidden列表包含的pfam_id， 如某蛋白含有其中任何一个pfam_id，则不能认定是转录因子，即使1，2都符合。
+    :param raw_rules:
     :return:
     """
+    rule_txt = raw_rules
+    rule_list = rule_txt.strip().split('\n')
+    header = rule_list[0].split('\t')
+    domain_num_limit = 10
+    rule_dict_list = list()
+    # Family	SubFamily	DNA-binding domain	Auxiliary domain	Forbidden domain
+    for each in rule_list[1:]:
+        tmp_dict = dict(zip(header, each.split('\t')))
+        # sub_family = tmp_dict['SubFamily']
+        binding_domain = tmp_dict["DNA-binding domain"]
+        auxiliary_domain = tmp_dict['Auxiliary domain']
+        forbidden_domain = tmp_dict['Forbidden domain']
+        judge_rule_dict = {
+            "binding": dict(),
+            "auxiliary": list(),
+            "forbidden": list(),
+        }
+        # 这里针对binding_domain 添加判定规则, 只考虑'>'和'<', 只考虑and关系，不考虑or关系，因为目前不存在这种状况
+        match_result = re.findall(r"[^()]+?\s+\(([<>=]*)(\d+)\)\s+\((P[^()]+?)\)", binding_domain)
+        if match_result:
+            for sign, num, pf_id in match_result:
+                if not sign:
+                    judge_rule_dict['binding'][pf_id] = [int(num)]
+                elif ">" in sign:
+                    judge_rule_dict['binding'][pf_id] = range(int(num), domain_num_limit)
+                elif "<" in sign:
+                    judge_rule_dict['binding'][pf_id] = range(1, int(num)+1)
+                else:
+                    pass
+        match_result = re.findall(r"[^()]+?\s+\((P[^()]+?)\)", binding_domain)
+        if match_result:
+            for pf_id in match_result:
+                judge_rule_dict['binding'][pf_id] = range(1, domain_num_limit)
+        #  这里针对auxiliary_domain, 只考虑or关系， 不考虑domain数量的要求情况，因为目前其他情况不存在
+        match_result = re.findall(r"[^()]+?\s+\((P[^()]+?)\)", auxiliary_domain)
+        if match_result:
+            for pf_id in match_result:
+                judge_rule_dict['auxiliary'].append(pf_id)
+        #  这里针对forbidden_domain, 只考虑or关系， 不考虑domain数量的要求情况，因为目前其他情况不存在
+        match_result = re.findall(r"[^()]+?\s+\((P[^()]+?)\)", forbidden_domain)
+        if match_result:
+            for pf_id in match_result:
+                judge_rule_dict['forbidden'].append(pf_id)
+        # save rule dict
+        tmp_dict['judge_rule'] = judge_rule_dict
+        rule_dict_list.append(tmp_dict)
+    else:
+        return rule_dict_list
+
+
+def parse_animal_tf_judge_rules(raw_rules):
+    rule_list = raw_rules.strip().split("\n")
+    header = rule_list[0]
+    family2pf_id = {x.split('\t')[2]: x.split('\t')[0] for x in rule_list}
+    return family2pf_id
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="""
+        A simple Wrapper for hmmscan, and its result will be used to predict TFs.
+        hmmscan is used to search protein sequences against collections of pro-
+        tein  profiles. For each sequence in <seqfile>, use that query sequence
+        to search the target database of profiles in <hmmdb>, and output ranked
+        lists  of  the  profiles  with  the  most  significant  matches  to the
+        sequence.""", )
+    parser.add_argument('-s', metavar="species", default="plant", help="plant or animal")
+    parser.add_argument("-hmmdb", required=True, help="""
+        The <hmmdb> needs to be  press'ed  using  hmmpress  before  it  can  be
+        searched  with  hmmscan.   This  creates  four  binary  files, suffixed
+        .h3{fimp}.
+        """)
+    parser.add_argument("-seqfile", required=True, help="""
+         The <seqfile> may contain more than one query sequence. It  can  be  in
+           FASTA  format,  or several other common sequence file formats (genbank,
+           embl, and uniprot, among others), or in alignment file formats  (stock-
+           holm,  aligned  fasta, and others). See the --qformat option for a com-
+           plete list.
+        """)
+    parser.add_argument("-o", default="raw_result.txt", help="""
+        Direct the main human-readable output to a file <f>  instead  of
+        the default stdout.
+        """)
+    parser.add_argument("-tblout", default="tblout.txt", help="""
+        Save  a  simple  tabular  (space-delimited) file summarizing the
+        per-target output, with one  data  line  per  homologous  target
+        model found.
+        """)
+    parser.add_argument("-domtblout", default="domtblout.tmp.txt", help="""
+        Save  a  simple  tabular  (space-delimited) file summarizing the
+        per-domain output, with one  data  line  per  homologous  domain
+        detected in a query sequence for each homologous model.
+        """)
+    parser.add_argument("-E", default=10, type=float, help="""
+        In the per-target output, report target profiles with an E-value
+        of  <= <x>.  The default is 10.0, meaning that on average, about
+        10 false positives will be reported per query, so  you  can  see
+        the  top  of  the  noise  and decide for yourself if it's really
+        noise.
+        """)
+    parser.add_argument("-domE", default=10, type=float, help="""
+        In  the per-domain output, for target profiles that have already
+        satisfied the per-profile reporting threshold, report individual
+        domains  with  a  conditional E-value of <= <x>.  The default is
+        10.0.  A conditional E-value means the expected number of  addi-
+        tional  false  positive  domains  in the smaller search space of
+        those comparisons that already satisfied the per-profile report-
+        ing threshold (and thus must have at least one homologous domain
+        already).
+        """)
+    parser.add_argument("-cpu", default=12, type=int, help="""
+        Set  the  number of parallel worker threads to <n>.  By default,
+        HMMER sets this to the number of CPU cores it  detects  in  your
+        machine  -  that is, it tries to maximize the use of your avail-
+        able processor cores. Setting <n>  higher  than  the  number  of
+        available  cores  is of little if any value, but you may want to
+        set it to something less. You can also control  this  number  by
+        setting an environment variable, HMMER_NCPU.
+          This  option  is only available if HMMER was compiled with POSIX
+        threads support. This is the  default,  but  it  may  have  been
+        turned off for your site or machine for some reason.
+        """)
+    parser.add_argument("-other_args", nargs="*", default='', help="""
+        All other optional arguments of hmmscan are supported. But, you have to quote""")
+
+    return parser.parse_args()
 
 
 # tf_factor_rule
@@ -267,140 +419,22 @@ THAP	THAP	PF05485
 """
 
 
-def parse_plant_tf_judge_rules(raw_rules):
-    """
-    最后依据judge_rule_dict的转录因子判定规则:
-        1. key包含的所有pfam_id都要被蛋白包含，且每个pfam_id的个数在指定的列表范围，满足此条件后才可进入2，3判读
-        2. 对于auxiliary列表包含的pfam_id，如某蛋白含有其中任何一个pfam_id且满足1条件，判定具体到subfamily，否则为母类。
-        3. 对于forbidden列表包含的pfam_id， 如某蛋白含有其中任何一个pfam_id，则不能认定是转录因子，即使1，2都符合。
-    :param raw_rules:
-    :return:
-    """
-    rule_txt = raw_rules
-    rule_list = rule_txt.strip().split('\n')
-    header = rule_list[0].split('\t')
-    domain_num_limit = 10
-    rule_dict_list = list()
-    # Family	SubFamily	DNA-binding domain	Auxiliary domain	Forbidden domain
-    for each in rule_list[1:]:
-        tmp_dict = dict(zip(header, each.split('\t')))
-        # sub_family = tmp_dict['SubFamily']
-        binding_domain = tmp_dict["DNA-binding domain"]
-        auxiliary_domain = tmp_dict['Auxiliary domain']
-        forbidden_domain = tmp_dict['Forbidden domain']
-        judge_rule_dict = {
-            "binding": dict(),
-            "auxiliary": list(),
-            "forbidden": list(),
-        }
-        # 这里针对binding_domain 添加判定规则, 只考虑'>'和'<', 只考虑and关系，不考虑or关系，因为目前不存在这种状况
-        match_result = re.findall(r"[^()]+?\s+\(([<>=]*)(\d+)\)\s+\((P[^()]+?)\)", binding_domain)
-        if match_result:
-            for sign, num, pf_id in match_result:
-                if not sign:
-                    judge_rule_dict['binding'][pf_id] = [int(num)]
-                elif ">" in sign:
-                    judge_rule_dict['binding'][pf_id] = range(int(num), domain_num_limit)
-                elif "<" in sign:
-                    judge_rule_dict['binding'][pf_id] = range(1, int(num)+1)
-                else:
-                    pass
-        match_result = re.findall(r"[^()]+?\s+\((P[^()]+?)\)", binding_domain)
-        if match_result:
-            for pf_id in match_result:
-                judge_rule_dict['binding'][pf_id] = range(1, domain_num_limit)
-        #  这里针对auxiliary_domain, 只考虑or关系， 不考虑domain数量的要求情况，因为目前其他情况不存在
-        match_result = re.findall(r"[^()]+?\s+\((P[^()]+?)\)", auxiliary_domain)
-        if match_result:
-            for pf_id in match_result:
-                judge_rule_dict['auxiliary'].append(pf_id)
-        #  这里针对forbidden_domain, 只考虑or关系， 不考虑domain数量的要求情况，因为目前其他情况不存在
-        match_result = re.findall(r"[^()]+?\s+\((P[^()]+?)\)", forbidden_domain)
-        if match_result:
-            for pf_id in match_result:
-                judge_rule_dict['forbidden'].append(pf_id)
-        # save rule dict
-        tmp_dict['judge_rule'] = judge_rule_dict
-        rule_dict_list.append(tmp_dict)
+if __name__ == '__main__':
+    # run hmmscan
+    args = parse_args()
+    domtblout = run_hmmscan(args)
+    # tidy result
+    domain_stat = get_domain_stat(domtblout)
+    if args.s == "plant":
+        plant_tf_rule = parse_plant_tf_judge_rules(plant_tf_family_assignment_rules)
+        query2family = judge_plant_tf(domain_stat, plant_tf_rule)
     else:
-        return rule_dict_list
+        animal_tf_rule = parse_animal_tf_judge_rules(animal_tf_family_assignment_rules)
+        query2family = judge_animal_tf(domain_stat, animal_tf_rule)
+    with open("predicted_tf.json", 'w') as f:
+        json.dump(query2family, f, indent='\n')
+    get_predicted_tf_fasta(args.seqfile, query2family.keys(), "predicted_TFs.fa")
 
-
-def parse_animal_tf_judge_rules(raw_rules):
-    rule_list = raw_rules.strip().split("\n")
-    header = rule_list[0]
-    family2pf_id = {x.split('\t')[2]: x.split('\t')[0] for x in rule_list}
-    return family2pf_id
-
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="""
-        A simple Wrapper for hmmscan.
-        hmmscan is used to search protein sequences against collections of pro-
-        tein  profiles. For each sequence in <seqfile>, use that query sequence
-        to search the target database of profiles in <hmmdb>, and output ranked
-        lists  of  the  profiles  with  the  most  significant  matches  to the
-        sequence.""", )
-    parser.add_argument("-hmmdb", required=True, help="""
-        The <hmmdb> needs to be  press'ed  using  hmmpress  before  it  can  be
-        searched  with  hmmscan.   This  creates  four  binary  files, suffixed
-        .h3{fimp}.
-        """)
-    parser.add_argument("-seqfile", required=True, help="""
-         The <seqfile> may contain more than one query sequence. It  can  be  in
-           FASTA  format,  or several other common sequence file formats (genbank,
-           embl, and uniprot, among others), or in alignment file formats  (stock-
-           holm,  aligned  fasta, and others). See the --qformat option for a com-
-           plete list.
-        """)
-    parser.add_argument("-o", default="raw_result.txt", help="""
-        Direct the main human-readable output to a file <f>  instead  of
-        the default stdout.
-        """)
-    parser.add_argument("-tblout", default="tblout.txt", help="""
-        Save  a  simple  tabular  (space-delimited) file summarizing the
-        per-target output, with one  data  line  per  homologous  target
-        model found.
-        """)
-    parser.add_argument("-domtblout", default="domtblout.tmp.txt", help="""
-        Save  a  simple  tabular  (space-delimited) file summarizing the
-        per-domain output, with one  data  line  per  homologous  domain
-        detected in a query sequence for each homologous model.
-        """)
-    parser.add_argument("-E", default=10, type=float, help="""
-        In the per-target output, report target profiles with an E-value
-        of  <= <x>.  The default is 10.0, meaning that on average, about
-        10 false positives will be reported per query, so  you  can  see
-        the  top  of  the  noise  and decide for yourself if it's really
-        noise.
-        """)
-    parser.add_argument("-domE", default=10, type=float, help="""
-        In  the per-domain output, for target profiles that have already
-        satisfied the per-profile reporting threshold, report individual
-        domains  with  a  conditional E-value of <= <x>.  The default is
-        10.0.  A conditional E-value means the expected number of  addi-
-        tional  false  positive  domains  in the smaller search space of
-        those comparisons that already satisfied the per-profile report-
-        ing threshold (and thus must have at least one homologous domain
-        already).
-        """)
-    parser.add_argument("-cpu", default=12, type=int, help="""
-        Set  the  number of parallel worker threads to <n>.  By default,
-        HMMER sets this to the number of CPU cores it  detects  in  your
-        machine  -  that is, it tries to maximize the use of your avail-
-        able processor cores. Setting <n>  higher  than  the  number  of
-        available  cores  is of little if any value, but you may want to
-        set it to something less. You can also control  this  number  by
-        setting an environment variable, HMMER_NCPU.
-          This  option  is only available if HMMER was compiled with POSIX
-        threads support. This is the  default,  but  it  may  have  been
-        turned off for your site or machine for some reason.
-        """)
-    parser.add_argument("-other_args", nargs="*", default='', help="""
-        All other optional arguments of hmmscan are supported. But, you have to quote""")
-
-    args = parser.parse_args()
 
 
 
