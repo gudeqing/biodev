@@ -5,13 +5,14 @@ import shlex
 import pandas as pd
 import json
 import re
+__author__ = "gdq"
 
 
 def run_hmmscan(args):
     other_args = "".join(args.other_args)
     # format cmd and run cmd
-    cmd = "./hmmscan -o {} --tblout {} --domtblout {} --seed 0 --notextw ".format(
-        args.o, args.tblout, args.domtblout
+    cmd = "{} -o {} --tblout {} --domtblout {} --seed 0 --notextw ".format(
+        args.hmmscan, args.o, args.tblout, args.domtblout
     )
     cmd += "--cpu {} ".format(args.cpu)
     if "-T " not in args.other_args:
@@ -22,9 +23,9 @@ def run_hmmscan(args):
     cmd += " {hmm_db} {fasta}".format(hmm_db=args.hmmdb, fasta=args.seqfile)
     print(cmd)
     subprocess.check_call(shlex.split(cmd))
-
     # reformat domtblout
-    with open(args.domtblout) as fr, open("domain_predict.txt", 'w') as fw:
+    output = "domain_predict.txt"
+    with open(args.domtblout) as fr, open(output, 'w') as fw:
         for line in fr:
             if line.startswith("# target name"):
                 col_names = [
@@ -52,18 +53,18 @@ def run_hmmscan(args):
                     "acc",
                     "domain_description",
                 ]
-                fw.write("\t".join(col_names))
+                fw.write("\t".join(col_names) + '\n')
             elif line.startswith("#"):
                 continue
             else:
-                fw.write(line.replace(" ", '\t', 22))
-    return args.domtblout
+                fw.write(re.sub("\s+", '\t', line, 22))
+    return output
 
 
 def get_domain_stat(domain_predict):
     domain_predict_pd = pd.read_table(domain_predict, sep='\t', header=0)
     domain2query = domain_predict_pd.loc[:, ['pfam_id', 'query_id']]
-    domain2query.columns = ['query_id', 'pfam_id']
+    domain2query.columns = ['pfam_id', 'query_id']
     domain_stat_dict = dict()
     group_domain = domain2query.groupby("query_id").groups
     for key in group_domain:
@@ -82,8 +83,8 @@ def judge_plant_tf(domain_stat_dict, rule_dict_list):
     :param rule_dict_list:
     :return: {query_id:
                     {
-                        family_name1: {d1,d2},
-                        family_name2: {d2,d3},
+                        family_name1: [d1,d2],
+                        family_name2: [d2,d3],
                     },
             ......
             }
@@ -97,6 +98,8 @@ def judge_plant_tf(domain_stat_dict, rule_dict_list):
         for each_tf in rule_dict_list:
             judge_rule = each_tf["judge_rule"]
             binding_domains = set(judge_rule['binding'].keys())
+            if not binding_domains:
+                continue
             auxiliary_domains = set(judge_rule["auxiliary"])
             forbidden_domains = set(judge_rule["forbidden"])
             if len(predict_domains & forbidden_domains) != 0:
@@ -109,10 +112,13 @@ def judge_plant_tf(domain_stat_dict, rule_dict_list):
                     if each_tf['Family'] in query2family[query_id]:
                         query2family[query_id].pop(each_tf['Family'])
                     based_domains = binding_domains | (auxiliary_domains & predict_domains)
-                    query2family[query_id][each_tf['SubFamily']] = based_domains
+                    query2family[query_id][each_tf['SubFamily']] = list(based_domains)
                 else:
-                    if each_tf['SubFamily'] not in query2family[query_id]:
-                        query2family[query_id][each_tf['Family']] = binding_domains
+                    if not auxiliary_domains:
+                        query2family[query_id][each_tf['SubFamily']] = list(binding_domains)
+                    else:
+                        if each_tf['SubFamily'] not in query2family[query_id]:
+                            query2family[query_id][each_tf['Family']] = list(binding_domains)
             else:
                 continue
         else:
@@ -129,7 +135,7 @@ def judge_animal_tf(domain_stat_dict, rule_dict):
         for domain in domain_dict:
             family = rule_dict.get(domain)
             if family:
-                query2family[query_id][family] = {domain, }
+                query2family[query_id][family] = [domain, ]
         else:
             if not query2family[query_id]:
                 _ = "{} was not judged as any kind of TF".format(query_id)
@@ -235,6 +241,7 @@ def parse_args():
         lists  of  the  profiles  with  the  most  significant  matches  to the
         sequence.""", )
     parser.add_argument('-s', metavar="species", default="plant", help="plant or animal")
+    parser.add_argument('-hmmscan', help="Path of hmmscan", default="/mnt/ilustre/users/sanger-dev/sg-users/litangjian/hmm/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmscan")
     parser.add_argument("-hmmdb", required=True, help="""
         The <hmmdb> needs to be  press'ed  using  hmmpress  before  it  can  be
         searched  with  hmmscan.   This  creates  four  binary  files, suffixed
@@ -425,26 +432,17 @@ if __name__ == '__main__':
     domtblout = run_hmmscan(args)
     # tidy result
     domain_stat = get_domain_stat(domtblout)
+    print(domain_stat)
     if args.s == "plant":
         plant_tf_rule = parse_plant_tf_judge_rules(plant_tf_family_assignment_rules)
         query2family = judge_plant_tf(domain_stat, plant_tf_rule)
     else:
         animal_tf_rule = parse_animal_tf_judge_rules(animal_tf_family_assignment_rules)
         query2family = judge_animal_tf(domain_stat, animal_tf_rule)
+    print(query2family)
     with open("predicted_tf.json", 'w') as f:
-        json.dump(query2family, f, indent='\n')
+        json.dump(query2family, f, indent=4)
     get_predicted_tf_fasta(args.seqfile, query2family.keys(), "predicted_TFs.fa")
-
-
-
-
-
-
-
-
-
-
-
 
 
 
