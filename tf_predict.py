@@ -232,6 +232,45 @@ def parse_animal_tf_judge_rules(raw_rules):
     return family2pf_id
 
 
+def run_blast(target, query, top=5, out="diamond.out.txt", out_format=6,
+              sensitive="sensitive", p=12, evalue=1e-3, blast_type='blastp',
+              diamond="/mnt/ilustre/users/sanger-dev/app/bioinfo/align/diamond-0.8.35/diamond"):
+    """
+    比对的目的是为了能够分配一个已知的TF_id，后续靶基因预测可以根据这个已知的TF_id获得转录因子靶向Motif.
+    :param target: file for build database file
+    :param query: input query file
+    :param top: report alignments within this percentage range of top alignment score (overrides --max-target-seqs)
+    :param out: output file
+    :param format: output format
+    :param sensitive:  sensitive, (default: fast), more-sensitive
+    :param p: number of CPU threads
+    :param evalue: maximum e-value to report alignments
+    :param blast_type: blastp or blastx
+    :param diamond: where is diamond
+    :return:
+    """
+    # make db cmd
+    if not target.endswith(".dmnd"):
+        build_db_cmd = "{diamond} ".format(diamond=diamond)
+        build_db_cmd += "makedb --in {} ".format(target)
+        build_db_cmd += "-d {} ".format('seqdb')
+        subprocess.check_call(shlex.split(build_db_cmd))
+        target = 'seqdb'
+    # blast cmd
+    blast_cmd = "{diamond} ".format(diamond=diamond)
+    blast_cmd += "{blast_type} ".format(blast_type=blast_type)
+    blast_cmd += "-d {db} ".format(db=target)
+    blast_cmd += "-q {query} ".format(query=query)
+    blast_cmd += "-o {out} ".format(out=out)
+    blast_cmd += "-k {hit_num} ".format(hit_num=top)
+    blast_cmd += "-p {threads} ".format(threads=p)
+    blast_cmd += "-f {format} ".format(format=out_format)
+    blast_cmd += "-e {evalue} ".format(evalue=evalue)
+    blast_cmd += "--{} ".format(sensitive)
+    # run cmd
+    subprocess.check_call(shlex.split(blast_cmd))
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="""
         A simple Wrapper for hmmscan, and its result will be used to predict TFs.
@@ -242,7 +281,7 @@ def parse_args():
         sequence.""", )
     parser.add_argument('-s', metavar="species", default="plant", help="plant or animal")
     parser.add_argument('-hmmscan', help="Path of hmmscan", default="/mnt/ilustre/users/sanger-dev/sg-users/litangjian/hmm/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmscan")
-    parser.add_argument("-hmmdb", required=True, help="""
+    parser.add_argument("-hmmdb", default="/mnt/ilustre/users/sanger-dev/app/database/pfam_31/Pfam-A.hmm", help="""
         The <hmmdb> needs to be  press'ed  using  hmmpress  before  it  can  be
         searched  with  hmmscan.   This  creates  four  binary  files, suffixed
         .h3{fimp}.
@@ -298,8 +337,15 @@ def parse_args():
         turned off for your site or machine for some reason.
         """)
     parser.add_argument("-other_args", nargs="*", default='', help="""
-        All other optional arguments of hmmscan are supported. But, you have to quote""")
-
+    All other optional arguments of hmmscan are supported. But, you have to quote
+    """)
+    # arg for diamond blast
+    parser.add_argument('-tfdb', default="/mnt/ilustre/users/sanger-dev/app/database/TFDB/")
+    parser.add_argument('-diamond', default="/mnt/ilustre/users/sanger-dev/app/bioinfo/align/diamond-0.8.35/diamond")
+    parser.add_argument('-evalue', default="diamond evalue")
+    # args for selecting peps to build database for blast
+    parser.add_argument('-organism', default="unknown", help="organism name")
+    parser.add_argument('-blast_all', default=True, help="if 'all', blast without organism specified")
     return parser.parse_args()
 
 
@@ -439,10 +485,81 @@ if __name__ == '__main__':
     else:
         animal_tf_rule = parse_animal_tf_judge_rules(animal_tf_family_assignment_rules)
         query2family = judge_animal_tf(domain_stat, animal_tf_rule)
-    print(query2family)
-    with open("predicted_tf.json", 'w') as f:
-        json.dump(query2family, f, indent=4)
-    get_predicted_tf_fasta(args.seqfile, query2family.keys(), "predicted_TFs.fa")
+    # do blast
+    if query2family:
+        with open("predicted_tf.json", 'w') as f:
+            json.dump(query2family, f, indent=4)
+        get_predicted_tf_fasta(args.seqfile, query2family.keys(), "predicted_TFs.fa")
+        # select sequence database for blast
+        if args.blast_all:
+            top = 5 if args.organism != "None" else 1
+            if args.s == "plant":
+                target_seq = args.tfdb + '/plant_tf_pep/all_pep.dmnd'
+            else:
+                target_seq = args.tfdb + '/animal_tf_pep/all_pep.dmnd'
+        else:
+            top = 1
+            if args.s == "plant":
+                if args.organism == "None":
+                    target_seq = args.tfdb + '/plant_tf_pep/all_pep.dmnd'
+                else:
+                    target_seq = args.tfdb + '/plant_tf_pep/{}.pep.fa.dmnd'.format(args.organism)
+            else:
+                if args.organism == "None":
+                    target_seq = args.tfdb + '/animal_tf_pep/all_pep.dmnd'
+                else:
+                    target_seq = args.tfdb + '/animal_tf_pep/{}_transcription_factors.fasta.dmnd'.format(args.organism.capitialize())
+        run_blast(
+            target=target_seq,
+            query="predicted_TFs.fa",
+            top=top,
+            out="diamond.out.txt",
+            out_format=6,
+            sensitive="sensitive",
+            p=args.cpu,
+            evalue=args.evalue,
+            blast_type='blastp',
+            diamond=args.diamond,
+        )
+        # select predicted target
+        if args.s == "plant":
+            pep_list = args.tfdb + '/plant_tf_pep/pep.list'
+            pep_pd = pd.read_table(pep_list, header=0)
+            pep2species = dict(zip(pep_pd['pep_id'], pep_pd['species']))
+            pep2family = dict(zip(pep_pd['pep_id'], pep_pd['family']))
+            blast_result = "diamond.out.txt"
+            if top == 1:
+                blast_pd = pd.read_table(blast_result, header=None)
+                query2blast = dict(zip(blast_pd.iloc[:, 0], blast_pd['']))
+                for query_id, family_info in query2family.items():
+                    query2family[query_id][blast_match] = pep2
+                    # ??
+
+
+        else:
+            pep_list = args.tfdb + '/animal_tf_pep/pep.list'
+
+
+
+    else:
+        print("No TF was predicted!")
+
+
+
+
+
+# coding=utf-8
+infile = "all_tf.fasta"
+outfile = "pep.list"
+with open(infile) as fr, open(outfile, 'w') as fw:
+    # >ENSP00000465676 ENSG00000078043 symbol:PIAS2 family:zf-MIZ species:Homo sapiens
+    fw.write("{}\t{}\t{}\t{}\t{}\n".format("pep_id", "gene_id", "symbol", "family", "species"))
+    for line in fr:
+        if line.startswith(">"):
+            pep_id, gene_id, desc = line.lstrip('>').split(' ', 2)
+            tmp = re.match(r"symbol:(.*?)\s+family:(.*?)\s+species:(.*)", desc.strip())
+            if tmp:
+                fw.write("\t".join([pep_id, gene_id] + list(tmp.groups())) + '\n')
 
 
 

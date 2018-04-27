@@ -6,6 +6,7 @@ import pandas as pd
 import re
 
 
+
 def run_blast(target, query, top=1, out="diamond.out.txt", format=6,
               sensitive="sensitive", p=12, evalue=1e-3, blast_type='blastp',
               diamond="/mnt/ilustre/users/sanger-dev/app/bioinfo/align/diamond-0.8.35/diamond"):
@@ -41,3 +42,51 @@ def run_blast(target, query, top=1, out="diamond.out.txt", format=6,
     # run cmd
     subprocess.check_call(shlex.split(build_db_cmd))
     subprocess.check_call(shlex.split(blast_cmd))
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="""
+    Check http://github.com/bbuchfink/diamond for updates.
+    """, )
+    parser.add_argument('-target', help="target file for db construction")
+    parser.add_argument('-query', help="query file")
+    parser.add_argument('-p', default=12, type=int, help="""
+    number of CPU threads
+    """)
+    parser.add_argument('-o', help="output file", default="diamond.out.txt")
+    parser.add_argument('-k', default=1, type=int, help="""
+    report alignments within this percentage range of top alignment score (overrides --max-target-seqs)
+    """)
+    parser.add_argument('-f', default=6, type=int, help=""" 
+    output format:
+    5   = BLAST XML
+	6   = BLAST tabular
+	100 = DIAMOND alignment archive (DAA)
+	101 = SAM
+    """)
+    parser.add_argument('-e', default=0.001, type=float, help="""
+    maximum e-value to report alignments
+    """)
+    parser.add_argument('-sensitive', default="sensitive", help="""
+    sensitive, (default: fast), more-sensitive
+    """)
+    parser.add_argument('-diamond', help="where is diamond", default="~/app/program/Python/bin/diamond")
+    parser.add_argument('-blast_type', default="blastp", help="blastp or blastx")
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    run_blast(
+        target=args.target,
+        query=args.query,
+        top=args.k,
+        out=args.o,
+        format=args.f,
+        sensitive=args.sensitive,
+        p=args.p,
+        evalue=args.e,
+        blast_type=args.blast_type,
+        diamond=args.diamond,
+    )
+    
