@@ -321,7 +321,7 @@ def parse_args():
         per-domain output, with one  data  line  per  homologous  domain
         detected in a query sequence for each homologous model.
         """)
-    parser.add_argument("-E", default=10, type=float, help="""
+    parser.add_argument("-E", default=0.001, type=float, help="""
         In the per-target output, report target profiles with an E-value
         of  <= <x>.  The default is 10.0, meaning that on average, about
         10 false positives will be reported per query, so  you  can  see
