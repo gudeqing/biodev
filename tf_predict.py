@@ -6,6 +6,18 @@ import pandas as pd
 import json
 import re
 __author__ = "gdq"
+"""
+Proteins are generally comprised of one or more functional regions, commonly termed domains. 
+The presence of different domains in varying combinations in different proteins gives rise to 
+the diverse repertoire of proteins found in nature. 
+Identifying the domains present in a protein can provide insights into the function of that protein.
+The Pfam database is a large collection of protein domain families. 
+Each family is represented by multiple sequence alignments and a hidden Markov model (HMMs). 
+Family:
+    A collection of related protein regions
+Domain:
+    A structural unit
+"""
 
 
 def run_hmmscan(args):
@@ -29,7 +41,7 @@ def run_hmmscan(args):
         for line in fr:
             if line.startswith("# target name"):
                 col_names = [
-                    "domain_family",
+                    "family",
                     "pfam_id",
                     "domain_len",
                     "query_id",
@@ -42,8 +54,8 @@ def run_hmmscan(args):
                     "domain_num",
                     "c_evalue",
                     "i_evalue",
-                    "score",
-                    "bias",
+                    "i_score",
+                    "i_bias",
                     "hmm_start",
                     "hmm_end",
                     "ali_start",
@@ -51,7 +63,7 @@ def run_hmmscan(args):
                     "env_start",
                     "env_end",
                     "acc",
-                    "domain_description",
+                    "description",
                 ]
                 fw.write("\t".join(col_names) + '\n')
             elif line.startswith("#"):
@@ -254,6 +266,7 @@ def run_blast(target, query, top=5, out="diamond.out.txt", out_format=6,
         build_db_cmd = "{diamond} ".format(diamond=diamond)
         build_db_cmd += "makedb --in {} ".format(target)
         build_db_cmd += "-d {} ".format('seqdb')
+        print(build_db_cmd)
         subprocess.check_call(shlex.split(build_db_cmd))
         target = 'seqdb'
     # blast cmd
@@ -268,6 +281,7 @@ def run_blast(target, query, top=5, out="diamond.out.txt", out_format=6,
     blast_cmd += "-e {evalue} ".format(evalue=evalue)
     blast_cmd += "--{} ".format(sensitive)
     # run cmd
+    print(blast_cmd)
     subprocess.check_call(shlex.split(blast_cmd))
 
 
@@ -342,7 +356,7 @@ def parse_args():
     # arg for diamond blast
     parser.add_argument('-tfdb', default="/mnt/ilustre/users/sanger-dev/app/database/TFDB/")
     parser.add_argument('-diamond', default="/mnt/ilustre/users/sanger-dev/app/bioinfo/align/diamond-0.8.35/diamond")
-    parser.add_argument('-evalue', default="diamond evalue")
+    parser.add_argument('-evalue', default=0.0001, help="diamond evalue")
     # args for selecting peps to build database for blast
     parser.add_argument('-organism', default="unknown", help="organism name")
     parser.add_argument('-blast_all', default=True, help="if 'all', blast without organism specified")
@@ -478,6 +492,7 @@ if __name__ == '__main__':
     domtblout = run_hmmscan(args)
     # tidy result
     domain_stat = get_domain_stat(domtblout)
+    print("-----------Finish Hmmscan------------")
     print(domain_stat)
     if args.s == "plant":
         plant_tf_rule = parse_plant_tf_judge_rules(plant_tf_family_assignment_rules)
@@ -521,45 +536,97 @@ if __name__ == '__main__':
             blast_type='blastp',
             diamond=args.diamond,
         )
-        # select predicted target
+        print("---------------finish diamond blast-----------------------")
+        # select predicted target and format final result
+        hmmscan_result = "domain_predict.txt"
+        hmmscan_pd = pd.read_table(hmmscan_result, header=0)
+        domain_score = hmmscan_pd.loc[:, ['query_id', 'pfam_id', 'e_value', 'score', "description"]].drop_duplicates()
+        domain_score.index = [(x.split(".")[0]+'_'+y) for x, y in zip(domain_score['pfam_id'], domain_score['query_id'])]
         if args.s == "plant":
             pep_list = args.tfdb + '/plant_tf_pep/pep.list'
-            pep_pd = pd.read_table(pep_list, header=0)
-            pep2species = dict(zip(pep_pd['pep_id'], pep_pd['species']))
-            pep2family = dict(zip(pep_pd['pep_id'], pep_pd['family']))
-            blast_result = "diamond.out.txt"
-            if top == 1:
-                blast_pd = pd.read_table(blast_result, header=None)
-                query2blast = dict(zip(blast_pd.iloc[:, 0], blast_pd['']))
-                for query_id, family_info in query2family.items():
-                    query2family[query_id][blast_match] = pep2
-                    # ??
-
-
+            species_short_name = args.tfdb + '/plant_tf_pep/species_short_name.list'
+            short_name_dict = dict()
+            with open(species_short_name) as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    short_name, sp = line.strip().split('\t')
+                    short_name_dict[sp.lower()] = short_name
         else:
             pep_list = args.tfdb + '/animal_tf_pep/pep.list'
+        pep_pd = pd.read_table(pep_list, header=0)
+        pep2species = dict(zip(pep_pd['pep_id'], pep_pd['species']))
+        pep2family = dict(zip(pep_pd['pep_id'], pep_pd['family']))
+        if args.s != "plant":
+            pep2gene = dict(zip(pep_pd['pep_id'], pep_pd['gene_id']))
+        blast_result = "diamond.out.txt"
+        # blast_header = "qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore"
+        blast_pd = pd.read_table(blast_result, header=None)
+        if top == 1:
+            query2blast_hit = dict(zip(blast_pd[0], blast_pd[1]))
+            query2blast_pident = dict(zip(blast_pd[0], blast_pd[2]))
+            query2blast_evalue = dict(zip(blast_pd[0], blast_pd[10]))
+        else:
+            blast_stat = dict()
+            species_col = [pep2species[x].lower().replace(' ', '_') for x in blast_pd[1]]
+            blast_pd['species'] = species_col
+            for _, row in blast_pd.iterrows():
+                blast_stat.setdefault(row[0], list())
+                blast_stat[row[0]].append(list(row)[1:])
+            query2blast_hit = dict()
+            query2blast_pident = dict()
+            query2blast_evalue = dict()
+            for query_id, hit_info in blast_stat.items():
+                hit_species = [x[-1] for x in hit_info]
+                if args.organism.lower() in hit_species:
+                    tar_ind = hit_species.index(args.organism.lower())
+                else:
+                    tar_ind = 0
+                query2blast_hit[query_id] = hit_info[tar_ind][0]
+                query2blast_pident[query_id] = hit_info[tar_ind][1]
+                query2blast_evalue[query_id] = hit_info[tar_ind][-3]
 
-
-
+        # format final result
+        final_result = list()
+        for query_id, family_info in query2family.items():
+            for family, domains in family_info.items():
+                for each_domain in domains:
+                    tmp_dict = dict(
+                        query_id=query_id,
+                        family=family,
+                        domain=each_domain,
+                        domain_link="http://pfam.xfam.org/family/{}".format(each_domain),
+                        description=domain_score.loc[each_domain + '_' + query_id, "description"],
+                        e_value=domain_score.loc[each_domain + '_' + query_id, "e_value"],
+                        score=domain_score.loc[each_domain + '_' + query_id, "score"]
+                    )
+                    if query_id in query2blast_hit:
+                        hit_id = query2blast_hit[query_id]
+                        if args.s == "plant":
+                            short_name = short_name_dict[pep2species[hit_id].lower()]
+                            ref_link = "http://planttfdb.cbi.pku.edu.cn/tf.php?sp={}&did={}".format(short_name, hit_id)
+                        else:
+                            gene_id = pep2gene[hit_id]
+                            ref_link = "http://bioinfo.life.hust.edu.cn/AnimalTFDB/search/ensembl/{}.shtml".format(gene_id)
+                        tmp_dict.update(
+                            blast_hit=query2blast_hit[query_id],
+                            hit_link=ref_link,
+                            hit_family=pep2family[hit_id],
+                            hit_pident=query2blast_pident[query_id],
+                            hit_evalue=query2blast_evalue[query_id],
+                        )
+                    else:
+                        tmp_dict.update(
+                            blast_hit='None',
+                            hit_family='None',
+                            hit_pident='None',
+                            hit_link='None',
+                            hit_evalue='None',
+                        )
+                    final_result.append(tmp_dict)
+        print("---------------------finish----------------------")
+        print(final_result)
+        final_result_pd = pd.DataFrame(final_result)
+        final_result_pd.to_csv("final_tf_predict.xls", header=True, index=False, sep='\t')
     else:
         print("No TF was predicted!")
-
-
-
-
-
-# coding=utf-8
-infile = "all_tf.fasta"
-outfile = "pep.list"
-with open(infile) as fr, open(outfile, 'w') as fw:
-    # >ENSP00000465676 ENSG00000078043 symbol:PIAS2 family:zf-MIZ species:Homo sapiens
-    fw.write("{}\t{}\t{}\t{}\t{}\n".format("pep_id", "gene_id", "symbol", "family", "species"))
-    for line in fr:
-        if line.startswith(">"):
-            pep_id, gene_id, desc = line.lstrip('>').split(' ', 2)
-            tmp = re.match(r"symbol:(.*?)\s+family:(.*?)\s+species:(.*)", desc.strip())
-            if tmp:
-                fw.write("\t".join([pep_id, gene_id] + list(tmp.groups())) + '\n')
-
-
-
