@@ -332,7 +332,7 @@ def parse_args():
         the  top  of  the  noise  and decide for yourself if it's really
         noise.
         """)
-    parser.add_argument("-domE", default=10, type=float, help="""
+    parser.add_argument("-domE", default=0.0001, type=float, help="""
         In  the per-domain output, for target profiles that have already
         satisfied the per-profile reporting threshold, report individual
         domains  with  a  conditional E-value of <= <x>.  The default is
