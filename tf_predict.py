@@ -1,4 +1,5 @@
 # coding=utf-8
+import sys
 import argparse
 import subprocess
 import shlex
@@ -359,7 +360,7 @@ def parse_args():
     parser.add_argument('-evalue', default=0.0001, help="diamond evalue")
     # args for selecting peps to build database for blast
     parser.add_argument('-organism', default="unknown", help="organism name")
-    parser.add_argument('-blast_all', default=True, help="if 'all', blast without organism specified")
+    parser.add_argument('-blast_all', default='yes', help="if 'all', blast without organism specified")
     return parser.parse_args()
 
 
@@ -492,141 +493,182 @@ if __name__ == '__main__':
     domtblout = run_hmmscan(args)
     # tidy result
     domain_stat = get_domain_stat(domtblout)
-    print("-----------Finish Hmmscan------------")
-    print(domain_stat)
+    # print(domain_stat)
     if args.s == "plant":
         plant_tf_rule = parse_plant_tf_judge_rules(plant_tf_family_assignment_rules)
         query2family = judge_plant_tf(domain_stat, plant_tf_rule)
     else:
         animal_tf_rule = parse_animal_tf_judge_rules(animal_tf_family_assignment_rules)
         query2family = judge_animal_tf(domain_stat, animal_tf_rule)
-    # do blast
-    if query2family:
-        with open("predicted_tf.json", 'w') as f:
-            json.dump(query2family, f, indent=4)
-        get_predicted_tf_fasta(args.seqfile, query2family.keys(), "predicted_TFs.fa")
-        # select sequence database for blast
-        if args.blast_all:
-            top = 5 if args.organism != "None" else 1
-            if args.s == "plant":
+    print("-----------Finish Hmmscan------------")
+
+    # prepare input of blast
+    if not query2family:
+        print("NO TF was predicted and exit Normally")
+        sys.exit(0)
+    with open("predicted_tf.json", 'w') as f:
+        json.dump(query2family, f, indent=4)
+    get_predicted_tf_fasta(args.seqfile, query2family.keys(), "predicted_TFs.fa")
+    if args.s == "plant":
+        species_short_name = args.tfdb + '/plant_tf_pep/species_short_name.list'
+        short_name_dict = dict()
+        with open(species_short_name) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                short_name, sp = line.strip().split('\t')
+                short_name_dict[sp.lower()] = short_name
+
+    # select sequence database for blast
+    if args.blast_all == 'yes':
+        top = 5 if args.organism != "unknown" else 1
+        if args.s == "plant":
+            target_seq = args.tfdb + '/plant_tf_pep/all_pep.dmnd'
+        else:
+            target_seq = args.tfdb + '/animal_tf_pep/all_pep.dmnd'
+    else:
+        top = 1
+        if args.s == "plant":
+            if args.organism == "unknown":
                 target_seq = args.tfdb + '/plant_tf_pep/all_pep.dmnd'
             else:
+                if args.organism.capitalize() not in short_name_dict.values():
+                    raise Exception("please provide correct short name of the plant species")
+                target_seq = args.tfdb + '/plant_tf_pep/{}.pep.fa.dmnd'.format(args.organism.capitalize())
+        else:
+            if args.organism == "unknown":
                 target_seq = args.tfdb + '/animal_tf_pep/all_pep.dmnd'
-        else:
-            top = 1
-            if args.s == "plant":
-                if args.organism == "None":
-                    target_seq = args.tfdb + '/plant_tf_pep/all_pep.dmnd'
-                else:
-                    target_seq = args.tfdb + '/plant_tf_pep/{}.pep.fa.dmnd'.format(args.organism)
             else:
-                if args.organism == "None":
-                    target_seq = args.tfdb + '/animal_tf_pep/all_pep.dmnd'
-                else:
-                    target_seq = args.tfdb + '/animal_tf_pep/{}_transcription_factors.fasta.dmnd'.format(args.organism.capitialize())
-        run_blast(
-            target=target_seq,
-            query="predicted_TFs.fa",
-            top=top,
-            out="diamond.out.txt",
-            out_format=6,
-            sensitive="sensitive",
-            p=args.cpu,
-            evalue=args.evalue,
-            blast_type='blastp',
-            diamond=args.diamond,
-        )
-        print("---------------finish diamond blast-----------------------")
-        # select predicted target and format final result
-        hmmscan_result = "domain_predict.txt"
-        hmmscan_pd = pd.read_table(hmmscan_result, header=0)
-        domain_score = hmmscan_pd.loc[:, ['query_id', 'pfam_id', 'e_value', 'score', "description"]].drop_duplicates()
-        domain_score.index = [(x.split(".")[0]+'_'+y) for x, y in zip(domain_score['pfam_id'], domain_score['query_id'])]
-        if args.s == "plant":
-            pep_list = args.tfdb + '/plant_tf_pep/pep.list'
-            species_short_name = args.tfdb + '/plant_tf_pep/species_short_name.list'
-            short_name_dict = dict()
-            with open(species_short_name) as f:
-                for line in f:
-                    if not line.strip():
-                        continue
-                    short_name, sp = line.strip().split('\t')
-                    short_name_dict[sp.lower()] = short_name
-        else:
-            pep_list = args.tfdb + '/animal_tf_pep/pep.list'
-        pep_pd = pd.read_table(pep_list, header=0)
-        pep2species = dict(zip(pep_pd['pep_id'], pep_pd['species']))
-        pep2family = dict(zip(pep_pd['pep_id'], pep_pd['family']))
-        if args.s != "plant":
-            pep2gene = dict(zip(pep_pd['pep_id'], pep_pd['gene_id']))
-        blast_result = "diamond.out.txt"
-        # blast_header = "qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore"
-        blast_pd = pd.read_table(blast_result, header=None)
-        if top == 1:
-            query2blast_hit = dict(zip(blast_pd[0], blast_pd[1]))
-            query2blast_pident = dict(zip(blast_pd[0], blast_pd[2]))
-            query2blast_evalue = dict(zip(blast_pd[0], blast_pd[10]))
-        else:
-            blast_stat = dict()
-            species_col = [pep2species[x].lower().replace(' ', '_') for x in blast_pd[1]]
-            blast_pd['species'] = species_col
-            for _, row in blast_pd.iterrows():
-                blast_stat.setdefault(row[0], list())
-                blast_stat[row[0]].append(list(row)[1:])
-            query2blast_hit = dict()
-            query2blast_pident = dict()
-            query2blast_evalue = dict()
-            for query_id, hit_info in blast_stat.items():
-                hit_species = [x[-1] for x in hit_info]
-                if args.organism.lower() in hit_species:
-                    tar_ind = hit_species.index(args.organism.lower())
-                else:
-                    tar_ind = 0
-                query2blast_hit[query_id] = hit_info[tar_ind][0]
-                query2blast_pident[query_id] = hit_info[tar_ind][1]
-                query2blast_evalue[query_id] = hit_info[tar_ind][-3]
-
-        # format final result
-        final_result = list()
-        for query_id, family_info in query2family.items():
-            for family, domains in family_info.items():
-                for each_domain in domains:
-                    tmp_dict = dict(
-                        query_id=query_id,
-                        family=family,
-                        domain=each_domain,
-                        domain_link="http://pfam.xfam.org/family/{}".format(each_domain),
-                        description=domain_score.loc[each_domain + '_' + query_id, "description"],
-                        e_value=domain_score.loc[each_domain + '_' + query_id, "e_value"],
-                        score=domain_score.loc[each_domain + '_' + query_id, "score"]
-                    )
-                    if query_id in query2blast_hit:
-                        hit_id = query2blast_hit[query_id]
-                        if args.s == "plant":
-                            short_name = short_name_dict[pep2species[hit_id].lower()]
-                            ref_link = "http://planttfdb.cbi.pku.edu.cn/tf.php?sp={}&did={}".format(short_name, hit_id)
-                        else:
-                            gene_id = pep2gene[hit_id]
-                            ref_link = "http://bioinfo.life.hust.edu.cn/AnimalTFDB/search/ensembl/{}.shtml".format(gene_id)
-                        tmp_dict.update(
-                            blast_hit=query2blast_hit[query_id],
-                            hit_link=ref_link,
-                            hit_family=pep2family[hit_id],
-                            hit_pident=query2blast_pident[query_id],
-                            hit_evalue=query2blast_evalue[query_id],
-                        )
-                    else:
-                        tmp_dict.update(
-                            blast_hit='None',
-                            hit_family='None',
-                            hit_pident='None',
-                            hit_link='None',
-                            hit_evalue='None',
-                        )
-                    final_result.append(tmp_dict)
-        print("---------------------finish----------------------")
-        print(final_result)
-        final_result_pd = pd.DataFrame(final_result)
-        final_result_pd.to_csv("final_tf_predict.xls", header=True, index=False, sep='\t')
+                target_seq = args.tfdb + '/animal_tf_pep/{}_transcription_factors.fasta.dmnd'.format(args.organism.capitalize())
+    run_blast(
+        target=target_seq,
+        query="predicted_TFs.fa",
+        top=top,
+        out="diamond.out.txt",
+        out_format=6,
+        sensitive="sensitive",
+        p=args.cpu,
+        evalue=args.evalue,
+        blast_type='blastp',
+        diamond=args.diamond,
+    )
+    print("---------------finish diamond blast-----------------------")
+    # select predicted target and format final result
+    hmmscan_result = "domain_predict.txt"
+    hmmscan_pd = pd.read_table(hmmscan_result, header=0)
+    domain_score = hmmscan_pd.loc[:, ['query_id', 'pfam_id', 'e_value', 'score', "description"]].drop_duplicates()
+    domain_score.index = [(x.split(".")[0]+'_'+y) for x, y in zip(domain_score['pfam_id'], domain_score['query_id'])]
+    if args.s == "plant":
+        pep_list = args.tfdb + '/plant_tf_pep/pep.list'
     else:
-        print("No TF was predicted!")
+        pep_list = args.tfdb + '/animal_tf_pep/pep.list'
+    pep_pd = pd.read_table(pep_list, header=0)
+    pep2species = dict(zip(pep_pd['pep_id'], pep_pd['species']))
+    pep2family = dict(zip(pep_pd['pep_id'], pep_pd['family']))
+    if args.s != "plant":
+        pep2gene = dict(zip(pep_pd['pep_id'], pep_pd['gene_id']))
+    blast_result = "diamond.out.txt"
+    # blast_header = "qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore"
+    blast_pd = pd.read_table(blast_result, header=None)
+    if top == 1:
+        query2blast_hit = dict(zip(blast_pd[0], blast_pd[1]))
+        query2blast_pident = dict(zip(blast_pd[0], blast_pd[2]))
+        query2blast_evalue = dict(zip(blast_pd[0], blast_pd[10]))
+    else:
+        blast_stat = dict()
+        species_col = [pep2species[x].lower().replace(' ', '_') for x in blast_pd[1]]
+        blast_pd['species'] = species_col
+        for _, row in blast_pd.iterrows():
+            blast_stat.setdefault(row[0], list())
+            blast_stat[row[0]].append(list(row)[1:])
+        query2blast_hit = dict()
+        query2blast_pident = dict()
+        query2blast_evalue = dict()
+        for query_id, hit_info in blast_stat.items():
+            hit_species = [x[-1] for x in hit_info]
+            if args.organism.lower() in hit_species:
+                tar_ind = hit_species.index(args.organism.lower())
+            else:
+                tar_ind = 0
+            query2blast_hit[query_id] = hit_info[tar_ind][0]
+            query2blast_pident[query_id] = hit_info[tar_ind][1]
+            query2blast_evalue[query_id] = hit_info[tar_ind][-3]
+
+    # format final result
+    final_result = list()
+    for query_id, family_info in query2family.items():
+        for family, domains in family_info.items():
+            for each_domain in domains:
+                tmp_dict = dict(
+                    query_id=query_id,
+                    family=family,
+                    domain=each_domain,
+                    domain_link="http://pfam.xfam.org/family/{}".format(each_domain),
+                    description=domain_score.loc[each_domain + '_' + query_id, "description"],
+                    e_value=domain_score.loc[each_domain + '_' + query_id, "e_value"],
+                    score=domain_score.loc[each_domain + '_' + query_id, "score"]
+                )
+                if query_id in query2blast_hit:
+                    hit_id = query2blast_hit[query_id]
+                    if args.s == "plant":
+                        short_name = short_name_dict[pep2species[hit_id].lower()]
+                        ref_link = "http://planttfdb.cbi.pku.edu.cn/tf.php?sp={}&did={}".format(short_name, hit_id)
+                    else:
+                        gene_id = pep2gene[hit_id]
+                        ref_link = "http://bioinfo.life.hust.edu.cn/AnimalTFDB/search/ensembl/{}.shtml".format(gene_id)
+                    tmp_dict.update(
+                        blast_hit=query2blast_hit[query_id],
+                        hit_link=ref_link,
+                        hit_family=pep2family[hit_id],
+                        hit_pident=query2blast_pident[query_id],
+                        hit_evalue=query2blast_evalue[query_id],
+                    )
+                else:
+                    tmp_dict.update(
+                        blast_hit='None',
+                        hit_family='None',
+                        hit_pident='None',
+                        hit_link='None',
+                        hit_evalue='None',
+                    )
+                final_result.append(tmp_dict)
+    print("---------------------finish----------------------")
+    print(final_result)
+    final_result_pd = pd.DataFrame(final_result)
+    column_order = ['query_id', 'family', 'domain', 'domain_link', 'description', 'e_value', 'score']
+    column_order += ['blast_hit', 'hit_link', 'hit_family', 'hit_pident', 'hit_evalue']
+    final_result_pd = final_result_pd.loc[:, column_order]
+    final_result_pd.to_csv("final_tf_predict.xls", header=True, index=False, sep='\t')
+
+"""
+< diomond output >
+qseqid Query Seq - id 
+qlen Query sequence length 
+sseqid Subject Seq - id ----------------------------------->blast_hit
+sallseqid All subject Seq - id(s), separated by a ’;’ 
+slen Subject sequence length 
+qstart Start of alignment in query 
+qend End of alignment in query 
+sstart Start of alignment in subject 
+send End of alignment in subject 
+qseq Aligned part of query sequence 
+sseq Aligned part of subject sequence 
+evalue Expect value ------------------------> hit_evalue
+bitscore Bit score 
+score Raw score 
+length Alignment length 
+pident Percentage of identical matches ------> hit_pident
+nident Number of identical matches 
+mismatch Number of mismatches 
+positive Number of positive - scoring matches 
+gapopen Number of gap openings 
+gaps Total number of gaps 
+ppos Percentage of positive - scoring matches 
+qframe Query frame 
+btop Blast traceback operations(BTOP) 
+stitle Subject Title salltitles All Subject Title(s), separated by a ’<>’ 
+qcovhsp Query Coverage Per HSP 
+qtitle Query title 
+Bydefault,thereare 12 preconﬁgured ﬁelds: 
+    qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore. 
+"""
