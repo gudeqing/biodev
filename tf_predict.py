@@ -518,10 +518,15 @@ if __name__ == '__main__':
                     continue
                 short_name, sp = line.strip().split('\t')
                 short_name_dict[sp.lower()] = short_name
+    if args.s == "plant":
+        pep_list = args.tfdb + '/plant_tf_pep/pep.list'
+    else:
+        pep_list = args.tfdb + '/animal_tf_pep/pep.list'
+    pep_pd = pd.read_table(pep_list, header=0)
 
     # select sequence database for blast
     if args.blast_all == 'yes':
-        top = 5 if args.organism != "unknown" else 1
+        top = 25 if args.organism != "unknown" else 1
         if args.s == "plant":
             target_seq = args.tfdb + '/plant_tf_pep/all_pep.dmnd'
         else:
@@ -533,12 +538,14 @@ if __name__ == '__main__':
                 target_seq = args.tfdb + '/plant_tf_pep/all_pep.dmnd'
             else:
                 if args.organism.capitalize() not in short_name_dict.values():
-                    raise Exception("please provide correct short name of the plant species")
+                    raise Exception("please provide correct short name of the plant species!")
                 target_seq = args.tfdb + '/plant_tf_pep/{}.pep.fa.dmnd'.format(args.organism.capitalize())
         else:
             if args.organism == "unknown":
                 target_seq = args.tfdb + '/animal_tf_pep/all_pep.dmnd'
             else:
+                if args.organism.lower().replace("_", ' ') not in pep_pd['species']:
+                    raise Exception("please provide correct name of the animal species!")
                 target_seq = args.tfdb + '/animal_tf_pep/{}_transcription_factors.fasta.dmnd'.format(args.organism.capitalize())
     run_blast(
         target=target_seq,
@@ -558,11 +565,6 @@ if __name__ == '__main__':
     hmmscan_pd = pd.read_table(hmmscan_result, header=0)
     domain_score = hmmscan_pd.loc[:, ['query_id', 'pfam_id', 'e_value', 'score', "description"]].drop_duplicates()
     domain_score.index = [(x.split(".")[0]+'_'+y) for x, y in zip(domain_score['pfam_id'], domain_score['query_id'])]
-    if args.s == "plant":
-        pep_list = args.tfdb + '/plant_tf_pep/pep.list'
-    else:
-        pep_list = args.tfdb + '/animal_tf_pep/pep.list'
-    pep_pd = pd.read_table(pep_list, header=0)
     pep2species = dict(zip(pep_pd['pep_id'], pep_pd['species']))
     pep2family = dict(zip(pep_pd['pep_id'], pep_pd['family']))
     if args.s != "plant":
@@ -576,7 +578,10 @@ if __name__ == '__main__':
         query2blast_evalue = dict(zip(blast_pd[0], blast_pd[10]))
     else:
         blast_stat = dict()
-        species_col = [pep2species[x].lower().replace(' ', '_') for x in blast_pd[1]]
+        if args.s != "plant":
+            species_col = [pep2species[x].lower().replace(' ', '_') for x in blast_pd[1]]
+        else:
+            species_col = [pep2species[x].lower() for x in blast_pd[1]]
         blast_pd['species'] = species_col
         for _, row in blast_pd.iterrows():
             blast_stat.setdefault(row[0], list())
@@ -586,6 +591,8 @@ if __name__ == '__main__':
         query2blast_evalue = dict()
         for query_id, hit_info in blast_stat.items():
             hit_species = [x[-1] for x in hit_info]
+            if args.s == "plant":
+                hit_species = [short_name_dict[x].lower() for x in hit_species]
             if args.organism.lower() in hit_species:
                 tar_ind = hit_species.index(args.organism.lower())
             else:
