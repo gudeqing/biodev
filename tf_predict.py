@@ -295,6 +295,9 @@ def parse_args():
         lists  of  the  profiles  with  the  most  significant  matches  to the
         sequence.""", )
     parser.add_argument('-s', metavar="species", default="plant", help="plant or animal")
+    # args for selecting peps to build database for blast
+    parser.add_argument('-organism', default="unknown", help="organism name")
+    parser.add_argument('-blast_all', default='yes', help="if 'all', blast without organism specified")
     parser.add_argument('-hmmscan', help="Path of hmmscan", default="/mnt/ilustre/users/sanger-dev/sg-users/litangjian/hmm/hmmer-3.1b2-linux-intel-x86_64/binaries/hmmscan")
     parser.add_argument("-hmmdb", default="/mnt/ilustre/users/sanger-dev/app/database/pfam_31/Pfam-A.hmm", help="""
         The <hmmdb> needs to be  press'ed  using  hmmpress  before  it  can  be
@@ -358,9 +361,6 @@ def parse_args():
     parser.add_argument('-tfdb', default="/mnt/ilustre/users/sanger-dev/app/database/TFDB/")
     parser.add_argument('-diamond', default="/mnt/ilustre/users/sanger-dev/app/bioinfo/align/diamond-0.8.35/diamond")
     parser.add_argument('-evalue', default=0.0001, help="diamond evalue")
-    # args for selecting peps to build database for blast
-    parser.add_argument('-organism', default="unknown", help="organism name")
-    parser.add_argument('-blast_all', default='yes', help="if 'all', blast without organism specified")
     return parser.parse_args()
 
 
