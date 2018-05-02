@@ -544,7 +544,7 @@ if __name__ == '__main__':
             if args.organism == "unknown":
                 target_seq = args.tfdb + '/animal_tf_pep/all_pep.dmnd'
             else:
-                if args.organism.lower().replace("_", ' ') not in pep_pd['species']:
+                if args.organism.lower().replace("_", ' ').capitalize() not in list(pep_pd['species']):
                     raise Exception("please provide correct name of the animal species!")
                 target_seq = args.tfdb + '/animal_tf_pep/{}_transcription_factors.fasta.dmnd'.format(args.organism.capitalize())
     run_blast(
@@ -640,7 +640,7 @@ if __name__ == '__main__':
                     )
                 final_result.append(tmp_dict)
     print("---------------------finish----------------------")
-    print(final_result)
+    # print(final_result)
     final_result_pd = pd.DataFrame(final_result)
     column_order = ['query_id', 'family', 'domain', 'domain_link', 'description', 'e_value', 'score']
     column_order += ['blast_hit', 'hit_link', 'hit_family', 'hit_pident', 'hit_evalue']
