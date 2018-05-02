@@ -308,7 +308,7 @@ def parse_args():
            holm,  aligned  fasta, and others). See the --qformat option for a com-
            plete list.
         """)
-    parser.add_argument("-o", default="raw_result.txt", help="""
+    parser.add_argument("-o", default="hmmscan_raw_result.txt", help="""
         Direct the main human-readable output to a file <f>  instead  of
         the default stdout.
         """)
