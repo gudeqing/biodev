@@ -4,11 +4,11 @@ import unittest
 author = 'gdq'
 
 
-def split_fasta(fasta, chunk_size=100, out_prefix='split'):
+def split_fasta(fasta, chunk_size=100, out_prefix='split', strip_char=".*", replace=('.', 'X')):
     with open(fasta) as f:
         seq_num = 0
         chunk_num = 0
-        out_name = out_prefix + '_' + str(chunk_num)
+        out_name = out_prefix + '_' + str(chunk_num) + '.fa'
         file_objects = {chunk_num: open(out_name, 'w')}
         for line in f:
             if line.startswith("#") or (not line.strip()):
@@ -18,8 +18,10 @@ def split_fasta(fasta, chunk_size=100, out_prefix='split'):
                 seq_num += 1
                 if chunk_num not in file_objects:
                     file_objects[chunk_num-1].close()
-                    out_name = out_prefix + '_' + str(chunk_num)
+                    out_name = out_prefix + '_' + str(chunk_num) + '.fa'
                     file_objects[chunk_num] = open(out_name, 'w')
+            line = line.strip().strip(strip_char) + '\n'
+            line = line.replace(replace[0], replace[1])
             file_objects[chunk_num].write(line)
         else:
             file_objects[chunk_num].close()
@@ -39,7 +41,7 @@ if __name__ == '__main__':
     # unittest.TextTestRunner(verbosity=2).run(suite)
     parser = argparse.ArgumentParser(description="split fasta file")
     parser.add_argument('-f', help="fasta file to be split")
-    parser.add_argument('-size', metavar="split_size", help="specify sequence number of each split file")
+    parser.add_argument('-size', metavar="split_size", type=int, help="specify sequence number of each split file")
     parser.add_argument('-prefix', help="prefix of each split file name")
     args = parser.parse_args()
     split_fasta(args.f, args.size, args.prefix)
