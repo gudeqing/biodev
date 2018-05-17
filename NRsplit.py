@@ -312,7 +312,8 @@ class ParseNCBITaxonomy(object):
         file_obj_dict = dict()
         node_dict = self.parse_nodes(node_file=node_file)
         for tax_name in name2taxid_dict:
-            file_obj_dict[tax_name] = open(tax_name+'.fa', 'w')
+            tmp_tax_name = tax_name.split('_tax_id')[0]
+            file_obj_dict[tax_name] = [open(tmp_tax_name+'.fa', 'w'), open(tmp_tax_name+'.prot_taxId_scientificName.txt', 'w')]
             tmp_tax_id = name2taxid_dict[tax_name]
             target_children_taxid_dict[tax_name] = self.children_set_calculator(tmp_tax_id, node_dict=node_dict)
 
@@ -328,7 +329,8 @@ class ParseNCBITaxonomy(object):
                 if prot_tax_id in target_children_taxid_dict[tax_name]:
                     # if scientific name and tax id are wanted, using the following line
                     # file_obj_dict[tax_name].write('>'+seq_name+' ['+prot_tax_id+':'+sci_name+'] '+desc+'\n '+sequence)
-                    file_obj_dict[tax_name].write('>'+seq_name+' '+desc+'\n'+sequence)
+                    file_obj_dict[tax_name][0].write('>'+seq_name+' '+desc+'\n'+sequence)
+                    file_obj_dict[tax_name][1].write('{}\t{}\t{}\n'.format(seq_name, prot_tax_id, sci_name))
                     classified_num += 1
             if classified_num == 0:
                 f.write(seq_name + '\tits tax_id {} was not classified as any of target '
@@ -336,7 +338,9 @@ class ParseNCBITaxonomy(object):
         f.close()
         # close file objects
         for obj_name in file_obj_dict:
-            file_obj_dict[obj_name].close()
+            file_obj_dict[obj_name][0].close()
+            file_obj_dict[obj_name][1].close()
+
 
 if __name__ == "__main__":
     import time
