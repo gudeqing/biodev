@@ -138,6 +138,7 @@ def judge_plant_tf(domain_stat_dict, rule_dict_list):
             if not query2family[query_id]:
                 _ = "{} was not judged as any kind of TF".format(query_id)
                 query2family.pop(query_id)
+
     return query2family
 
 
@@ -195,6 +196,7 @@ def parse_plant_tf_judge_rules(raw_rules):
     rule_dict_list = list()
     # Family	SubFamily	DNA-binding domain	Auxiliary domain	Forbidden domain
     for each in rule_list[1:]:
+        each = each.replace("self-build", "PF0000x")  # 方便后续正则匹配，得出正确的判定规则
         tmp_dict = dict(zip(header, each.split('\t')))
         # sub_family = tmp_dict['SubFamily']
         binding_domain = tmp_dict["DNA-binding domain"]
@@ -231,6 +233,9 @@ def parse_plant_tf_judge_rules(raw_rules):
         if match_result:
             for pf_id in match_result:
                 judge_rule_dict['forbidden'].append(pf_id)
+        # 如果只有binding domain，那么就认为family和subfamily要保持一致
+        if 'auxiliary' not in judge_rule_dict and 'forbidden' not in judge_rule_dict:
+            tmp_dict['Family'] = tmp_dict['SubFamily']
         # save rule dict
         tmp_dict['judge_rule'] = judge_rule_dict
         rule_dict_list.append(tmp_dict)
@@ -634,9 +639,9 @@ if __name__ == '__main__':
                     tmp_dict.update(
                         blast_hit='None',
                         hit_family='None',
-                        hit_pident='None',
+                        hit_pident=-1,
                         hit_link='None',
-                        hit_evalue='None',
+                        hit_evalue=-1,
                     )
                 final_result.append(tmp_dict)
     print("---------------------finish----------------------")
