@@ -154,7 +154,7 @@ class QuantExpToolbox(object):
                     cmd += '--rf-stranded '
                 else:
                     print('the library type {} is invalid and will be ignored'.format(self.libtype))
-                    # raise Exception('library type can only be either "fr" or "fr"')
+                    # raise Exception('library type can only be either "fr" or "rf"')
                     pass
             cmd += '-t {} '.format(self.threads)
             if len(fq_list) == 1:
