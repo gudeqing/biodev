@@ -24,11 +24,17 @@ def exp_calculator_with_count(count_table_file):
         # This gives you reads per kilobase (RPK)
         rpk = count_table[sample]/gene_len
         # get rpkm/fpkm
-        total_counts = sum(count_table[sample])
-        rpkm = rpk/total_counts*1000000*1000
+        total_counts = sum(count_table[sample])/1000
+        """
+        rpkm = (count_table[sample]/gene_len)/(sum(count_table[sample])/1000)*1000000
+        """
+        rpkm = rpk/total_counts*1000000
         # get tpm
         norm_gene_len_total_counts = sum(rpk)
         tpm = rpk/norm_gene_len_total_counts*1000000
+        """
+        tpm = (count_table[sample]/gene_len)/sum(count_table[sample]/gene_len)*1000000
+        """
         # save
         rpkm_dict[sample] = rpkm
         tpm_dict[sample] = tpm
