@@ -1,0 +1,64 @@
+#!/bin/bash
+#SBATCH -c 6
+#SBATCH -n 2
+#SBATCH -N 2
+#SBATCH -J Quant.Quant.SingleQuant
+#SBATCH -p SANGERDEV
+#SBATCH --mem=50G
+#SBATCH -o bowtie_%j.out
+#SBATCH -e bowtie_%j.err
+cd /mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/Analysis/bowtie_align
+
+/mnt/ilustre/users/sanger-dev/app/bioinfo/align/bowtie2-2.2.9/bowtie2-build --large-index \
+--threads 4 \
+/mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/Analysis/mmu_annotation/Mus_musculus.GRCm38.dna.toplevel.fa \
+/mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/Analysis/bowtie_index/ref_index \
+&& \
+/mnt/ilustre/users/sanger-dev/app/bioinfo/align/bowtie2-2.2.9/bowtie2 \
+-x /mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/Analysis/bowtie_index/ref_index \
+-1 /mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/Cleandata/Input/Input_R1.fq \
+-2 /mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/Cleandata/Input/Input_R2.fq \
+-S Input/Input.sam \
+--un-conc-gz Input/Input.unmapped.gz \
+-N 1 \
+-p 6 \
+&& \
+/mnt/ilustre/users/sanger-dev/app/bioinfo/align/bowtie2-2.2.9/bowtie2 \
+-x /mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/Analysis/bowtie_index/ref_index \
+-1 /mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/Cleandata/SMC3/SMC3_R1.fq \
+-2 /mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/Cleandata/SMC3/SMC3_R2.fq \
+-S SMC3/SMC3.sam \
+--un-conc-gz SMC3/SMC3.unmapped.gz \
+-N 1 \
+-p 6 \
+&& \
+/mnt/ilustre/users/sanger-dev/app/program/Python/bin/samtools view -h -F 12 -q 30 Input/Input.sam > Input/Input_mapped.sam \
+&& \
+/mnt/ilustre/users/sanger-dev/app/program/Python/bin/samtools view -h -F 12 -q 30 SMC3/SMC3.sam > SMC3/SMC3_mapped.sam \
+&& \
+python /mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/MACS-1.4.2/bin/macs14 -g mm -t SMC3/SMC3_mapped.sam -c Input/Input_mapped.sam --format SAM --name "SMC3" --keep-dup 1 --wig --single-profile --space=50 --diag
+
+# 关于mapping quality的选择 http://pubmedcentralcanada.ca/pmcc/articles/PMC5443578/?lang=en
+# http://homer.ucsd.edu/homer/ngs/peakMotifs.html
+# ---------------------------------------------------------------
+# 获得gene注释信息
+sed 's/gene_id\s"\([A-Za-z0-9]\+\)";/\1\t/g' gene.bed | less
+# peak 注释
+# /mnt/ilustre/users/sanger-dev/app/bioinfo/rna/bedtools2-master/bin/bedtools
+sed -n '24,$p' SMC3_peaks.xls | awk -F '\t' -OFS='\t' '{if (NR==1){print $0"\tpeak_id"} else {print $0"\tMACS_peak_"NR-1} }' >  SMC3_peaks.bed
+less Mus_musculus.GRCm38.89.gtf | awk -F '\t' '$3=="gene"' | cut -f1,4- | cut -f1,2,3,5,7 > gene.bed
+/mnt/ilustre/users/sanger-dev/app/bioinfo/rna/bedtools2-master/bin/bedtools intersect -b ../mmu_annotation/gtf/gene.bed -a SMC3_peaks.bed  -wo > bedtools.intersect.result
+
+# motif 分析， 使用MEME-chip， http://meme-suite.org/doc/download.html?man_type=web
+awk -F '\t' '{print $1,$2-300,$3+300,$4,$5}' OFS='\t' SMC3_summits.bed  > centred600peak.bed
+在线分析
+
+#  用homer 注释peak. http://homer.ucsd.edu/homer/ngs/annotation.html
+perl /mnt/ilustre/users/sanger-dev/sg-users/deqing/chipseq/HOMER/bin/annotatePeaks.pl SMC3_peaks.bed ../mmu_annotation/Mus_musculus.GRCm38.dna.toplevel.fa -gtf ../mmu_annotation/gtf/Mus_musculus.GRCm38.89.gtf -gid -go go_result  > SMC3_peaks.annot
+
+# 脚本拼接结果
+# python add_table.py -i peak.annot.tmp -col 12 -table gene.annot -ind 5 -o peak.annot.xls
+
+# 画饼图
+a.plot.pie(subplots=True, autopct='%1.2f%%', pctdistance = 0.6, legend=False, cmap='rainbow')
+plt.axis('equal')
