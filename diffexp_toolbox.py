@@ -223,8 +223,11 @@ class DiffExpToolbox(PvalueCorrect):
         if sorted(self.count_dicts.keys()) != sorted(self.exp_dicts.keys()):
             raise Exception("The first id column of count table and exp table are different !")
 
-    def filter(self, count_cutoff=4, passed_number_cutoff=None):
-        with open(self.count) as f, open(self.count+'_filtered', 'w') as f2:
+    def filter(self, count_cutoff=4, passed_number_cutoff=None, output=None):
+        if output is None:
+            output = os.getcwd()
+        out_count = os.path.join(output, os.path.basename(self.count) + '_filtered')
+        with open(self.count) as f, open(out_count, 'w') as f2:
             line = f.readline()
             f2.write(line)
             header = line.strip('\n').split('\t')
@@ -255,7 +258,7 @@ class DiffExpToolbox(PvalueCorrect):
                     f2.write(line)
                 else:
                     self.filtered_seqs.append(tmp_list[0])
-        self.count_filtered = self.count+'_filtered'
+        self.count_filtered = out_count
 
     @staticmethod
     def exp_calculator_with_count(count_table_file, exp_type='both'):
@@ -792,3 +795,5 @@ if __name__ == "__main__":
         pool.close()
         pool.join()
         # done
+
+
