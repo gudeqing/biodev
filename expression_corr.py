@@ -34,7 +34,7 @@ def expression_var(exp_matrix, exp_threshold=0.1, sep='\t', trinity_ptr=trinity_
     # print(colors)
     plt.bar(range(expressed_num_series.shape[0]), expressed_num_series, color=colors)
     plt.xticks(range(expressed_num_series.shape[0]), expressed_num_series.index, rotation=90)
-    # expressed_num_series.plot(kind='bar', rot=90, color=colors)  似乎服务器上的版本不能给bar分配不同的颜色
+    # expressed_num_series.plot(kind='bar', rot=90, color=colors)  似乎服务器上的python版本不能给bar分配不同的颜色
     plt.title('Number of genes with expression over {}'.format(exp_threshold))
     plt.savefig('gene_expression_over_{}_bar.pdf'.format(exp_threshold), dpi=300, bbox_inches='tight')
     plt.close()

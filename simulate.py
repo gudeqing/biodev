@@ -368,7 +368,8 @@ def simulate_mutation_cmd(vcf_path, bam_path, fq1, fq2, af=0.2, mu_type='snv', s
     return cmd, out_dir
 
 
-def simulate_mutation_cmd2(vcf_path, bam_path, fq1, fq2, af=0.2, mu_type='snv', seed=1):
+def simulate_mutation_cmd2(vcf_path, bam_path, fq1, fq2, af=0.2, mu_type='snv', seed=1,
+                           expect_mutation_number=100, depth_threshold=600):
     if mu_type.lower() == 'snv' or mu_type.lower() == 'indel':
         cmd = "python /share/home/deqing.gu/pycharm_projects/mutation_simulation/simulate_mutation_v2.py "
         new_sample_name = os.path.basename(bam_path)[:-8]
@@ -385,6 +386,8 @@ def simulate_mutation_cmd2(vcf_path, bam_path, fq1, fq2, af=0.2, mu_type='snv', 
         cmd += "-out_fastq_prefix {} ".format(new_sample_name)
         cmd += "-fq1 {} ".format(fq1)
         cmd += "-fq2 {} ".format(fq2)
+        cmd += "-expect_mutation_number {} ".format(expect_mutation_number)
+        cmd += "-depth_threshold {} ".format(depth_threshold)
         return cmd, out_dir
 
     if mu_type.lower() == 'fusion':
@@ -428,7 +431,8 @@ def simulate_mutation_cmd2(vcf_path, bam_path, fq1, fq2, af=0.2, mu_type='snv', 
 
 
 def batch_simulate(sampled_dir, pipeline_out='pipeline_result', vcf_list=None, pyflow=True,
-                   mu_type='snv', af_list=(0.01, 0.02, 0.05, 0.1, 0.2)):
+                   mu_type='snv', af_list=(0.01, 0.02, 0.05, 0.1, 0.2),
+                   expect_mutation_number=100, depth_threshold=600):
     time_mark = str(time.time()).replace('.', '_')
     logger = set_logger('batch_simulation_{}.log'.format(time_mark), 'x2')
     sample_id_list = [os.path.basename(x).split('_')[0] for x in glob.glob(sampled_dir + '/*_R1_*.fastq*')]
@@ -451,7 +455,9 @@ def batch_simulate(sampled_dir, pipeline_out='pipeline_result', vcf_list=None, p
                     logger.warning('Failed to grab seed from sample name, but this is not important!')
                     seed = seed*2 + 1
                 task_ids.append(sample+mu_type.capitalize()+os.path.basename(vcf).split('_')[-1].replace('.', '')+'af'+str(af).replace('.', '')+'seed'+str(seed))
-                cmd, out_dir = simulate_mutation_cmd2(vcf, bam_path, fq1, fq2, af=af, mu_type=mu_type, seed=seed)
+                cmd, out_dir = simulate_mutation_cmd2(vcf, bam_path, fq1, fq2, af=af, mu_type=mu_type, seed=seed,
+                                                      expect_mutation_number=expect_mutation_number,
+                                                      depth_threshold=depth_threshold)
                 logger.warning(cmd)
                 cmd_list.append(cmd)
                 out_dir_set.add(out_dir)
@@ -510,25 +516,107 @@ def after_simulate_analysis(out_dir_set=None,  batch_id='LK291', panel='Oncoscre
         # 一定时间后再投递另外一批分析
         time.sleep(8888+1111)
         if sample_type.lower() == 'ctdna':
-            time.sleep(9999+5555)
+            time.sleep(9999+6666)
 
 
-def main(sample_name, raw_dir, qc_result, depth=1000, seeds=(1,3,5,7,9), batch_id='LK291', panel='Oncoscreen.520.v3',
-         sample_type='FFPE', pipeline_out='pipeline_result', target_vcfs=None, chunk_vcf_size=100, chunk_number=10,
-         exclude_vcfs=None, mu_type='snv', af_list=(0.01, 0.02, 0.05, 0.1, 0.2), pyflow=True, final_analysis=True):
-    sampled_dir = sampling(sample_name, raw_dir, qc_result, depth=depth, seeds=seeds)
-    run_pipeline(sampled_dir, batch_id=batch_id, panel=panel, sample_type=sample_type, out_dir=pipeline_out)
-    time.sleep(3666)  # wait for run_pipeline
-    sample_id_list = [os.path.basename(x).split('_')[0] for x in glob.glob(sampled_dir + '/*_R1_*.fastq*')]
-    bam_dir_list = (pipeline_out + '/{}/bam/'.format(x) for x in sample_id_list )
-    map(wait_bam_born, bam_dir_list)  # wait for bam.bai
-    target_vcf = filter_vcf(target_vcfs, exclude_vcfs)
-    vcf_list = split_target_mutation_vcf(target_vcf, size=chunk_vcf_size, drop_smaller_size=True, need_file_num=chunk_number)
-    out_dir_set = batch_simulate(sampled_dir, pipeline_out=pipeline_out, vcf_list=vcf_list,
-                                 mu_type=mu_type, af_list=af_list, pyflow=pyflow)
-    if not final_analysis:
+def main(sample_name=None, raw_dir=None, qc_result=None, depth=1000, seeds="1,3,5,7,9",
+         batch_id='LK291', panel='Oncoscreen.520.v3', sample_type='FFPE',
+         downsample_dir=None,
+         downsample_pipeline_out=None,
+         target_vcfs=None, chunk_vcf_size=120, chunk_number=10, exclude_vcfs=None,
+         mu_type='snv', af_list="0.01,0.02,0.05,0.1,0.2", expect_mutation_number=100, depth_threshold=600,
+         pyflow=True, analysis_simulated=True,
+         output_sample_dir="/share/home/deqing.gu/devdata/pipeline_output_Sample"):
+    """
+    downsample+模拟+分析
+    :param sample_name: 被downsample的样本id，与raw_dir目录中的信息应该一致，如果不提供，则需提供downsample_dir
+    :param raw_dir: 被downsample的样本的fastq所在目录
+    :param qc_result: 被downsample的样本的QC分析结果
+    :param depth: 要模拟的测序深度，默认1000
+    :param seeds: downsample时的seed参数，默认"1,3,5,7,9"，表示要进行5次downsample
+    :param batch_id: 一键化分析需要的参数，用于生成config文件，默认'LK291'
+    :param panel: 一键化分析需要的参数，用于生成config文件，默认'Oncoscreen.520.v3'
+    :param sample_type:  一键化分析需要的参数，用于生成config文件，默认'FFPE'
+    :param downsample_dir: downsample的结果目录
+    :param downsample_pipeline_out: downsample数据的一键化分析结果目录，如果提供，则可以跳过该一键化分析步骤。
+    :param target_vcfs: 待模拟的vcf，包含要模拟的位点信息，请提供比预期还要多的模拟位点（因为还要过滤），如不提供，则不进行模拟分析。
+    :param chunk_vcf_size: 对待模拟的vcf文件进行切割的大小，如100，表示每份包含100个突变，
+    :param chunk_number: 对待模拟的vcf文件进行切割的次数，如10，表示切割10份，这10份将分别用于模拟。
+    :param exclude_vcfs: 一般输入已知的germline的突变信息，包含在这里的突变位点将不被模拟。
+    :param mu_type: 模拟的突变类型，为'snv'或'indel'
+    :param af_list: 模拟的频率，默认"0.01,0.02,0.05,0.1,0.2"，最终模拟的样本数=seeds长度*chunk_number*af_list长度
+    :param expect_mutation_number:  决定引入的突变个数，即期望从每份vcf中提取的模拟位点个数，多余的位点信息将不被考虑
+    :param depth_threshold: 挑选模拟位点时用到的覆盖度阈值
+    :param pyflow: 是否使用pyflow管理模拟进程，默认使用，如设置则不使用pyflow，且该脚本需投递执行。
+    :param analysis_simulated: 是否对模拟数据进行分析，默认为True，如设置，则不分析
+    :param output_sample_dir: pipeline分析结果的模板文件夹，默认跳过一些步骤，为了最终report不报错，需把目录补齐
+    :return:
+    使用示例：
+    python simulate.py
+    -sample_name RD1804206FFP
+    -raw_dir /share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/FASTQ
+    -qc_result /share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/QC/RD1804206FFP.QC.xls
+    -seeds 1,2
+    -af_list 0.02,0.05
+    -target_vcfs /share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/mutate_candidates/snv.vcf
+    -chunk_vcf_size 130
+    -chunk_number 1
+    -exclude_vcfs /share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/mutate_candidates/NA12878.vcf
+    -mu_type snv
+    -expect_mutation_number 100
+    -depth_threshold 600
+    """
+    if sample_name:
+        if not raw_dir:
+            print("Please provide rawdata directory for down-sampling fastq!")
+            exit(0)
+        if not qc_result:
+            print('Please provide qc result file for down-sampling fastq')
+            exit(0)
+        seeds = [int(x) for x in  seeds.strip().split(",")]
+        downsample_dir = sampling(sample_name, raw_dir, qc_result, depth=depth, seeds=seeds)
+    else:
+        print("你没有提供样本名，所以跳过downsample阶段")
+        if not os.path.exists(downsample_dir) or (downsample_dir is None):
+            print("downsample result directory is not existed!")
+            exit(0)
+
+    if downsample_pipeline_out:
+        if not os.path.exists(downsample_pipeline_out):
+            print("你提供的downsample数据一键化分析结果的路径不对")
+        else:
+            print("你提供了downsample数据一键化分析结果的路径，故跳过对downsample数据的分析,直接进入模拟阶段")
+    else:
+        downsample_pipeline_out = 'pipeline_result'
+        run_pipeline(downsample_dir, batch_id=batch_id, panel=panel, sample_type=sample_type,
+                     out_dir=downsample_pipeline_out)
+        time.sleep(3666)  # wait for run_pipeline
+        sample_id_list = [os.path.basename(x).split('_')[0] for x in glob.glob(downsample_dir + '/*_R1_*.fastq*')]
+        bam_dir_list = (downsample_pipeline_out + '/{}/bam/'.format(x) for x in sample_id_list )
+        map(wait_bam_born, bam_dir_list)  # wait for bam.bai
+
+    if not target_vcfs:
+        print("你没有提供待模拟vcf文件，因此不做模拟分析，但仍然可以完成downsample工作和对downsample的一键化分析工作")
+        return
+
+    if not exclude_vcfs:
+        print("你没有提供类似记录germline突变的vcf文件，因此不对你提供的待模拟vcf文件进行过滤")
+    else:
+        target_vcfs = filter_vcf(target_vcfs, exclude_vcfs)
+    vcf_list = split_target_mutation_vcf(target_vcfs, size=chunk_vcf_size,
+                                         drop_smaller_size=True, need_file_num=chunk_number)
+
+    # simulation
+    af_list = [float(x) for x in af_list.strip().split(',')]
+    out_dir_set = batch_simulate(downsample_dir, pipeline_out=downsample_pipeline_out, vcf_list=vcf_list,
+                                 mu_type=mu_type, af_list=af_list, pyflow=pyflow,
+                                 expect_mutation_number=expect_mutation_number,
+                                 depth_threshold=depth_threshold)
+    if not analysis_simulated:
+        print("你选择暂不对模拟数据进行一键化分析，后续你可以选择用analysis_simulated_data.py进行分析")
         return out_dir_set
-    after_simulate_analysis(out_dir_set, batch_id=batch_id, panel=panel, sample_type=sample_type)
+    after_simulate_analysis(out_dir_set, batch_id=batch_id, panel=panel, sample_type=sample_type,
+                            output_sample_dir=output_sample_dir)
 
 
 def main2(sampled_dir=None, pipeline_out=None, batch_id='LK291', panel='Oncoscreen.520.v3',
@@ -554,7 +642,43 @@ def main2(sampled_dir=None, pipeline_out=None, batch_id='LK291', panel='Oncoscre
     after_simulate_analysis(out_dir_set, batch_id=batch_id, panel=panel, sample_type=sample_type)
 
 
-# -----------------------ce shi-----------------------------
+def introduce_command(func):
+    import argparse
+    import inspect
+    import json
+    import time
+    parser = argparse.ArgumentParser(description=func.__doc__, formatter_class=argparse.RawTextHelpFormatter)
+    func_args = inspect.getargspec(func)
+    arg_names = func_args.args
+    arg_defaults = func_args.defaults
+    arg_defaults = ['None']*(len(arg_names) - len(arg_defaults)) + list(arg_defaults)
+    for arg, value in zip(arg_names, arg_defaults):
+        if value == 'None':
+            parser.add_argument('-'+arg, required=True, metavar=arg)
+        elif type(value) == bool:
+            if value:
+                parser.add_argument('--'+arg, action="store_false", help='default: True')
+            else:
+                parser.add_argument('--'+arg, action="store_true", help='default: False')
+        elif value is None:
+            parser.add_argument('-' + arg, default=value, metavar='Default:' + str(value), )
+        else:
+            parser.add_argument('-' + arg, default=value, type=type(value), metavar='Default:' + str(value), )
+    if func_args.varargs is not None:
+        print("warning: *varargs is not supported, and will be neglected! ")
+    if func_args.keywords is not None:
+        print("warning: **keywords args is not supported, and will be neglected! ")
+    args = parser.parse_args().__dict__
+    with open("Argument_detail_for_{}.json".format(os.path.basename(__file__).split(".")[0]), 'w') as f:
+        json.dump(args, f, indent=2, sort_keys=True)
+    start = time.time()
+    func(**args)
+    print("total time: {}s".format(time.time() - start))
+
+
+
+
+# -----------------------下面是各种测试用例-----------------------------
 # for FFPE simulate
 def test_sampling():
     sample_name = "RD1804206FFP"
@@ -573,9 +697,9 @@ def test_sampling():
 
 
 def test_snv_main3():
-    sample_name = "RD1804206FFP"
-    raw_dir = "/share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/FASTQ"
-    qc_result = "/share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/QC/RD1804206FFP.QC.xls"
+    # sample_name = "RD1804206FFP"
+    # raw_dir = "/share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/FASTQ"
+    # qc_result = "/share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/QC/RD1804206FFP.QC.xls"
     exclude_vcfs = ['/share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/mutate_candidates/NA12878.vcf', ]
     target_vcfs = "/share/home/deqing.gu/devdata/simulate_rawdata_for_FFPE/mutate_candidates/snv.vcf"
     mu_type = 'snv'
@@ -663,7 +787,8 @@ if __name__ == '__main__':
     # test_indel_main_ctdna()
     # test_snv_main_ctdna
 
-    out_dir_set = None
-    time.sleep(3600*48)
-    after_simulate_analysis(out_dir_set=out_dir_set, batch_id='LK292', panel='Oncoscreen.520.v3', sample_type='ctDNA', output_sample_dir="/share/home/deqing.gu/devdata/pipeline_output_Sample")
+    # out_dir_set = None
+    # time.sleep(3600*48)
+    # after_simulate_analysis(out_dir_set=out_dir_set, batch_id='LK292', panel='Oncoscreen.520.v3', sample_type='ctDNA', output_sample_dir="/share/home/deqing.gu/devdata/pipeline_output_Sample")
     # after_simulate_analysis(out_dir_set=out_dir_set, batch_id='LK291', panel='Oncoscreen.520.v3', sample_type='FFPE', output_sample_dir="/share/home/deqing.gu/devdata/pipeline_output_Sample")
+    introduce_command(main)

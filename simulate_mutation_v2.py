@@ -11,14 +11,15 @@ import json
 import cPickle as pickle
 __author__ = 'gdq'
 """
-bam是0-based坐标，而pysam用0-based方法读取信息
+bam是0-based坐标，pysam也是用0-based方法读取信息
 0. fetch命令可以读取某个区域比对上的所有reads，随后可以决定要随机修改的reads集合
 1. 用fetch读取bam文件，结合输入的突变位点信息，获得需要修改的reads集合
 3. 修改原reads并生成fastq文件，有两种思路：
-    a. 按顺序读取bam文件，并一行行写入新的bam文件当中去，在写之前进行判断并修改，需要过滤掉secondary-alignment，后直接获得修改后的bam文件。
+    a. 按顺序读取bam文件，并一行行写入新的bam文件当中去，在写之前进行判断并修改，
+       需要过滤掉secondary-alignment，后直接获得修改后的bam文件。
        最后把bam文件转换为fastq, 这中间需要对bam进行排序（相对第二种，无需输入原fastq，但速度相对慢）
     b. 直接遍历原fastq文件，修改相应reads，生成新的fastq文件（速度较快，需输入原fastq）
-4. 弊端：暂时不能模拟大片段的indel，即indel超过read长度
+4. 弊端：暂时不能模拟大片段的indel，即indel超过read长度;仅针对单端测序数据模拟
 """
 
 
@@ -81,8 +82,36 @@ def pickle_read_pos(bam_file):
 
 
 def get_candidate_info(bam_file, chr_, ref_start, ref, alt, depth_threshold=300, expected_af=0.1, logger=None):
-    # dup-read: read 和 read' 对应的r1和r2的比对起始位置相同,且他们的mate的比对起始位置也相同， 模拟时read和read'需同时修改
-    # pair-read： r1 and r2 都包含突变位点属于pair, 模拟时r1和r2需同时修改
+    """
+    read的分类说明：
+    # dup-pair-read: read 和 read' 对应的r1和r2的比对起始位置相同,且他们的mate的比对终止位置也相同， 模拟时read和read'需同时修改
+    # pair-read： 若r1 and r2 都包含突变位点则属于pair, 模拟时r1和r2需同时修改
+    # unique-pair： pair-read 减去 dup-pair-read
+    # single：r1和r2中只有一条read比对当前要模拟的区域，由于此时若要同时获得两条read的比对位置，势必要通读bam文件，耗时较长。
+    # 因此下面用likely的策略来对read进行分类，以供后续突变模拟的选择使用。
+    # likely unique-single： likely指仅用当前read的比对起止位置作为标记来判断是否duplicated
+    # likely dup-single： likely指仅用当前read的比对起止位置作为标记来判断是否duplicated
+    # bad-read: (not read.is_proper_pair) | read.is_secondary | cigar-string不全为M | 当前突变位点处已经存在突变
+
+    候选read的筛选条件：
+    1. 突变起始位置要落在read比对上的区间
+    2. read能比对上，且cigar-string不能为空, 且是is-proper—pair，且不能是is-secondary
+    3. read1和read2在当前模拟的突变位点处不能存在突变；cigar-string只能全是M
+    4. 如read末端仅包含部分ref（突变前的参考序列）序列，则该read及其mate也不能参与模拟，且有日志记录
+    5. 如果某组dup read 数量已经达到了目标模拟reads数的85%， 那么不应该把这组dup read作为模拟候选，且有日志记录
+    6. bad-read-number的比例占coverage的0.1以上时，不对当前提供的位点进行突变模拟，且日志有记录
+    7. coverage低于提供的阈值depth_threshold值时，不对当前提供的位点进行突变模拟，且日志有记录
+
+    :param bam_file: bam 文件的路径
+    :param chr_: 染色体名称
+    :param ref_start: 突变起始位置
+    :param ref: 突变前的参考序列
+    :param alt: 突变后的序列
+    :param depth_threshold: 测序深度阈值
+    :param expected_af: 期望模拟的突变频率
+    :param logger: 日志文件对象，默认从头创建日志
+    :return:
+    """
     if logger is None:
         logger = set_logger('get_candidates.log', 'get_candidates')
     pattern = re.compile('\d+M$')
@@ -111,7 +140,7 @@ def get_candidate_info(bam_file, chr_, ref_start, ref, alt, depth_threshold=300,
             pair_read_dict.setdefault(read.query_name, set())
             pair_read_dict[read.query_name].add(ind)
 
-        if not read.is_proper_pair or read.is_secondary:
+        if (not read.is_proper_pair) or read.is_secondary:
             bad_read_number += 1
             continue
         if not pattern.match(read.cigarstring):
@@ -216,7 +245,15 @@ def get_candidate_info(bam_file, chr_, ref_start, ref, alt, depth_threshold=300,
 
 def sieve_candidates(candidates, coverage, dup_pair_dict, dup_single_dict, unique_pair_dict, unique_single_dict, af, logger):
     """
-    以比对的坐标信息为key，相应的reads为values； 随机抽取这些key，从而随机获得相应需修改的reads信息
+    随机挑选要修改的read过程：
+    1. 大体思路：以比对的坐标信息为key，相应的reads为values； 随机抽取这些key，从而随机获得相应需修改的reads信息
+    2. 随机的实现： random.sample, 无需设置seed，每次都是随机实验
+    3. 假设候选总数为N，随机挑出N-1个，此时获得的是无序列表S
+    4. 将S的第一个元素替换为dup-pair中的一条，该条随机挑选获得，为了保证至少选中一个dup-pair。
+    5. 总共需要挑选的read数量为：int(round(coverage * af))
+    5. 对S进行循环取值，并累加统计挑选出来的reads总数, 且设每轮循环时还需挑选的read数量为Diff。
+    6. 如果当前循环取出的read数目超过Diff+3，那么放弃本轮循环挑选出来的reads，目的是为了控制最后的AF偏差
+    7. 循环终止的条件：最后挑选出来的候选read数目大于等于目标数量
     """
     target_changed_read_num = int(round(coverage * af))
     all_locations = dup_pair_dict.keys() + dup_single_dict.keys() + unique_pair_dict.keys() + unique_single_dict.keys()
@@ -272,6 +309,11 @@ def sieve_candidates(candidates, coverage, dup_pair_dict, dup_single_dict, uniqu
 
 
 def change_read(read, ref, alt, start, max_read_len=151):
+    """
+    修改reads的过程：
+    1. 用alt替换ref得到新的read
+    2. 如果新的read长度超过max_read_len, 则需要从左端或右端去除部分原来的序列
+    """
     qual, seq, read_name = read.qual, read.seq, read.query_name
     read.seq = replace(seq, ref, alt, start=start)
     old_qual = qual[start:start + len(ref)]
@@ -291,7 +333,6 @@ def change_read(read, ref, alt, start, max_read_len=151):
             read.seq = seq[diff_len:]
             read.qual = qual[diff_len:]
         else:
-            # 先去除左端若干，再去除右端若干
             read.seq = seq[start:max_read_len + start]
             read.qual = qual[start:max_read_len + start]
     return read
@@ -384,12 +425,20 @@ def generate_bam_fastq(bam_file, mutation_reads, out_fastq_prefix="simulated"):
 
 
 def reverse_complement(seq):
+    """
+    :param seq: 输入序列
+    :return: 返回reversed的序列
+    """
     seq = seq.upper()
     complement = dict(zip(list("ATCG"), list("TAGC")))
     return ''.join(complement[base] if base in complement else base for base in seq[::-1])
 
 
 def generate_fastq(mutation_reads, fq1=None, fq2=None, out_fastq_prefix="simulated", compress_out=False):
+    """
+    生成fastq：
+    通读原fastq文件，根据read name找到要修改的read，并用新read替换，替换前，如果发现是reverse比对结果，需进行序列反转后再替换。
+    """
     print("total need modified reads number: {}".format(len(mutation_reads)))
     fq_list = list()
     if fq1:
@@ -441,22 +490,57 @@ def generate_fastq(mutation_reads, fq1=None, fq2=None, out_fastq_prefix="simulat
 def simulate_pipeline(bam_file, mutation_file, af=0.1, depth_threshold=800, expect_mutation_number=100, output_dir=None,
                       max_read_len=151, fq1=None, fq2=None, out_fastq_prefix='simulated', compress_out=True):
     """
-    dup-read: read 和 read' 对应的r1和r2的比对起始位置相同,且他们的mate的比对终止位置也相同， 模拟时read和read'需同时修改
-    pair-read： r1 and r2 都包含突变位点, 称之为pair, 模拟时r1和r2需同时修改
-    以比对位置信息作为键，随机抽样位置信息，从而确定要修改的reads
+    read的分类说明：
+    # dup-pair-read: read 和 read' 对应的r1和r2的比对起始位置相同,且他们的mate的比对终止位置也相同， 模拟时read和read'需同时修改
+    # pair-read： 若r1 and r2 都包含突变位点则属于pair, 模拟时r1和r2需同时修改
+    # unique-pair： pair-read 减去 dup-pair-read
+    # single：r1和r2中只有一条read比对当前要模拟的区域，由于此时若要同时获得两条read的比对位置，势必要通读bam文件，耗时较长。
+    因此下面用likely的策略来对read进行分类，以供后续突变模拟的选择使用。
+    # likely unique-single： likely指仅用当前read的比对起止位置作为标记来判断是否duplicated，
+    # likely dup-single： likely指仅用当前read的比对起止位置作为标记来判断是否duplicated，模拟时需同时修改
+    # bad-read: (not read.is_proper_pair) | read.is_secondary | cigar-string不全为M | 当前突变位点处已经存在突变
+
+    候选read的筛选条件：
+    1. 突变起始位置要落在read比对上的区间
+    2. read能比对上，且cigar-string不能为空, 且是is-proper—pair，且不能是is-secondary
+    3. read1和read2在当前模拟的突变位点处不能存在突变；cigar-string只能全是M
+    4. 如read末端仅包含部分ref（突变前的参考序列）序列，则该read及其mate也不能参与模拟，且有日志记录
+    5. 如果某组dup read 数量已经达到了目标模拟reads数的85%， 那么不应该把这组dup read作为模拟候选，且有日志记录
+    6. bad-read-number的比例占coverage的0.1以上时，不对当前提供的位点进行突变模拟，且日志有记录
+    7. coverage低于提供的阈值depth_threshold值时，不对当前提供的位点进行突变模拟，且日志有记录
+
+    随机挑选要修改的read过程：
+    1. 大体思路：以比对的坐标信息为key，相应的reads为values； 随机抽取这些key，从而随机获得相应需修改的reads信息
+    2. 随机的实现：使用 random.sample, 无seed设置，因为每次都是随机实验
+    3. 假设候选总数为N，随机挑出N-1个，此时获得的是无序列表S
+    4. 将S的第一个元素替换为dup-pair中的一条，该条随机挑选获得，目的是为了保证至少选中一个dup-pair。
+    5. 总共需要挑选的read数量为：int(round(coverage * af))
+    5. 对S进行循环取值，并累加统计挑选出来的reads总数, 且设每轮循环时还需挑选的read数量为Diff。
+    6. 如果当前循环取出的read数目超过Diff+3，那么放弃本轮循环挑选出来的reads，目的是为了控制最后的AF偏差
+    7. 循环终止的条件：最后挑选出来的候选read数目大于等于目标数量
+
+    修改reads的过程：
+    1. 对所有挑选出来的read，用alt替换ref得到新的read
+    2. 如果新的read长度超过max_read_len, 则需要从左端或右端去除部分原来的序列
+
+    生成新fastq文件，两种思路：
+    1. 通读原fastq文件，根据read name找到要修改的read，并用新read替换，替换前，如果发现是reverse比对结果，需进行序列反转后再替换。
+    2.  直接修改原bam文件，生成新的bam文件，然后用samtools排序，最后用bedtools生成最fastq
+
+    程序功能：基于bam文件模拟snv或indel的突变，支持snv和indel的同时模拟，indel长度不能比read还长，最终生成fastq文件
 
     :param bam_file: bam文件路径
     :param mutation_file: 目标模拟的突变信息文件，vcf格式，第6列为可选项，为每个位点提供af信息
-    :param af: 指定模拟的突变频率，如已经在mutation_file的第6列提供，可以指定为None.
+    :param af: 指定模拟的突变频率，如已经在mutation_file的第6列提供，可以指定为0.
     :param depth_threshold: 突变位点最低覆盖度，低于该覆盖度的位点将不被模拟，因此mutation_file需提供足够多的模拟位点.
     :param expect_mutation_number: 期望从mutation_file中提取的模拟位点个数，多余的信息不被考虑.
     :param output_dir: fastq，log等的输出目录
-    :param max_read_len: 由于插入突变会导致模拟的read增加长度，需限制最大read长度，另外也作为最大模拟indel的限制
+    :param max_read_len: 由于插入突变会导致模拟的read增加长度，需限制最大read长度，也作为最大模拟indel的限制
     :param fq1: 原read1的fastq文件，可为压缩文件，默认：None， 为None时利用bam文件提取fastq，耗时较长
     :param fq2: 原read2的fastq文件，可为压缩文件，默认：None， 为None时利用bam文件提取fastq，耗时较长
     :param out_fastq_prefix: 输出的fastq文件名前缀，不可带路径信息
     :param compress_out: 是否输出压缩的fastq文件
-    :return: 无返回值
+    :return: 除了生成fastq文件外，还有4个记录文件，分别记录参数信息，引入的突变信息*vcf，模拟过程的log，模拟结果的log
     """
     arg_dict = dict(locals())
     if output_dir is None:
@@ -465,6 +549,8 @@ def simulate_pipeline(bam_file, mutation_file, af=0.1, depth_threshold=800, expe
             os.system("mkdir -p {} ".format(output_dir))
     with open(output_dir+"/Argument_detail.json", 'w') as f:
         json.dump(arg_dict, f, indent=2, sort_keys=True)
+    if af == 0:
+        af = None
     new_read_dict = simulate_reads(bam_file, mutation_file, af=af, depth_threshold=depth_threshold,
                                    output_dir=output_dir, expect_mutation_number=expect_mutation_number,
                                    max_read_len=max_read_len)
@@ -501,7 +587,7 @@ def introduce_command(func):
     if func_args.keywords is not None:
         print("warning: **keywords args is not supported, and will be neglected! ")
     args = parser.parse_args().__dict__
-    with open("Argument_detail.json", 'w') as f:
+    with open("Argument_detail_for_{}.json".format(os.path.basename(__file__).split(".")[0]), 'w') as f:
         json.dump(args, f, indent=2, sort_keys=True)
     start = time.time()
     func(**args)
@@ -511,27 +597,3 @@ def introduce_command(func):
 if __name__ == '__main__':
     introduce_command(simulate_pipeline)
 
-    # import glob
-    # start = time.time()
-    # bam_file = glob.glob('../*.RAW.bam')[0]
-    # mutation_file = 'filtered.vcf_0'
-    # sample_name = 'snv0af0002'
-    # simulate_pipeline(bam_file, mutation_file, af=0.002, out_fastq_prefix=sample_name)
-    # print('simulation total time: {}s'.format(time.time() - start))
-    #
-    # with open('simulate_project.cfg', 'w') as fw:
-    #     fw.write('<project>\n')
-    #     fw.write('fastq_dir = ./\n')
-    #     fw.write('sample_id = {name}\n'.format(name=sample_name))
-    #     fw.write('sample_name = {name}\n'.format(name=sample_name))
-    #     fw.write('sample_cfg = LK291-Oncoscreen.520.v3\n')
-    #     fw.write('sample_type = FFPE\n')
-    #     fw.write('experiment_id = simulate_project\n')
-    #     fw.write('</project>\n')
-    #
-    # cmd = "python ~/../test.rd/app/rdscripts_release/pipeline/run_pipeline.py "
-    # cmd += "-p simulate_project.cfg "
-    # cmd += "-c ~/../test.rd/app/rdscripts_release/configure_file/cfg.template.rd "
-    # cmd += "-o ./"
-    # print(cmd)
-    # os.system(cmd)
