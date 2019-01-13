@@ -9,7 +9,8 @@ from matplotlib import cm
 from matplotlib.colors import Normalize
 import numpy as np
 
-trinity_ptr = "~/software/trinityrnaseq-Trinity-v2.7.0-PRERELEASE/Analysis/DifferentialExpression/PtR"
+# trinity_ptr = "~/software/trinityrnaseq-Trinity-v2.7.0-PRERELEASE/Analysis/DifferentialExpression/PtR"
+trinity_ptr = "/data/packages/trinityrnaseq-Trinity-v2.8.4/Analysis/DifferentialExpression/PtR"
 
 
 def expression_var(exp_matrix, exp_threshold=0.1, sep='\t', trinity_ptr=trinity_ptr):
@@ -43,12 +44,13 @@ def expression_var(exp_matrix, exp_threshold=0.1, sep='\t', trinity_ptr=trinity_
         exit(0)
     cmd = "perl {} ".format(trinity_ptr)
     cmd += "--matrix {} ".format(exp_matrix)
-    cmd += " --min_gene_prevalence {} ".format(data.shape[1] / 2)
+    cmd += " --min_gene_prevalence {} ".format(int(data.shape[1] / 2))
     cmd += "--min_gene_expr_val {} ".format(exp_threshold)
     cmd += "--sample_cor_matrix "
     cmd += "--sample_cor_scale_limits 0.1,1 "
     cmd += "--boxplot_log2_dist {} ".format(exp_threshold)
-    cmd += " --log2 "
+    cmd += "--log2 "
+    cmd += "--prin_comp 3"
     os.system(cmd)
 
 
@@ -79,8 +81,8 @@ def introduce_command(func):
     if func_args.keywords is not None:
         print("warning: **keywords args is not supported, and will be neglected! ")
     args = parser.parse_args().__dict__
-    with open("Argument_detail.json", 'w') as f:
-        json.dump(args, f, indent=2, sort_keys=True)
+    # with open("Argument_detail_for_{}.json".format(os.path.basename(__file__).split(".")[0]), 'w') as f:
+    #     json.dump(args, f, indent=2, sort_keys=True)
     start = time.time()
     func(**args)
     print("total time: {}s".format(time.time() - start))
