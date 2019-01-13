@@ -1,5 +1,4 @@
-#! /mnt/ilustre/users/deqing.gu/anaconda2/bin/python2
-from __future__ import print_function
+# coding=utf-8
 from collections import defaultdict
 from scipy.stats import hypergeom
 import numpy as np
@@ -10,6 +9,7 @@ import glob
 from textwrap import wrap
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import wget
 
 # plt.style.use('ggplot')
 __author__ = "gdq"
@@ -200,6 +200,8 @@ def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gen
             pass
         else:
             considered_classes.update(gene_class_dict[gene])
+    if not considered_classes:
+        exit("差异基因中没有基因有通路注释，富集分析无法继续")
 
     for each_class in considered_classes:
         associated_genes = class_gene_dict[each_class]
@@ -267,11 +269,82 @@ def multtest_correct(p_values, methods=3):
     1. Bonferroni
     2. Bonferroni Step-down(Holm)
     3. Benjamini and Hochberg False Discovery Rate
-    https://www.chem.agilent.com/cag/bsp/sig/downloads/pdf/mtc.pdf
+    4. FDR Benjamini-Yekutieli
     :param pvalue_list:
     :param methods:
-    :return:
+    :return: np.array
     """
+
+    def fdrcorrection(pvals, alpha=0.05, method='indep', is_sorted=False):
+        '''pvalue correction for false discovery rate
+        This covers Benjamini/Hochberg for independent or positively correlated and
+        Benjamini/Yekutieli for general or negatively correlated tests. Both are
+        available in the function multipletests, as method=`fdr_bh`, resp. `fdr_by`.
+        Parameters
+        ----------
+        pvals : array_like
+            set of p-values of the individual tests.
+        alpha : float
+            error rate
+        method : {'indep', 'negcorr')
+        Returns
+        -------
+        rejected : array, bool
+            True if a hypothesis is rejected, False if not
+        pvalue-corrected : array
+            pvalues adjusted for multiple hypothesis testing to limit FDR
+        Notes
+        -----
+        If there is prior information on the fraction of true hypothesis, then alpha
+        should be set to alpha * m/m_0 where m is the number of tests,
+        given by the p-values, and m_0 is an estimate of the true hypothesis.
+        (see Benjamini, Krieger and Yekuteli)
+        The two-step method of Benjamini, Krieger and Yekutiel that estimates the number
+        of false hypotheses will be available (soon).
+        Method names can be abbreviated to first letter, 'i' or 'p' for fdr_bh and 'n' for
+        fdr_by.
+        '''
+
+        def _ecdf(x):
+            '''
+            no frills empirical cdf used in fdrcorrection
+            '''
+            nobs = len(x)
+            return np.arange(1, nobs + 1) / float(nobs)
+
+        pvals = np.asarray(pvals)
+        if not is_sorted:
+            pvals_sortind = np.argsort(pvals)
+            pvals_sorted = np.take(pvals, pvals_sortind)
+        else:
+            pvals_sorted = pvals  # alias
+
+        if method in ['i', 'indep', 'p', 'poscorr']:
+            ecdffactor = _ecdf(pvals_sorted)
+        elif method in ['n', 'negcorr']:
+            cm = np.sum(1. / np.arange(1, len(pvals_sorted) + 1))  # corrected this
+            ecdffactor = _ecdf(pvals_sorted) / cm
+        else:
+            raise ValueError('only indep and negcorr implemented')
+        reject = pvals_sorted <= ecdffactor * alpha
+        if reject.any():
+            rejectmax = max(np.nonzero(reject)[0])
+            reject[:rejectmax] = True
+
+        pvals_corrected_raw = pvals_sorted / ecdffactor
+        pvals_corrected = np.minimum.accumulate(pvals_corrected_raw[::-1])[::-1]
+        del pvals_corrected_raw
+        pvals_corrected[pvals_corrected > 1] = 1
+        if not is_sorted:
+            pvals_corrected_ = np.empty_like(pvals_corrected)
+            pvals_corrected_[pvals_sortind] = pvals_corrected
+            del pvals_corrected
+            reject_ = np.empty_like(reject)
+            reject_[pvals_sortind] = reject
+            return reject_, pvals_corrected_
+        else:
+            return reject, pvals_corrected
+
     pvalue_list = list(p_values)
     n = len(pvalue_list)
     if methods == 1:
@@ -279,9 +352,11 @@ def multtest_correct(p_values, methods=3):
     elif methods == 2:
         sorted_pvalues = sorted(pvalue_list)
         fdr = [eachP * (n - sorted_pvalues.index(eachP)) for eachP in pvalue_list]
-    else:
+    elif methods == 3:
         sorted_pvalues = sorted(pvalue_list)
         fdr = [eachP * n / (sorted_pvalues.index(eachP) + 1) for eachP in pvalue_list]
+    elif methods == 4:
+        _, fdr = fdrcorrection(pvalue_list, alpha=0.05, method='negcorr', is_sorted=False)
     fdr = np.array(fdr)
     fdr[fdr > 1] = 1.
     return fdr
@@ -345,6 +420,8 @@ if __name__ == '__main__':
                         help='Do not draw term classified as HumanDisease and DrugDevelopement')
     parser.add_argument('--only_consider_path_annotated_genes', default=False, action='store_true',
                         help='if set, pop number and study number will only consider genes with path annotated.')
+    parser.add_argument('-o', default=os.getcwd(), help='output dir')
+
     args = parser.parse_args()
 
     g2p_file = args.g2p
@@ -360,16 +437,14 @@ if __name__ == '__main__':
     # calculating result
     k_gene, gene_k = parse_gene_annot(g2k_file)
     if args.k2e is None:
-        subprocess.check_call('wget http://rest.kegg.jp/link/enzyme/orthology/', shell=True)
-        os.rename("index.html", "k2e.pair")
-        k2e_file = "k2e.pair"
+        k2e_file = os.path.join(args.o, 'k2e.txt')
+        wget.download('http://rest.kegg.jp/link/enzyme/orthology/', k2e_file)
     enzyme_k, k_enzyme = parse_gene_annot(k2e_file)
     path_describe_dict = parse_br08901(brite_file)
     if args.g2p is None:
         if args.k2p is None:
-            subprocess.check_call('wget http://rest.kegg.jp/link/pathway/orthology/', shell=True)
-            os.rename("index.html", "k2p.pair")
-            k2p_file = 'k2p.pair'
+            k2p_file = os.path.join(args.o, 'k2p.txt')
+            wget.download('http://rest.kegg.jp/link/pathway/orthology/')
         else:
             k2p_file = args.k2p
         p_k, k_p = parse_gene_annot(k2p_file)
@@ -399,7 +474,8 @@ if __name__ == '__main__':
         data = prepare_hypergeom_data(p_gene, gene_p, deg_list, gene_number, g2e_dict, gene_k, path_describe_dict,
                                       only_consider_path_annotated_genes=args.only_consider_path_annotated_genes)
         result = hypergeom_test(data, sort_fdr=FDR)
-        f = open(deg_file + '.kegg_enrichment.xls', 'w')
+        result_file = os.path.join(args.o, os.path.basename(deg_file)+'.kegg_enrichment.xls')
+        f = open(result_file, 'w')
         f.write(
             '#Term\tDatabase\tID\tRatio_in_study\tRatio_in_pop\tP-Value\tCorrected P-Value\tGenes\tHyperlink\ttypeII\ttypeI\n')
         for each in result:
@@ -493,10 +569,11 @@ if __name__ == '__main__':
                 print(xdata[i], " is not classfied?")
 
         # draw
+        out_img = os.path.join(args.o, os.path.basename(deg_file)+'.kegg_enrichment.pdf')
         enrichment_bar(new_xdata, ydata, category, stat_value, category_detail_dict=category_dict,
             # classification detail
             cmap='PiYG',  # color of bar
-            fig_name=deg_file + '.kegg_enrichment.pdf',  # output PDF
+            fig_name=out_img,  # output PDF
             ylabel='Enrichment Ratio',  # bar height
             stat_type=stat_type,  # pvalue or FDR
             stat_cutoff=[0.001, 0.01, 0.05], fig_size=(10, 6), wrap_length=75, dpi=300,
