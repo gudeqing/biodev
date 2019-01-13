@@ -418,8 +418,8 @@ if __name__ == '__main__':
                         help='plot with the top "dn" terms. Default: draw all terms whose pvalue/fdr<1')
     parser.add_argument('--rm_HD_DD', default=False, action='store_true',
                         help='Do not draw term classified as HumanDisease and DrugDevelopement')
-    parser.add_argument('--only_consider_path_annotated_genes', default=True, action='store_true',
-                        help='if set, pop number and study number will only consider genes with path annotated.')
+    parser.add_argument('--only_consider_path_annotated_genes', default=False, action='store_true',
+                        help='recommend to set it, and pop number and study number will only consider genes with path annotated.')
     parser.add_argument('-o', default=os.getcwd(), help='output dir')
 
     args = parser.parse_args()
