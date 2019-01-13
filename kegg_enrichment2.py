@@ -79,7 +79,7 @@ def parse_br08901(brite):
     return cls_dict
 
 
-def enrichment_bar(xdata, ydata, category, stat_value, stat_cutoff=[0.001, 0.01, 0.05], cmap='PiYG',
+def enrichment_bar(xdata, ydata, category, stat_value, stat_cutoff=(0.001, 0.01, 0.05), cmap='PiYG',
                    fig_name='enrichment_bar', fig_size=(10, 6), wrap_length=75, dpi=300, label_size=5, rotation=45,
                    ylabel='Enrichment Ratio', stat_type='pvalue', xlabel=None, title=None, category_detail_dict=None):
     """
@@ -576,8 +576,8 @@ if __name__ == '__main__':
             fig_name=out_img,  # output PDF
             ylabel='Enrichment Ratio',  # bar height
             stat_type=stat_type,  # pvalue or FDR
-            stat_cutoff=[0.001, 0.01, 0.05], fig_size=(10, 6), wrap_length=75, dpi=300,
-            # resolution for figure type such as png or tiff
+            stat_cutoff=(0.001, 0.01, 0.05), fig_size=(10, 6),
+            wrap_length=75, dpi=300, # resolution for figure type such as png or tiff
             label_size=5,  # tick label size
             rotation=45,  # tick label direction
         )
