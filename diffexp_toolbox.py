@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 import argparse
 from pprint import pprint
-from multiprocessing import Pool
+# from multiprocessing import Pool
+from concurrent.futures import ThreadPoolExecutor as Pool
 import glob
 import matplotlib
 matplotlib.use('Agg')
@@ -307,10 +308,8 @@ class DiffExpToolbox(PvalueCorrect):
         df_count.to_csv(count_table_file+'.count.xls', sep='\t')
 
     def run(self, script_list):
-        pool = Pool(self.pool_size)
-        pool.map(run_script, script_list)
-        pool.close()
-        pool.join()
+        with Pool(self.pool_size) as pool:
+            pool.map(run_script, script_list)
 
     def __make_result(self, ctrl, test, target_seqs, stat_dict, out_diff_table, out_deg_list):
         if ctrl in self.group_dict:
@@ -790,10 +789,7 @@ if __name__ == "__main__":
         results = glob.glob(args.output+'/*_vs_*.{}.xls'.format(args.method.lower()))
         # print(results)
         density_plot()
-        pool = Pool(args.pool)
-        pool.map(diff_plot, results)
-        pool.close()
-        pool.join()
-        # done
+        with Pool(args.pool) as pool:
+            pool.map(diff_plot, results)
 
 
