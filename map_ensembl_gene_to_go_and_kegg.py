@@ -3,6 +3,15 @@ import os
 import wget
 import gzip
 
+"""
+目的：获取某物种的ensembl_id对应的go注释和kegg注释信息，需要联网获取
+根据ftp://ftp.ncbi.nih.gov/gene/DATA/，把ensembl id转换为对应的ncbi_id
+ ncbi_id --> go_id
+ ncbi_id --> kegg的ko_id
+ ko_id --> path_id
+注释：经检查发现，至少在human中，kegg中特定物种的基因id就是ncbi_id前加上物种缩写名，如'1'对应的kegg中的"hsa:1"
+"""
+
 
 def ensembl2ncbi(gene2ensembl_file="gene2ensembl.gz", tax_id='9606'):
     """
@@ -137,9 +146,9 @@ def map_ensembl_to_go_kegg(species='hsa', tax_id='9606'):
 
 
 if __name__ == '__main__':
-    # map_ensembl_to_go_kegg(species='hsa', tax_id='9606')
-    # wget.download('http://rest.kegg.jp/link/enzyme/ko', 'ko2enzyme.txt')
-    # wget.download('http://rest.kegg.jp/link/enzyme/ko', 'ko2enzyme.txt')
+    map_ensembl_to_go_kegg(species='hsa', tax_id='9606')
+    wget.download('http://rest.kegg.jp/link/enzyme/ko', 'ko2enzyme.txt')
+    wget.download('http://rest.kegg.jp/link/enzyme/ko', 'ko2enzyme.txt')
     from urllib.request import urlretrieve
     url = 'https://www.kegg.jp/kegg-bin/download_htext?htext=br08901&format=htext&filedir='
     urlretrieve(url, 'br08901.keg')
