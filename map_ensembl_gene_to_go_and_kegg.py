@@ -5,7 +5,8 @@ import gzip
 
 """
 目的：获取某物种的ensembl_id对应的go注释和kegg注释信息，需要联网获取
-根据ftp://ftp.ncbi.nih.gov/gene/DATA/，把ensembl id转换为对应的ncbi_id
+根据ftp://ftp.ncbi.nih.gov/gene/DATA/，该网址更新信息频繁，最好每次都执行该脚本。
+ 把ensembl id转换为对应的ncbi_id
  ncbi_id --> go_id
  ncbi_id --> kegg的ko_id
  ko_id --> path_id
