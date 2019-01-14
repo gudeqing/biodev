@@ -70,6 +70,8 @@ def ko2path():
     with open(k2p_file) as f:
         for line in f:
             ko, path = line.strip().split()
+            if path.startswith('path:map'):
+                continue
             ko = ko.split(':')[1]
             path = path.split(':')[1]
             k2p_dict.setdefault(ko, list())
