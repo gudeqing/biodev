@@ -148,7 +148,6 @@ def map_ensembl_to_go_kegg(species='hsa', tax_id='9606'):
 if __name__ == '__main__':
     map_ensembl_to_go_kegg(species='hsa', tax_id='9606')
     wget.download('http://rest.kegg.jp/link/enzyme/ko', 'ko2enzyme.txt')
-    wget.download('http://rest.kegg.jp/link/enzyme/ko', 'ko2enzyme.txt')
     from urllib.request import urlretrieve
     url = 'https://www.kegg.jp/kegg-bin/download_htext?htext=br08901&format=htext&filedir='
     urlretrieve(url, 'br08901.keg')
