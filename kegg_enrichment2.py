@@ -2,7 +2,6 @@
 from collections import defaultdict
 from scipy.stats import hypergeom
 import numpy as np
-import subprocess
 import os
 import argparse
 import glob
@@ -405,8 +404,8 @@ if __name__ == '__main__':
     parser.add_argument('-g2k', required=True, help='file with two columns: gene\tgene_Knumber; No header')
     parser.add_argument('-bgn', required=True, type=int,
                         help='int, total background gene number. Not used if only_consider_path_annotated_genes set')
-    parser.add_argument('-brite', required=True, type=str,
-                        help='The brite file can be download from http://www.kegg.jp/kegg-bin/get_htext?br08901, download htext')
+    parser.add_argument('-brite', required=False,  default=None,
+                        help='if not provieded, we will download it from http://www.kegg.jp/kegg-bin/get_htext?br08901')
     parser.add_argument('-g2p', required=False, default=None,
                         help='file with two columns: gene\tpath:konumber. if not provided, we will use g2k and k2p info to get this info.')
     parser.add_argument('-k2p', required=False, default=None,
@@ -430,6 +429,11 @@ if __name__ == '__main__':
     g2k_file = args.g2k
     k2e_file = args.k2e
     brite_file = args.brite
+    if brite_file is None:
+        from urllib.request import urlretrieve
+        url = 'https://www.kegg.jp/kegg-bin/download_htext?htext=br08901&format=htext&filedir='
+        brite_file = os.path.join(args.o, 'br08901.keg')
+        urlretrieve(url, brite_file)
     FDR = args.FDR
     draw_number = args.dn
     rm_HD_DD = args.rm_HD_DD
