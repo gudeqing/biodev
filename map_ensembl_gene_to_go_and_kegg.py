@@ -152,4 +152,5 @@ if __name__ == '__main__':
     from urllib.request import urlretrieve
     url = 'https://www.kegg.jp/kegg-bin/download_htext?htext=br08901&format=htext&filedir='
     urlretrieve(url, 'br08901.keg')
+    wget.download('http://purl.obolibrary.org/obo/go/go-basic.obo', 'go-basic.obo')
 
