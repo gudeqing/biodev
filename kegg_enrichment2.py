@@ -39,7 +39,7 @@ def parse_gene_annot(map_file, header=False):
             a, b = line.strip().split()
             if a.startswith('ko:'):
                 a = a[3:]
-            if b.startswith("path:map"):
+            if b.startswith("path:map") or b.startswith('map'):
                 continue
             if ";" in b:
                 cls = b.split(";")
