@@ -374,9 +374,9 @@ class DiffExpToolbox(PvalueCorrect):
                     line_list.append(reg)
                     # save DEG list
                     if line_list[-2] == 'yes':
-                        f2.write(seq_id + '\t' + reg + '\n')
+                        f2.write(seq_id.rsplit('.', 1)[0] + '\t' + reg + '\n')
                 else:
-                    line_list += [0, 1, 1, 'no', 'no change']
+                    line_list += [0, 1, 1, 'no', 'untested']
                 # save
                 f.write('\t'.join([str(x) for x in line_list])+'\n')
 
@@ -735,7 +735,7 @@ if __name__ == "__main__":
                              padjust_way=args.padjust_way,
                              pool_size=args.pool)
     if not args.no_filter:
-        toolbox.filter()
+        toolbox.filter(count_cutoff=args.count_cutoff, output=args.output)
 
     if args.method == 'DEGseq':
         toolbox.DEGseq(method=args.degseq_method, threshold_kind=args.degseq_padjust_way,
