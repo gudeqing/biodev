@@ -402,7 +402,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-deg', required=True, help='file with two columns: gene\tup/down; No header')
     parser.add_argument('-g2k', required=True, help='file with two columns: gene\tgene_Knumber; No header')
-    parser.add_argument('-bgn', required=True, type=int,
+    parser.add_argument('-bgn', default=0, type=int,
                         help='int, total background gene number. Not used if only_consider_path_annotated_genes set')
     parser.add_argument('-brite', required=False,  default=None,
                         help='if not provieded, we will download it from http://www.kegg.jp/kegg-bin/get_htext?br08901')
