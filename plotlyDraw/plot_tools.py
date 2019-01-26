@@ -99,7 +99,7 @@ def read_distribution(files, outdir):
         ))
         fig.add_pie(labels=data.index, values=data)
         plt(fig, filename="{}.ReadDistribution.html".format(sample))
-    df = pd.concat(all_data).T
+    df = pd.concat(all_data, axis=1).T
     data = [go.Bar(x=df.index, y=df[x], name=x) for x in df.columns]
     layout = go.Layout(
         title="Read distribution",
