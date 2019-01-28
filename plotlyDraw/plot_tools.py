@@ -1,6 +1,7 @@
 import os
 from functools import partial
-import plotly
+import colorlover
+from plotly import tools
 import plotly.graph_objs as go
 from plotly.offline import plot as plt
 plt = partial(plt, auto_open=False)
@@ -138,5 +139,71 @@ def read_duplication(pos_dup_files, outdir=os.getcwd(), max_dup=500):
     plt(fig, filename=out_name)
 
 
-def exp_saturation():
-    pass
+def exp_saturation(exp_files, outdir=os.getcwd(), outlier_limit=5):
+    all_fig = tools.make_subplots(
+        rows=2, cols=2,
+        subplot_titles=(
+            'Q1',
+            'Q2',
+            'Q3',
+            'Q4',
+        ),
+        shared_xaxes=False
+    )
+    color_pool = colorlover.scales['{}'.format(len(exp_files)+1)]['div']['RdYlBu']
+
+    for exp_file, sample_color in zip(exp_files, color_pool):
+        sample = os.path.basename(exp_file).split('.', 1)[0]
+        data = pd.read_table(exp_file, header=0, index_col=0)
+        # plot deviation
+        describe = data['100'].describe()
+        regions = [
+            (describe['min'], describe['25%']),
+            (describe['25%'], describe['50%']),
+            (describe['50%'], describe['75%']),
+            (describe['75%'], describe['max']),
+        ]
+        errors = data.apply(lambda column: column / data.loc[:, '100'], axis=0)
+        errors = ((errors - 1)*100).abs()
+        plot_data = list()
+        for lower, upper in regions:
+            tmp = errors[(data['100'] >= lower) & (data['100'] <= upper)]
+            plot_data.append(tmp)
+
+        fig = tools.make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                'Q1: {x[0]:.2f}-{x[1]:.2f}'.format(x=regions[0]),
+                'Q2: {x[0]:.2f}-{x[1]:.2f}'.format(x=regions[1]),
+                'Q3: {x[0]:.2f}-{x[1]:.2f}'.format(x=regions[2]),
+                'Q4: {x[0]:.2f}-{x[1]:.2f}'.format(x=regions[3]),
+            ),
+            shared_xaxes=False
+        )
+        for ind, each in enumerate(plot_data):
+            x = 1 if (ind+1) / 2 <= 1 else 2
+            y = 1 if (ind+1) % 2 == 1 else 2
+            for col in each.columns:
+                upper_limit = each[col].describe()['50%']*outlier_limit
+                y_data = each[col][each[col] <= upper_limit]
+                # box = go.Box(y=y_data, name=col, showlegend=False, boxpoints=False)
+                box = go.Box(y=y_data, name=col, showlegend=False)
+                fig.append_trace(box, x, y)
+            line = go.Scatter(x=each.columns, y=each.describe().loc['50%', :], mode='lines', name='median')
+            fig.append_trace(line, x, y)
+            if ind != 0:
+                line2 = go.Scatter(x=each.columns, y=each.describe().loc['50%', :], mode='lines',
+                                   legendgroup=sample, name=sample, line=dict(color=sample_color), showlegend=False)
+            else:
+                line2 = go.Scatter(x=each.columns, y=each.describe().loc['50%', :], mode='lines',
+                                   legendgroup=sample, name=sample, line=dict(color=sample_color))
+            all_fig.append_trace(line2, x, y)
+        out_name = os.path.join(outdir, "{}.TPM.Saturation.html".format(sample))
+        plt(fig, filename=out_name)
+
+    # plot all sample together
+    out_name = os.path.join(outdir, "samples.TPM.Saturation.html")
+    plt(all_fig, filename=out_name)
+
+
+
