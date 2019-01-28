@@ -176,6 +176,7 @@ def exp_calculate_and_stat(count_lst,  exp_type='tpm', outdir=os.getcwd(), exp_l
         sns.boxplot(data=tmp, whis=3, ax=axes[ind],  showfliers=False)
         axes[ind].tick_params(labelsize="small")
         axes[ind].set_title(subplot_titles[ind], fontsize='small')
+        axes[ind].set_ylabel("Percent Relative Error", fontsize='small')
     plt.savefig('Exp_distribution.png', dpi=300, bbox_inches='tight')
     plt.close()
 
