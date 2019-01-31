@@ -1,11 +1,28 @@
 import os
 from functools import partial
-import colorlover
+import pandas as pd
+import numpy as np
 from plotly import tools
 import plotly.graph_objs as go
 from plotly.offline import plot as plt
 plt = partial(plt, auto_open=False)
-import pandas as pd
+
+
+def get_color_pool(n):
+    import colorlover
+    if n <= 12:
+        return colorlover.scales['12']['qual']['Paired']
+
+    from colorsys import hls_to_rgb
+    color_pool = []
+    for i in np.arange(60., 360., 360. / n):
+        hue = i / 300.
+        rand_num = np.random.random_sample()
+        lightness = (50 + rand_num * 10) / 100.
+        saturation = (90 + rand_num * 10) / 100.
+        rgb = hls_to_rgb(hue, lightness, saturation)
+        color_pool.append(tuple([int(x * 255) for x in rgb]))
+    return colorlover.to_rgb(color_pool)
 
 
 def gene_body_coverage(files):
@@ -150,8 +167,7 @@ def exp_saturation(exp_files, outdir=os.getcwd(), outlier_limit=5):
         ),
         shared_xaxes=False
     )
-    color_pool = colorlover.scales['{}'.format(len(exp_files)+1)]['div']['RdYlBu']
-
+    color_pool = get_color_pool(len(exp_files))
     for exp_file, sample_color in zip(exp_files, color_pool):
         sample = os.path.basename(exp_file).split('.', 1)[0]
         data = pd.read_table(exp_file, header=0, index_col=0)
@@ -205,5 +221,88 @@ def exp_saturation(exp_files, outdir=os.getcwd(), outlier_limit=5):
     out_name = os.path.join(outdir, "samples.TPM.Saturation.html")
     plt(all_fig, filename=out_name)
 
+
+def exp_pca(exp_table, row_sum_cutoff=1, exp_cutoff=0.1, cv_cutoff=0.1,
+            explained_ratio=0.95, outdir=os.getcwd(), group_dict=None):
+    from sklearn import decomposition, preprocessing
+    data = pd.read_table(exp_table, header=0, index_col=0)
+    data = data[data.sum(axis=1) >= row_sum_cutoff]
+    pass_state = data.apply(lambda x: sum(x > exp_cutoff), axis=1)
+    data = data[pass_state >= int(data.shape[1])/3]
+    data = data[data.std(axis=1)/data.mean(axis=1) > cv_cutoff]
+    data.to_csv(os.path.join(outdir, 'filtered.data.txt'), header=True, index=True, sep='\t')
+    data = np.log(data+1)
+    # data = data.apply(preprocessing.scale, axis=0)
+    data = data.transpose()
+    pca = decomposition.PCA()
+    pca.fit(data)
+    _ratio = list(enumerate(pca.explained_variance_ratio_, start=1))
+    total_ratio, n_components = 0, 0
+    for ind, each in _ratio:
+        total_ratio += each
+        if total_ratio >= explained_ratio:
+            n_components = ind
+            break
+    if n_components <= 1:
+        n_components = 2
+    _ratio = _ratio[:n_components]
+    result = pd.DataFrame(pca.transform(data), index=data.index)
+    result = result.iloc[:, :n_components]
+    result.index.name = 'sample'
+    # result.columns = ['PC'+str(n)+'('+'{:.2f}%'.format(r*100)+')' for n, r in _ratio]
+    result.columns = ['PC'+str(n) for n in range(1, result.shape[1] + 1)]
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    out_dir = os.path.join(outdir, 'PCA.xls')
+    result.to_csv(out_dir, sep='\t', header=True, index=True)
+    pc_ratio = {'PC' + str(n): r for n, r in _ratio}
+    out_dir2 = os.path.join(outdir, 'Explained_variance_ratio.xls')
+    with open(out_dir2, 'w') as f:
+        for each in sorted(pc_ratio.keys()):
+            f.write(str(each) + '\t' + str(pc_ratio[each]) + '\n')
+
+    # color and maker pool
+    if group_dict is None or not group_dict:
+        group_dict = dict()
+    for sample in result.index:
+        if sample not in group_dict:
+            group_dict[sample] = sample
+    groups = list(set(group_dict.values()))
+    colors = get_color_pool(len(groups))
+    makers = range(120)
+    group_colors = dict(zip(groups, colors))
+    group_makers = dict(zip(groups, makers))
+    sample_colors = dict()
+    sample_makers = dict()
+    for sample in result.index:
+        group = group_dict[sample]
+        sample_colors[sample] = group_colors[group]
+        sample_makers[sample] = group_makers[group]
+
+    # plot
+    traces = list()
+    for sample in result.index:
+        trace = go.Scatter(
+            x=[result.loc[sample, 'PC1']],
+            y=[result.loc[sample, 'PC2']],
+            mode='markers',
+            name=sample,
+            marker=dict(
+                color=sample_colors[sample],
+                line=dict(color='rgba(217, 217, 217, 0.14)', width=0.5),
+                opacity=0.8,
+                size=20,
+                symbol=sample_makers[sample],
+            ),
+        )
+        traces.append(trace)
+    layout = dict(
+        showlegend=True,
+        xaxis=dict(title='PC1({:.2%})'.format(pc_ratio['PC1'])),
+        yaxis=dict(title='PC2({:.2%})'.format(pc_ratio['PC2']))
+    )
+    fig = go.Figure(traces, layout=layout)
+    out_name = os.path.join(outdir, 'PC1_PC2.html')
+    plt(fig, filename=out_name)
 
 
