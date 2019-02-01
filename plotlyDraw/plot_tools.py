@@ -25,7 +25,7 @@ def get_color_pool(n):
     return colorlover.to_rgb(color_pool)
 
 
-def gene_body_coverage(files):
+def gene_body_coverage(files, outdir=os.getcwd()):
     layout = go.Layout(title="geneBodyCoverage")
     all_fig = go.Figure(layout=layout)
     for each in files:
@@ -35,11 +35,13 @@ def gene_body_coverage(files):
         normalize_y = data.iloc[1, :]/data.iloc[1, :].max()
         fig.add_scatter(x=data.iloc[0, :], y=normalize_y, name=sample)
         all_fig.add_scatter(x=data.iloc[0, :], y=normalize_y, name=sample)
-        plt(fig, filename='{}.geneBodyCoverage.html'.format(sample))
-    plt(all_fig, filename='samples.geneBodyCoverage.html')
+        out_name = os.path.join(outdir, '{}.geneBodyCoverage.html'.format(sample))
+        plt(fig, filename=out_name)
+    out_name = os.path.join(outdir, 'samples.geneBodyCoverage.html')
+    plt(all_fig, filename=out_name)
 
 
-def fragment_length(files, outdir, min_len=50, max_len=600):
+def fragment_length(files, outdir=os.getcwd(), min_len=50, max_len=600):
     layout = go.Layout(
         title="Fragment length distribution",
         xaxis=dict(title='Fragment length'),
@@ -57,8 +59,10 @@ def fragment_length(files, outdir, min_len=50, max_len=600):
         ))
         fig.add_histogram(x=data["frag_median"], histnorm='probability', name=sample)
         all_fig.add_histogram(x=data["frag_median"], histnorm='probability', name=sample)
-        plt(fig, filename="{}.fragmentLengthDistribution.html".format(sample))
-    plt(all_fig, filename="samples.fragmentLengthDistribution.html")
+        out_name = os.path.join(outdir, "{}.fragmentLengthDistribution.html".format(sample))
+        plt(fig, filename=out_name)
+    out_name = os.path.join(outdir, "samples.fragmentLengthDistribution.html")
+    plt(all_fig, filename=out_name)
 
 
 def inner_distance(files, outdir, min_dist=-250, max_dist=250):
@@ -305,4 +309,57 @@ def exp_pca(exp_table, row_sum_cutoff=1, exp_cutoff=0.1, cv_cutoff=0.1,
     out_name = os.path.join(outdir, 'PC1_PC2.html')
     plt(fig, filename=out_name)
 
+
+def exp_density(exp_table, outdir=os.getcwd()):
+
+    def get_density(all_exp_pd):
+        """
+        sampling 800 density point for each columns of the input pandas DataFrame
+        data row with log transformation failed will be removed
+        :param all_exp_pd: pandas DataFrame
+        :return: a list with dict as element
+        """
+        from scipy import stats
+        records = list()
+        target_columns = all_exp_pd.columns
+        for sample in target_columns:
+            exp = all_exp_pd[sample]
+            exp = exp.replace([np.inf, -np.inf], np.nan).dropna()
+            exp = exp[exp != 0]
+            density_func = stats.gaussian_kde(exp)
+            min_exp, max_exp = exp.min(), exp.max()
+            x_data = np.linspace(min_exp, max_exp, num=800, endpoint=False)
+            y_data = density_func(x_data)
+            point_df = pd.DataFrame({'exp': x_data, 'density': y_data})
+            records.append(point_df)
+        return records
+
+    data = pd.read_table(exp_table, header=0, index_col=0)
+    data = data[data.sum(axis=1) >= 1]
+    pass_state = data.apply(lambda x: sum(x > 0.1), axis=1)
+    data = data[pass_state >= int(data.shape[1]) / 3]
+    data = np.log(data)
+    traces = list()
+    density_point_df_list = get_density(data)
+    for ind, sample in enumerate(data.columns):
+        trace = go.Scatter(
+            x=density_point_df_list[ind]['exp'],
+            y=density_point_df_list[ind]['density'],
+            mode='lines',
+            fill='tonexty',
+            name=sample,
+            opacity=0.7
+        )
+        traces.append(trace)
+
+    layout = go.Layout(
+        barmode='overlay',
+        title='Expression Density',
+        xaxis=dict(title='Log(Expression)', zeroline=False),
+        yaxis=dict(title='Density', )
+    )
+    fig = go.Figure(data=traces, layout=layout)
+    out_name = os.path.join(outdir, 'Expression.density.html')
+    plt(fig, filename=out_name)
+    return out_name
 
