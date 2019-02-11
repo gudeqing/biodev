@@ -21,9 +21,10 @@ class ClusterHeatMap():
                  sample_cluster_num=2, gene_cluster_num=10,
                  sample_group=None, log_base=2, zscore_before_cluster=False,
                  lower_exp_cutoff=0.1, pass_lower_exp_num=None,
-                 row_sum_cutoff=1, cv_cutoff=0,
+                 row_sum_cutoff=0.1, cv_cutoff=0.01,
                  width=800, height=800, gene_label_size=6,
-                 color_scale='YlGnBu', preprocess_data_func=None):
+                 color_scale='YlGnBu', preprocess_data_func=None,
+                 left_dendrogram_width=0.15, top_dendrogram_height=0.15):
         """
         cluster / correlation cluster for gene expression
         For cluster method and metric option, please refer scipy.cluster.hierarchy.linkage
@@ -48,16 +49,20 @@ class ClusterHeatMap():
         :param log_base: transform data using log, value could be one of {2, 10, None}
         :param zscore_before_cluster: bool indicates if to do zscore normalization, default: False.
             No effect if "do_correlation_cluster" is True
-        :param lower_exp_cutoff: gene with expression lower than this value will be filtered, combined with pass_lower_exp_num
+        :param lower_exp_cutoff: gene expression lower cutoff, combined with pass_lower_exp_num
         :param pass_lower_exp_num: gene with expression N times smaller than "lower_exp_cutoff" will be filtered
         :param row_sum_cutoff: gene with sum of expression lower than this cutoff will be filtered, default 1
         :param cv_cutoff: genes with cv (=mean/std) higher than will be retained
         :param width: figure width
         :param height: figure height
         :param gene_label_size: int, gen label size, default 6
-        :param color_scale: pallete for heat map, refer to plotly, ['Blackbody', 'Bluered', 'Blues', 'Earth', 'Electric',
-            'Greens', 'Greys', 'Hot', 'Jet', 'Picnic', 'Portland', 'Rainbow', 'RdBu', 'Reds', 'Viridis', 'YlGnBu', 'YlOrRd']
+        :param color_scale: pallete for heat map, refer to plotly,
+            ['Blackbody', 'Bluered', 'Blues', 'Earth', 'Electric',
+            'Greens', 'Greys', 'Hot', 'Jet', 'Picnic', 'Portland',
+            'Rainbow', 'RdBu', 'Reds', 'Viridis', 'YlGnBu', 'YlOrRd']
         :param preprocess_data_func: function provided for data filtering and transformation. Default None
+        :param left_dendrogram_width: left/sample dendrogram width, default 0.15, range(0, 1)
+        :param top_dendrogram_height: top/gene dendrogram height, default 0.15, range(0, 1)
         """
 
         self.scm = sample_cluster_method
@@ -114,11 +119,11 @@ class ClusterHeatMap():
             self.data = self.data.corr(method=corr_method)
 
         if cluster_gene:
-            self.left_dendrogram_width = 0.15
+            self.left_dendrogram_width = left_dendrogram_width
         else:
             self.left_dendrogram_width = 0
         if cluster_sample:
-            self.top_dendrogram_height = 0.15
+            self.top_dendrogram_height = top_dendrogram_height
         else:
             self.top_dendrogram_height = 0
 
