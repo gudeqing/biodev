@@ -226,7 +226,7 @@ def exp_saturation(exp_files, outdir=os.getcwd(), outlier_limit=5):
     plt(all_fig, filename=out_name)
 
 
-def exp_pca(exp_table, row_sum_cutoff=1, exp_cutoff=0.1, cv_cutoff=0.1,
+def exp_pca(exp_table, row_sum_cutoff=0.1, exp_cutoff=0.1, cv_cutoff=0.05,
             explained_ratio=0.95, outdir=os.getcwd(), group_dict=None):
     from sklearn import decomposition, preprocessing
     data = pd.read_table(exp_table, header=0, index_col=0)
@@ -234,7 +234,7 @@ def exp_pca(exp_table, row_sum_cutoff=1, exp_cutoff=0.1, cv_cutoff=0.1,
     pass_state = data.apply(lambda x: sum(x > exp_cutoff), axis=1)
     data = data[pass_state >= int(data.shape[1])/3]
     data = data[data.std(axis=1)/data.mean(axis=1) > cv_cutoff]
-    data.to_csv(os.path.join(outdir, 'filtered.data.txt'), header=True, index=True, sep='\t')
+    data.to_csv(os.path.join(outdir, 'pca.filtered.data.txt'), header=True, index=True, sep='\t')
     data = np.log(data+1)
     # data = data.apply(preprocessing.scale, axis=0)
     data = data.transpose()
@@ -273,7 +273,7 @@ def exp_pca(exp_table, row_sum_cutoff=1, exp_cutoff=0.1, cv_cutoff=0.1,
             group_dict[sample] = sample
     groups = list(set(group_dict.values()))
     colors = get_color_pool(len(groups))
-    makers = range(120)
+    makers = range(len(groups))
     group_colors = dict(zip(groups, colors))
     group_makers = dict(zip(groups, makers))
     sample_colors = dict()
@@ -310,7 +310,7 @@ def exp_pca(exp_table, row_sum_cutoff=1, exp_cutoff=0.1, cv_cutoff=0.1,
     plt(fig, filename=out_name)
 
 
-def exp_density(exp_table, outdir=os.getcwd()):
+def exp_density(exp_table, outdir=os.getcwd(), row_sum_cutoff=0.1, exp_cutoff=0.1):
 
     def get_density(all_exp_pd):
         """
@@ -335,9 +335,10 @@ def exp_density(exp_table, outdir=os.getcwd()):
         return records
 
     data = pd.read_table(exp_table, header=0, index_col=0)
-    data = data[data.sum(axis=1) >= 1]
-    pass_state = data.apply(lambda x: sum(x > 0.1), axis=1)
+    data = data[data.sum(axis=1) >= row_sum_cutoff]
+    pass_state = data.apply(lambda x: sum(x > exp_cutoff), axis=1)
     data = data[pass_state >= int(data.shape[1]) / 3]
+    data.to_csv(os.path.join(outdir, 'density.filtered.data.txt'), header=True, index=True, sep='\t')
     data = np.log(data)
     traces = list()
     density_point_df_list = get_density(data)
