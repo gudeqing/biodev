@@ -130,13 +130,17 @@ def exp_calculator_with_count(count_table_file, exp_type='both', out_prefix=None
     df_count.to_csv(out_prefix+'.count.xls', sep='\t')
 
 
-def exp_calculate_and_stat(count_lst,  exp_type='tpm', outdir=os.getcwd(), exp_lower=0.1, outlier_limit=10):
+def exp_calculate_and_stat(count_lst,  exp_type='tpm', outdir=os.getcwd(), exp_lower=0.1, outlier_limit=5):
     data = list()
+    if not count_lst:
+        return
     for each in count_lst:
         table = pd.read_table(each, comment="#", header=0, index_col=[0, 5])
         tmp = table.iloc[:, -1]
         tmp.name = os.path.basename(table.columns[-1]).rsplit('.', 2)[1]
         data.append(tmp)
+    else:
+        sample_name = os.path.basename(each).split('.', 1)[0]
     df = pd.concat(data, axis=1).reset_index()
     total_out = os.path.join(outdir, 'gene_len_count.txt')
     df.to_csv(total_out, header=True, index=None, sep='\t')
@@ -171,13 +175,15 @@ def exp_calculate_and_stat(count_lst,  exp_type='tpm', outdir=os.getcwd(), exp_l
     axes = [y for x in axes for y in x]
     for ind, (lower, upper) in enumerate(regions):
         tmp = errors[(data['100'] >= lower) & (data['100'] <= upper)]
-        upper_limit = tmp.describe().loc['50%', :].mean() * outlier_limit
-        tmp = tmp[tmp.max(axis=1) <= upper_limit]
+        # upper_limit = tmp.describe().loc['50%', :] * outlier_limit
+        # tmp = tmp[tmp.max(axis=1) <= upper_limit]
         sns.boxplot(data=tmp, whis=3, ax=axes[ind],  showfliers=False)
-        axes[ind].tick_params(labelsize="small")
-        axes[ind].set_title(subplot_titles[ind], fontsize='small')
-        axes[ind].set_ylabel("Percent Relative Error", fontsize='small')
-    plt.savefig('Exp_distribution.png', dpi=300, bbox_inches='tight')
+        axes[ind].tick_params(labelsize=6)
+        axes[ind].set_title(subplot_titles[ind], fontsize="small")
+        if ind % 2 == 0:
+            axes[ind].set_ylabel("Percent Relative Error", fontsize='small')
+    out_fig = os.path.join(outdir, '{}.ExpSaturation.pdf'.format(sample_name))
+    plt.savefig(out_fig, bbox_inches='tight')
     plt.close()
 
 
