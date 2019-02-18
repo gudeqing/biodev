@@ -153,8 +153,8 @@ def stat_target_bam(bed, bam, rRNA_bed=None, overlap=0.05,  rRNA_overlap=0.6, be
     if rRNA_bed:
         if p2.wait() != 0:
             raise Exception("Failed to split out rRNA bam based on bed!")
-
-    cmd = '{} idxstats {} > {}'.format(samtools, bam, '{}.chromosome.alignment.stat.txt'.format(sample))
+    chr_stat = os.path.join(outdir, '{}.chromosome.alignment.stat.txt'.format(sample))
+    cmd = '{} idxstats {} > {}'.format(samtools, bam, chr_stat)
     subprocess.check_call(cmd, shell=True)
 
     final_log = glob(os.path.join(os.path.dirname(bam), '*.Log.final.out'))[0]
