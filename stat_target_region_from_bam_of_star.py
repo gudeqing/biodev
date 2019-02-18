@@ -44,10 +44,8 @@ def parse_star_final_out_log(logfile, outdir=None):
                 result['chimeric'] = int(data.strip())
             else:
                 pass
-    # result['mapped_ratio'] = result['unique_mapped_ratio'] + result['multiple_mapped_ratio'] + result['many_mapped_ratio']
-    # result['mapped'] = result['unique_mapped'] + result['multiple_mapped'] + result['many_mapped(>10)']
-    # samtools 和 pciard 似乎都不会算上too many mapped 的reads数目
-    result['mapped'] = result['unique_mapped'] + result['multiple_mapped']
+    result['mapped_ratio'] = result['unique_mapped_ratio'] + result['multiple_mapped_ratio'] + result['many_mapped_ratio']
+    result['mapped'] = result['unique_mapped'] + result['multiple_mapped'] + result['many_mapped(>10)']
     with open(out_table, 'w') as f:
         json.dump(result, f, indent=2)
     return result
