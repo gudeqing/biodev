@@ -121,10 +121,10 @@ def exp_calculator_with_count(count_table_file, exp_type='both', out_prefix=None
             tpm_dict[sample] = tpm
     # save results
     if exp_type == 'fpkm' or exp_type == 'both':
-        df_rpkm = pd.DataFrame(rpkm_dict)
+        df_rpkm = pd.DataFrame(rpkm_dict).round(4)
         df_rpkm.to_csv(out_prefix+'.fpkm.xls', sep='\t')
     if exp_type == 'tpm' or exp_type == 'both':
-        df_tpm = pd.DataFrame(tpm_dict)
+        df_tpm = pd.DataFrame(tpm_dict).round(4)
         df_tpm.to_csv(out_prefix+'.tpm.xls', sep='\t')
     df_count = count_table.iloc[:, 1:]
     df_count.to_csv(out_prefix+'.count.xls', sep='\t')
