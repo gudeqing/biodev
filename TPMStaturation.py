@@ -54,8 +54,8 @@ def feature_count(bam_list, annotation, featureCounts="featureCounts", paired=Tr
     with ThreadPoolExecutor(pool_size) as pool:
         pool.map(subprocess.check_call, cmds)
 
-    # for each in bam_list:
-    #     os.remove(each)
+    for each in bam_list:
+        os.remove(each)
 
     return outs
 
