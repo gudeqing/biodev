@@ -56,7 +56,18 @@ def filter_bed_of_target_chr(infile, outfile, chr_list_file='primary_assembly.ch
                 fw.write(line)
             else:
                 pass
-
+def get_target_gene_matrix(infile, outfile, target, filter_out_target=False):
+    with open(infile) as fr, open(outfile, 'w') as fw, open(target) as fr2:
+        target_list = set(x.strip().split('.')[0] for x in fr2)
+        fw.write(fr.readline())
+        for line in fr:
+            gene = line.split('\t', 1)[0].split('_')[0].split('.', 1)[0]
+            if filter_out_target:
+                if gene not in target_list:
+                    fw.write(line)
+            else:
+                if gene in target_list:
+                    fw.write(line)
 
 if __name__ == '__main__':
     def introduce_command(func):
@@ -98,7 +109,10 @@ if __name__ == '__main__':
         func(**args)
         print("total time: {}s".format(time.time() - start))
 
-    introduce_command(filter_bed_of_target_chr)
+    introduce_command(get_target_gene_matrix)
+
+
+
 
 
 
