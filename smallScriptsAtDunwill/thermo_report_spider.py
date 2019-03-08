@@ -212,7 +212,7 @@ def main(url='http://10.62.2.15/report/146/', login_url='http://10.62.2.15/login
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # 允许连接不在know_hosts文件中的主机
     ssh.connect(hostname='10.62.2.15', port=22, username='ionadmin', password='ionadmin')  # 连接服务器
     stdin, stdout, stderr = ssh.exec_command('ls {}/*/*html'.format(plugin_result_dir))  # 执行命令并获取命令结果
-    stdin2, stdout2, stderr2 = ssh.exec_command('ls {}/coverageAnalysis*/TagSequencing*/*.stats.cov.txt'.format(plugin_result_dir))  # 执行命令并获取命令结果
+    stdin2, stdout2, stderr2 = ssh.exec_command('ls {}/coverageAnalysis*/*/*.stats.cov.txt'.format(plugin_result_dir))  # 执行命令并获取命令结果
     # stdin为输入的命令
     # stdout为命令返回的结果
     # stderr为命令错误时返回的结果
