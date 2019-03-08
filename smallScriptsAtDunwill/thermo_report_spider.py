@@ -299,6 +299,8 @@ def main(url='http://10.62.2.15/report/146/', login_url='http://10.62.2.15/login
                 continue
             if k.endswith('_link'):
                 continue
+            if k.endswith('barcode_details'):
+                continue
             if k == 'median_num_fam3':
                 k = 'Median Mol Cov'
             elif k == 'median_depth':
