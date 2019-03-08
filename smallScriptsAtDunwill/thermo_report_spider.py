@@ -207,6 +207,7 @@ def main(url='http://10.62.2.15/report/146/', login_url='http://10.62.2.15/login
     # 连接服务器并且找到目标html
     lst = re.findall(r'/output/Home/Auto_user.*?/', page)
     plugin_result_dir = '/results/analysis' + lst[0] + 'plugin_out/'
+    print(plugin_result_dir)
     import paramiko, os
     ssh = paramiko.SSHClient()  # 创建SSH对象
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # 允许连接不在know_hosts文件中的主机
