@@ -224,8 +224,8 @@ def introduce_command(func):
     if func_args.varkw is not None:
         print("warning: **keywords args is not supported, and will be neglected! ")
     args = parser.parse_args().__dict__
-    with open("Argument_detail.json", 'w') as f:
-        json.dump(args, f, indent=2, sort_keys=True)
+    # with open("Argument_detail.json", 'w') as f:
+    #     json.dump(args, f, indent=2, sort_keys=True)
     start = time.time()
     func(**args)
     print("total time: {}s".format(time.time() - start))
