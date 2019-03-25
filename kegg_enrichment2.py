@@ -7,9 +7,9 @@ import argparse
 import glob
 from textwrap import wrap
 import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import wget
-
 # plt.style.use('ggplot')
 __author__ = "gdq"
 
@@ -66,6 +66,7 @@ def parse_br08901(brite):
     for line in f:
         if not line:
             continue
+        A, B = '', ''
         if line.startswith('A<'):
             A = line[4:-5]
         if line.startswith('B'):
@@ -73,7 +74,10 @@ def parse_br08901(brite):
         if line.startswith('C'):
             C = line.split()[1]
             C_detail = ' '.join(line.split()[2:])
-            cls_dict['path:ko' + C] = (C_detail, B, A)
+            if A and B:
+                cls_dict['ko' + C] = (C_detail, B, A)
+            else:
+                raise Exception('file format is wrong, A or B not found')
     f.close()
     return cls_dict
 
@@ -193,14 +197,17 @@ def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gen
         study_number = len(deg_dict)
     # get all DE gene associated classification, named considered_classes
     considered_classes = set()
+    no_path_annotation_gene_number = 0
     for gene in deg_dict.keys():
         if gene not in gene_class_dict:
-            print(gene, 'has no pathway id (such as path:ko00010)')
-            pass
+            # print(gene, 'has no pathway id (such as path:ko00010)')
+            no_path_annotation_gene_number += 1
         else:
             considered_classes.update(gene_class_dict[gene])
     if not considered_classes:
         exit("差异基因中没有基因有通路注释，富集分析无法继续")
+    if no_path_annotation_gene_number:
+        print('{} genes have no pathway annotation info'.format(no_path_annotation_gene_number))
 
     for each_class in considered_classes:
         associated_genes = class_gene_dict[each_class]
@@ -253,7 +260,7 @@ def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gen
             mark = ''
             for k, c in zip(ks, colors):
                 mark = mark + '/' + k + '%09' + c
-            link = "http://www.genome.jp/kegg-bin/show_pathway?{p}{h}".format(p=each_class[5:], h=mark)
+            link = "http://www.genome.jp/kegg-bin/show_pathway?{p}{h}".format(p=each_class, h=mark)
         else:
             link = 'None'
 
@@ -490,7 +497,7 @@ if __name__ == '__main__':
         # path_names(0), databases(1), classes(2),ratio_in_study_list(3),ratio_in_pop_list(4), p_value_list(5), q_value_list(6),
         # hit_genes(7), hit_links(8), typeIIs(9), typeIs(10)
         tmp_result = zip(*result)
-        tmp_result = np.array(tmp_result)
+        tmp_result = np.array(list(tmp_result))
         tmp_result = tmp_result.transpose()
         if rm_HD_DD:
             tmp_result = tmp_result[tmp_result[:, 10] != 'Human Diseases']
@@ -547,7 +554,7 @@ if __name__ == '__main__':
         category_dict['OS'] = 'Organismal Systems'
         category_dict['DD'] = 'Drug Development'
         category_dict['HD'] = 'Human Diseases'
-        for each in category_dict.keys():
+        for each in list(category_dict.keys()):
             if not each in list(category):
                 category_dict.pop(each)
 
@@ -585,5 +592,4 @@ if __name__ == '__main__':
             label_size=5,  # tick label size
             rotation=45,  # tick label direction
         )
-
 
