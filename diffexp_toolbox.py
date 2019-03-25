@@ -497,8 +497,8 @@ class DiffExpToolbox(PvalueCorrect):
             ctrl, test = each.split('.degseq.tmp')[0].split('_vs_')
             stat_dict = stat_df.to_dict('index')
             all_stat_dicts['{}_vs_{}'.format(ctrl, test)] = stat_df
-            result_table = each.split('.tmp')[0] + '.xls'
-            result_delist = each.split('.tmp')[0] + '.DE.list'
+            result_table = os.path.join(output, each.split('.tmp')[0] + '.xls')
+            result_delist = os.path.join(output, each.split('.tmp')[0] + '.DE.list')
             self.__make_result(ctrl, test, target_seqs, stat_dict, result_table, result_delist)
         else:
             out_stat = os.path.join(output, 'DEGseq_diff_summary.xls')
