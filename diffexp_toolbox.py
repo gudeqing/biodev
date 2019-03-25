@@ -772,7 +772,7 @@ if __name__ == "__main__":
         exp = pd.read_table(toolbox.exp, index_col=0, header=0)
         exp = exp[exp.mean(axis=1) >= 0.05]
         # exp_df = np.log(exp+1).dropna()
-        exp_df = np.log2(exp).dropna()
+        exp_df = np.log2(exp+0.01).dropna()
         exp_df.plot(kind="density",)
         plt.xlabel('log2(exp)')
         plt.savefig(os.path.join(args.output, 'exp_based.density.png'), dpi=300)
@@ -781,7 +781,7 @@ if __name__ == "__main__":
         exp = pd.read_table(toolbox.count, index_col=0, header=0)
         exp = exp[exp.mean(axis=1) >= 0.8]
         # exp_df = np.log(exp+1).dropna()
-        exp_df = np.log2(exp).dropna()
+        exp_df = np.log2(exp+0.01).dropna()
         exp_df.plot(kind="density",)
         plt.xlabel('log2(exp)')
         plt.savefig(os.path.join(args.output, 'count_based.density.png'), dpi=300)
