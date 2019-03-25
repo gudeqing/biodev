@@ -376,7 +376,7 @@ class DiffExpToolbox(PvalueCorrect):
                     if line_list[-2] == 'yes':
                         f2.write(seq_id.rsplit('.', 1)[0] + '\t' + reg + '\n')
                 else:
-                    line_list += [0, 1, 1, 'no', 'untested']
+                    line_list += [0, 1, 1, 'untested', 'untested']
                 # save
                 f.write('\t'.join([str(x) for x in line_list])+'\n')
 
