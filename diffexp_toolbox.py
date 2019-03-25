@@ -758,6 +758,7 @@ if __name__ == "__main__":
         x_label, y_label, _ = scatter_df.columns
         scatter_df.plot.scatter(x=x_label, y=y_label, c=scatter_df['color'])
         plt.savefig(os.path.join(args.output, x_label + '_vs_' + y_label + '.scatter.png'), dpi=300)
+        plt.close()
 
         volcano_df = pd.concat([df['log2fc'], -np.log10(df[args.sig_type]), colors], axis=1)
         volcano_df.columns = ['log2fc', '-log10(' + args.sig_type + ')', 'color']
@@ -774,6 +775,7 @@ if __name__ == "__main__":
         exp_df.plot(kind="density",)
         plt.xlabel('log2(exp)')
         plt.savefig(os.path.join(args.output, 'exp_based.density.png'), dpi=300)
+        plt.close()
 
         exp = pd.read_table(toolbox.count, index_col=0, header=0)
         exp = exp[exp.mean(axis=1) >= 0.8]
