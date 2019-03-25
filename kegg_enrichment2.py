@@ -129,7 +129,7 @@ def enrichment_bar(xdata, ydata, category, stat_value, stat_cutoff=(0.001, 0.01,
     # print(bar_heights)
     ax.bar(bar_locs, bar_heights, color=bar_colors, width=0.8, align='center', linewidth=0.2)
     # turn ticks off
-    plt.tick_params(top='off', right='off', direction='out', labelsize='small')
+    plt.tick_params(top=False, right=False, direction='out', labelsize='small')
     ax.spines['top'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
     # ax.spines['left'].set_visible(False)
