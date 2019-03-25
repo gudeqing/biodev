@@ -677,7 +677,7 @@ if __name__ == "__main__":
                              " If None, the second column of count_matrix must be gene length which"
                              " will be used to calculate fpkm or tpm. NOTE: Expression table "
                              "has nothing to do with differential analysis; Only used in report.")
-    parser.add_argument('--exp_type', type=str, default="fpkm", help='fpkm or tpm. Default: fpkm')
+    parser.add_argument('--exp_type', type=str, default="tpm", help='fpkm or tpm. Default: fpkm')
     parser.add_argument('-group', type=str, required=True,
                         help="path of group info file with at least two columns. First column must"
                              " consist of sample names. Other columns consist of group names."
