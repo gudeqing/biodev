@@ -765,6 +765,7 @@ if __name__ == "__main__":
         x_label2, y_label2, _ = volcano_df.columns
         volcano_df.plot.scatter(x=x_label2, y=y_label2, c=volcano_df['color'])
         plt.savefig(os.path.join(args.output, x_label + '_vs_' + y_label + '.volcano.png'), dpi=300)
+        plt.close()
 
     def density_plot():
         exp = pd.read_table(toolbox.exp, index_col=0, header=0)
@@ -780,6 +781,7 @@ if __name__ == "__main__":
         exp_df.plot(kind="density",)
         plt.xlabel('log2(exp)')
         plt.savefig(os.path.join(args.output, 'count_based.density.png'), dpi=300)
+        plt.close()
 
     # plotting
     if args.plot:
