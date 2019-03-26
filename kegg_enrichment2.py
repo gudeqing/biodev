@@ -224,7 +224,7 @@ def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gen
                 # color = 'red' if deg_dict[each_gene].lower() == 'up' else 'green'
                 if regulate.lower() == 'up':
                     color = 'red'
-                elif regulate.lower() == 'up':
+                elif regulate.lower() == 'down':
                     color = 'green'
                 else:
                     color = 'purple'  # not up and down
