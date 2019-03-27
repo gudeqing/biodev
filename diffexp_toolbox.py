@@ -455,7 +455,7 @@ class DiffExpToolbox(PvalueCorrect):
             f.write(
                 'DEGexp(geneExpMatrix1=test, geneCol1=1, expCol1=c(2:{}), groupLabel1="{}", '
                 'geneExpMatrix2=ctrl, geneCol2=1, expCol2=c(2:{}), groupLabel2="{}", '
-                'method="{}", '
+                'method="{}", rawCount=T, '
                 'outputDir="{}")'
                 '\n'.format(test_ind.count(',')+2, test,
                             ctrl_ind.count(',')+2, ctrl,
