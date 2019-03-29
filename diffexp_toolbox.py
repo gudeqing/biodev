@@ -222,7 +222,8 @@ class DiffExpToolbox(PvalueCorrect):
         df = pd.read_table(self.exp, index_col=0)
         self.exp_dicts = df.to_dict('index')
         if sorted(self.count_dicts.keys()) != sorted(self.exp_dicts.keys()):
-            raise Exception("The first id column of count table and exp table are different !")
+            cha = set(self.count_dicts.keys()) ^ set(self.exp_dicts.keys())
+            raise Exception("The first id column of count table and exp table are different :{} !".format(list(cha)[:10]))
 
     def filter(self, count_cutoff=4, passed_number_cutoff=None, output=None):
         if output is None:
@@ -792,10 +793,9 @@ if __name__ == "__main__":
         if args.output is None:
             args.output = os.getcwd()
 
-        results = glob.glob(args.output+'/*_vs_*.{}.xls'.format(args.method.lower()))
-        # print(results)
-        density_plot()
-        with Pool(args.pool) as pool:
-            pool.map(diff_plot, results)
+    results = glob.glob(args.output+'/*_vs_*.{}.xls'.format(args.method.lower()))
+    from concurrent.futures import ThreadPoolExecutor as Pool
+    with Pool(args.pool) as pool:
+        pool.map(diff_plot, results)
 
 
