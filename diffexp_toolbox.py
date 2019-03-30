@@ -789,12 +789,14 @@ if __name__ == "__main__":
         plt.close()
 
     # plotting
-    if args.output is None:
-        args.output = os.getcwd()
+    density_plot()
+    if args.plot:
+        if args.output is None:
+            args.output = os.getcwd()
 
-    results = glob.glob(args.output+'/*_vs_*.{}.xls'.format(args.method.lower()))
-    from concurrent.futures import ThreadPoolExecutor as Pool
-    with Pool(args.pool) as pool:
-        pool.map(diff_plot, results)
+        results = glob.glob(args.output+'/*_vs_*.{}.xls'.format(args.method.lower()))
+        from concurrent.futures import ThreadPoolExecutor as Pool
+        with Pool(args.pool) as pool:
+            pool.map(diff_plot, results)
 
 
