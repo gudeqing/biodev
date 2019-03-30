@@ -789,9 +789,8 @@ if __name__ == "__main__":
         plt.close()
 
     # plotting
-    if args.plot:
-        if args.output is None:
-            args.output = os.getcwd()
+    if args.output is None:
+        args.output = os.getcwd()
 
     results = glob.glob(args.output+'/*_vs_*.{}.xls'.format(args.method.lower()))
     from concurrent.futures import ThreadPoolExecutor as Pool
