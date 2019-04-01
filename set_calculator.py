@@ -32,6 +32,8 @@ def run(files:list, exp=None, out=None, has_header=False,
         result = eval('&'.join(['s'+str(x) for x in range(1, set_number+1)]))
     if not result:
         print('result is empty!')
+    else:
+        print('result size: {}'.format(len(result)))
     with open(out or 'result.list', 'w') as f:
         _ = [f.write(x) for x in result]
 
