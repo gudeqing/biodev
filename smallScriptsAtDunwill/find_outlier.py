@@ -1,41 +1,29 @@
-def run(files:list, exp=None, out=None, has_header=False,
-        intersect_only=True, intersect_xoy=1, union_only=False):
-    set_number = len(files)
-    if len(files) >= 2:
-        for ind, each in enumerate(files, start=1):
-            exec('s{}=set(open("{}").readlines())'.format(ind, each))
-    else:
-        import pandas as pd
-        table = pd.read_table(files[0], header=0 if has_header else None)
-        set_number = table.shape[1]
-        for i in range(table.shape[1]):
-            exec('s{}=set(table.iloc[:, {}])'.format(i+1, i))
+import pandas as pd
 
-    result = list()
-    if exp:
-        print("do as you say in exp")
-        result = eval(exp)
-    elif intersect_xoy > 1:
-        print('do intersect_xoy')
-        union = eval('|'.join(['s'+str(x) for x in range(1, set_number+1)]))
-        result = set()
-        for each in union:
-            varspace = dict(locals())
-            in_times = sum(eval("each in s{}".format(x), varspace) for x in range(1, set_number+1))
-            if in_times >= intersect_xoy:
-                result.add(each)
-    elif union_only:
-        print('do union only')
-        result = eval('|'.join(['s'+str(x) for x in range(1, set_number+1)]))
-    elif intersect_only:
-        print('do intersect only')
-        result = eval('&'.join(['s'+str(x) for x in range(1, set_number+1)]))
-    if not result:
-        print('result is empty!')
-    else:
-        print('result size: {}'.format(len(result)))
-    with open(out or 'result.list', 'w') as f:
-        _ = [f.write(x) for x in result]
+
+def run(table_file, k=2, xoy=2, no_transpose=False, out=None):
+    table = pd.read_table(table_file, index_col=0, header=0)
+    if not no_transpose:
+        table = table.transpose()
+    describe = table.describe()
+    upper_limit = describe.loc['75%'] + (describe.loc['75%'] - describe.loc['25%'])*k
+    upper_limit[upper_limit > describe.loc['max']] = describe.loc['max']
+    lower_limit = describe.loc['25%'] - (describe.loc['75%'] - describe.loc['25%'])*k
+    lower_limit[lower_limit < describe.loc['min']] = describe.loc['min']
+    over_upper = table.apply(lambda x: x > upper_limit, axis=1)
+    less_lower = table.apply(lambda x: x < lower_limit, axis=1)
+    outlier_matrix = over_upper | less_lower
+    outlier_state = outlier_matrix.sum(axis=1)
+    outlier_samples = outlier_state.index[outlier_state >= xoy]
+    print(
+        '{} items are counted as outlier for at least {} times:\n'.format(len(outlier_samples), xoy),
+        list(outlier_samples)
+    )
+    table = table.append(describe)
+    table.loc['lower_limit'] = lower_limit
+    table.loc['upper_limit'] = upper_limit
+    table['outlier_count'] = outlier_state
+    table.to_csv(out or table_file+'.new.xls', header=True, index=True, sep='\t')
 
 
 if __name__ == '__main__':
@@ -118,7 +106,7 @@ if __name__ == '__main__':
                 print('Current Directory is not writable, thus argument log is not written !')
             start = time.time()
             func(**args)
-            # print("total time: {}s".format(time.time() - start))
+            print("total time: {}s".format(time.time() - start))
 
         def call(self, callable_dict):
             import sys
