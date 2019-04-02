@@ -243,12 +243,14 @@ class DiffExpToolbox(PvalueCorrect):
                     passed_number_cutoff = 2
                 elif sample_num <= 8:
                     passed_number_cutoff = 3
-                elif sample_num <= 12:
-                    passed_number_cutoff = 4
-                elif sample_num <= 25:
-                    passed_number_cutoff = 5
+                # elif sample_num <= 12:
+                #     passed_number_cutoff = 4
+                # elif sample_num <= 25:
+                #     passed_number_cutoff = 5
+                # else:
+                #     passed_number_cutoff = 6
                 else:
-                    passed_number_cutoff = 6
+                    passed_number_cutoff = int(sample_num/2)
             else:
                 passed_number_cutoff = int(passed_number_cutoff)
             for line in f:
