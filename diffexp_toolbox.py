@@ -736,7 +736,7 @@ if __name__ == "__main__":
                              padjust_way=args.padjust_way,
                              pool_size=args.pool)
     if not args.no_filter:
-        toolbox.filter(count_cutoff=args.count_cutoff, output=args.output)
+        toolbox.filter(count_cutoff=args.count_cutoff, output=args.output, passed_number_cutoff=args.passed_number_cutoff)
 
     if args.method == 'DEGseq':
         toolbox.DEGseq(method=args.degseq_method, threshold_kind=args.degseq_padjust_way,
