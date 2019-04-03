@@ -77,10 +77,13 @@ if __name__ == '__main__':
             import inspect
             import json
             import time
+            import sys
             if isinstance(func, type):
                 description = func.__init__.__doc__
             else:
                 description = func.__doc__
+            if '-h' not in sys.argv or '--help' in sys.argv or '-help' in sys.argv:
+                description = None
             if description:
                 _ = [print(x.strip()) for x in description.split('\n') if x.strip()]
                 parser = argparse.ArgumentParser(add_help=False)
