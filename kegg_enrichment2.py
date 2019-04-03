@@ -63,10 +63,10 @@ def parse_br08901(brite):
     """ The brite file can be download from http://www.kegg.jp/kegg-bin/get_htext?br08901 """
     f = open(brite)
     cls_dict = dict()
+    A, B = '', ''
     for line in f:
         if not line:
             continue
-        A, B = '', ''
         if line.startswith('A<'):
             A = line[4:-5]
         if line.startswith('B'):
@@ -206,6 +206,7 @@ def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gen
             considered_classes.update(gene_class_dict[gene])
     if not considered_classes:
         exit("差异基因中没有基因有通路注释，富集分析无法继续")
+    print('{} out of diff {} genes have pathway info'.format(len(deg_dict)- no_path_annotation_gene_number, len(deg_dict)))
     if no_path_annotation_gene_number:
         print('{} genes have no pathway annotation info'.format(no_path_annotation_gene_number))
 
