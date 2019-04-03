@@ -1,3 +1,4 @@
+import pandas as pd
 from goatools.obo_parser import GODag
 from goatools.go_enrichment import GOEnrichmentStudy
 from goatools.godag_plot import plot_gos
@@ -10,7 +11,7 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
     """
     Go enrichment based on goatools
     :param gene2go: a file with two columns: gene_id \t go_term_id
-    :param study: a file with one column, each row contains one gene id
+    :param study: a file with at least one column, first column contains gene id, second columns is regulation direction
     :param obo: go-basic file download from GeneOntology
     :param population: a file with each row contains one gene; default to use all genes in gene2go file as population
     :param geneid2symbol: file with two columns: gene_id \t gene_symbol, used for DAG plot
@@ -23,9 +24,17 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
     :param show_gene_limit: the max number of gene in a node to show
     :return: None
     """
+    if geneid2symbol:
+        geneid2symbol = dict(x.strip().split()[:2] for x in open(geneid2symbol) if x.strip())
+    else:
+        geneid2symbol = dict()
     obo = GODag(obo)
     gene2go = read_associations(gene2go)
     study_genes = [x.strip().split()[0] for x in open(study)]
+    try:
+        reg_dict = dict(x.strip().split()[:2] for x in open(study))
+    except:
+        reg_dict = dict()
     if not population:
         population = gene2go.keys()
     else:
@@ -36,15 +45,27 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
         propagate_counts=False, alpha=alpha,
         methods=correct
     )
-
-    goea_results_all = goea_obj.run_study(study_genes)
+    keep_if = lambda r: r.ratio_in_study[0] != 0
+    goea_results_all = goea_obj.run_study(study_genes, keep_if=keep_if)
     goea_obj.wr_tsv(goea_out, goea_results_all)
+    if reg_dict:
+        def func(y):
+            results = []
+            genes = [x.strip() for x in y.split(',')]
+            for gene in genes:
+                tmp = [gene]
+                if gene in reg_dict:
+                    tmp.append(reg_dict[gene])
+                if gene in geneid2symbol:
+                    tmp.append(geneid2symbol[gene])
+                results.append('|'.join(tmp))
+            return ';'.join(results)
+        # func = lambda y: ';'.join(x.strip()+'|'+reg_dict[x.strip()] if x.strip() in reg_dict else x.strip() for x in y.split(','))
+        table = pd.read_table(goea_out, header=0, index_col=0)
+        table['study_items'] = table.loc[:, 'study_items'].map(func)
+        table.to_csv(goea_out, header=True, index=True, sep='\t')
 
     # -------------------plot dag------------------------
-    if geneid2symbol:
-        geneid2symbol = dict(x.strip().split()[:2] for x in open(geneid2symbol) if x.strip())
-    else:
-        geneid2symbol = dict()
 
     goea_results_sig = [r for r in goea_results_all if r.p_fdr_bh < alpha]
     if not goea_results_sig:
