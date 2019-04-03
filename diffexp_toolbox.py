@@ -225,14 +225,16 @@ class DiffExpToolbox(PvalueCorrect):
             cha = set(self.count_dicts.keys()) ^ set(self.exp_dicts.keys())
             raise Exception("The first id column of count table and exp table are different :{} !".format(list(cha)[:10]))
 
-    def filter(self, cutoff=4, passed_number_cutoff=None, output=None, filter_by='count'):
+    def filter(self, cutoff=1, passed_number_cutoff=None, output=None, filter_by='exp'):
         if output is None:
             output = os.getcwd()
         out_count = os.path.join(output, os.path.basename(self.count) + '_filtered')
         filter_on = self.count if filter_by=='count' else self.exp
         df = pd.read_table(filter_on, index_col=0, header=0)
         sample_num = df.shape[1]
-        passed_number_cutoff = int(sample_num / 2)
+        if passed_number_cutoff is None:
+            passed_number_cutoff = int(sample_num / 2)
+
         ind = df.apply(lambda x: sum(y > cutoff for y in x) >= passed_number_cutoff , axis=1)
         self.filtered_seqs = list(df.index[ind==False])
         df[ind].to_csv(out_count, header=True, index=True, sep='\t')
@@ -671,9 +673,9 @@ if __name__ == "__main__":
     parser.add_argument('--plot', default=False, action='store_true', help="do plotting")
     parser.add_argument('-pvalue', type=float, default=0.05, help='p(q)value cutoff. Default: 0.05')
     parser.add_argument('-fc', type=float, default=2.0, help='fold change cutoff. Default: 2.0')
-    parser.add_argument('--count_cutoff', type=float, default=4.0,
+    parser.add_argument('--count_cutoff', type=float, default=1.0,
                         help='count number cutoff for filtering before diff analysis. Default: 4.0')
-    parser.add_argument('-filter_by', type=str, default='count', help="filter gene by count or exp")
+    parser.add_argument('-filter_by', type=str, default='exp', help="filter gene by count or exp")
     parser.add_argument('--passed_number_cutoff', type=int, default=None,
                         help='sample( count > count_cutoff ) number cutoff for filtering before '
                              'diff analysis. Let M=passed_number_cutoff, N=total_sample_number, '
