@@ -225,41 +225,17 @@ class DiffExpToolbox(PvalueCorrect):
             cha = set(self.count_dicts.keys()) ^ set(self.exp_dicts.keys())
             raise Exception("The first id column of count table and exp table are different :{} !".format(list(cha)[:10]))
 
-    def filter(self, count_cutoff=4, passed_number_cutoff=None, output=None):
+    def filter(self, cutoff=4, passed_number_cutoff=None, output=None, filter_by='count'):
         if output is None:
             output = os.getcwd()
         out_count = os.path.join(output, os.path.basename(self.count) + '_filtered')
-        with open(self.count) as f, open(out_count, 'w') as f2:
-            line = f.readline()
-            f2.write(line)
-            header = line.strip('\n').split('\t')
-            sample_num = len(header) - 1
-            if passed_number_cutoff is None:
-                if sample_num == 1:
-                    raise Exception("Only one sample ?!")
-                elif sample_num <= 3:
-                    passed_number_cutoff = 1
-                elif sample_num <= 5:
-                    passed_number_cutoff = 2
-                elif sample_num <= 8:
-                    passed_number_cutoff = 3
-                elif sample_num <= 12:
-                    passed_number_cutoff = 4
-                elif sample_num <= 25:
-                    passed_number_cutoff = 5
-                else:
-                    passed_number_cutoff = 6
-            else:
-                passed_number_cutoff = int(passed_number_cutoff)
-            for line in f:
-                if not line.strip():
-                    continue
-                tmp_list = line.strip().split()
-                passed_number = sum([1 for x in tmp_list[1:] if float(x) >= count_cutoff])
-                if passed_number >= passed_number_cutoff:
-                    f2.write(line)
-                else:
-                    self.filtered_seqs.append(tmp_list[0])
+        filter_on = self.count if filter_by=='count' else self.exp
+        df = pd.read_table(filter_on, index_col=0, header=0)
+        sample_num = df.shape[1]
+        passed_number_cutoff = int(sample_num / 2)
+        ind = df.apply(lambda x: sum(y > cutoff for y in x) >= passed_number_cutoff , axis=1)
+        self.filtered_seqs = list(df.index[ind==False])
+        df[ind].to_csv(out_count, header=True, index=True, sep='\t')
         self.count_filtered = out_count
 
     @staticmethod
@@ -697,6 +673,7 @@ if __name__ == "__main__":
     parser.add_argument('-fc', type=float, default=2.0, help='fold change cutoff. Default: 2.0')
     parser.add_argument('--count_cutoff', type=float, default=4.0,
                         help='count number cutoff for filtering before diff analysis. Default: 4.0')
+    parser.add_argument('-filter_by', type=str, default='count', help="filter gene by count or exp")
     parser.add_argument('--passed_number_cutoff', type=int, default=None,
                         help='sample( count > count_cutoff ) number cutoff for filtering before '
                              'diff analysis. Let M=passed_number_cutoff, N=total_sample_number, '
@@ -736,7 +713,8 @@ if __name__ == "__main__":
                              padjust_way=args.padjust_way,
                              pool_size=args.pool)
     if not args.no_filter:
-        toolbox.filter(count_cutoff=args.count_cutoff, output=args.output)
+        toolbox.filter(cutoff=args.count_cutoff, output=args.output, filter_by=args.filter_by,
+                       passed_number_cutoff=args.passed_number_cutoff)
 
     if args.method == 'DEGseq':
         toolbox.DEGseq(method=args.degseq_method, threshold_kind=args.degseq_padjust_way,
