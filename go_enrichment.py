@@ -66,25 +66,25 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
         table.to_csv(goea_out, header=True, index=True, sep='\t')
 
     # -------------------plot dag------------------------
-
-    goea_results_sig = [r for r in goea_results_all if r.p_fdr_bh < alpha]
-    if not goea_results_sig:
-        print("No significant term to plot, and exit now")
-        return
-    if len(goea_results_sig) >= top:
-        goea_results_sig = goea_results_sig[:top]
-    goid_subset = [r.GO for r in goea_results_sig]
-
-    plot_gos(dag_out,
-             goid_subset,  # Source GO ids
-             obo,
-             goea_results=goea_results_all,  # use pvals for coloring:"p_{M}".format(M=goea[0].method_flds[0].fieldname)
-             # We can further configure the plot...
-             id2symbol=geneid2symbol,  # Print study gene Symbols, not GeneIDs
-             study_items=show_gene_limit,  # Only max 6 gene Symbols on GO terms
-             items_p_line=3,  # Print 3 genes per line)
-             dpi=0 if dag_out.endswith('svg') else dpi
-             )
+    for each in ['BP', 'MF', 'CC']:
+        goea_results_sig = [r for r in goea_results_all if r.p_fdr_bh < alpha and r.NS == each]
+        if not goea_results_sig:
+            print("No significant term to plot, and exit now")
+            return
+        if len(goea_results_sig) >= top:
+            goea_results_sig = goea_results_sig[:top]
+        goid_subset = [r.GO for r in goea_results_sig]
+        print(dag_out[:-4]+'.'+each+dag_out[-4:])
+        plot_gos(dag_out[:-4]+'.'+each+dag_out[-4:],
+                 goid_subset,  # Source GO ids
+                 obo,
+                 goea_results=goea_results_all,  # use pvals for coloring:"p_{M}".format(M=goea[0].method_flds[0].fieldname)
+                 # We can further configure the plot...
+                 id2symbol=geneid2symbol,  # Print study gene Symbols, not GeneIDs
+                 study_items=show_gene_limit,  # Only max 6 gene Symbols on GO terms
+                 items_p_line=3,  # Print 3 genes per line)
+                 dpi=0 if dag_out.endswith('svg') else dpi
+                 )
 
 
 if __name__ == '__main__':
