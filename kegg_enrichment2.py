@@ -188,7 +188,8 @@ def enrichment_bar(xdata, ydata, category, stat_value, stat_cutoff=(0.001, 0.01,
 
 
 def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gene_number, gene2ec_dict, gene2k_dict,
-                           path_annot_dict, only_consider_path_annotated_genes=True):
+                           path_annot_dict, only_consider_path_annotated_genes=True, geneid2symbol=None):
+    geneid2symbol = dict(x.strip().split('\t')[:2] for x in open(geneid2symbol)) if geneid2symbol else dict()
     if only_consider_path_annotated_genes:
         pop_number = len(gene_class_dict)
         study_number = len(set(deg_dict.keys()) & set(gene_class_dict.keys()))
@@ -253,9 +254,15 @@ def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gen
                 enzymes = ''
 
             if k_id or enzymes:
-                associated_diff_info.append(each_gene + '|' + regulate + '|' + '|'.join(k_id) + '|' + '|'.join(enzymes))
+                if each_gene in geneid2symbol:
+                    associated_diff_info.append(each_gene + '|' + geneid2symbol[each_gene] +'|' + regulate + '|' + '|'.join(k_id) + '|' + '|'.join(enzymes))
+                else:
+                    associated_diff_info.append(each_gene + '|' + regulate + '|' + '|'.join(k_id) + '|' + '|'.join(enzymes))
             else:
-                associated_diff_info.append(each_gene + '|' + regulate)
+                if each_gene in geneid2symbol:
+                    associated_diff_info.append(each_gene + '|' + geneid2symbol[each_gene] +'|' + regulate)
+                else:
+                    associated_diff_info.append(each_gene + '|' + regulate)
 
         if ks:
             mark = ''
@@ -428,6 +435,7 @@ if __name__ == '__main__':
     parser.add_argument('--only_consider_path_annotated_genes', default=False, action='store_true',
                         help='recommend to set it, and pop number and study number will only consider genes with path annotated.')
     parser.add_argument('-o', default=os.getcwd(), help='output dir')
+    parser.add_argument('-geneid2symbol', default=None, help='file with at least two columns: geneid\tgene_symbol')
 
     args = parser.parse_args()
 
@@ -484,7 +492,8 @@ if __name__ == '__main__':
     for deg_file in deg_files:
         deg_list = read_diff_genes(deg_file)
         data = prepare_hypergeom_data(p_gene, gene_p, deg_list, gene_number, g2e_dict, gene_k, path_describe_dict,
-                                      only_consider_path_annotated_genes=args.only_consider_path_annotated_genes)
+                                      only_consider_path_annotated_genes=args.only_consider_path_annotated_genes,
+                                      geneid2symbol=args.geneid2symbol)
         result = hypergeom_test(data, sort_fdr=FDR)
         result_file = os.path.join(args.o, os.path.basename(deg_file)+'.kegg_enrichment.xls')
         f = open(result_file, 'w')
