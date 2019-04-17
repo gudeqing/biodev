@@ -42,10 +42,12 @@ def parse_gene_annot(map_file, header=False):
                 continue
             if ";" in b:
                 cls = b.split(";")
+                cls = [x[5:] if x.startswith('path:') else x for x in cls ]
                 gene_class[a].update(cls)
                 for each_class in cls:
                     class_gene[each_class].add(a)
             else:
+                b = b[5:] if b.startswith('path:') else b
                 gene_class[a].add(b)
                 class_gene[b].add(a)
     f.close()
@@ -464,7 +466,7 @@ if __name__ == '__main__':
     if args.g2p is None:
         if args.k2p is None:
             k2p_file = os.path.join(args.o, 'k2p.txt')
-            wget.download('http://rest.kegg.jp/link/pathway/orthology/')
+            wget.download('http://rest.kegg.jp/link/pathway/orthology/', k2p_file)
         else:
             k2p_file = args.k2p
         p_k, k_p = parse_gene_annot(k2p_file)
@@ -475,6 +477,10 @@ if __name__ == '__main__':
                     gene_p[each_gene].update(k_p[each_k])
                 else:
                     print(each_k, 'not in k2path info')
+        with open('g2p.txt', 'w') as fn:
+            for k, v in gene_p.items():
+                for p in v:
+                    fn.write('{}\t{}\n'.format(k, p))
         for each_p in p_k:
             for each_k in p_k[each_p]:
                 if each_k in k_gene:
