@@ -233,7 +233,7 @@ class DiffExpToolbox(PvalueCorrect):
         df = pd.read_table(filter_on, index_col=0, header=0)
         sample_num = df.shape[1]
         if passed_number_cutoff is None:
-            passed_number_cutoff = int(sample_num / 2)
+            passed_number_cutoff = int((sample_num-1) / 2)
 
         ind = df.apply(lambda x: sum(y > cutoff for y in x) >= passed_number_cutoff , axis=1)
         self.filtered_seqs = list(df.index[ind==False])
@@ -674,7 +674,7 @@ if __name__ == "__main__":
     parser.add_argument('-pvalue', type=float, default=0.05, help='p(q)value cutoff. Default: 0.05')
     parser.add_argument('-fc', type=float, default=2.0, help='fold change cutoff. Default: 2.0')
     parser.add_argument('--count_cutoff', type=float, default=1.0,
-                        help='count number cutoff for filtering before diff analysis. Default: 4.0')
+                        help='count number or expression cutoff for filtering before diff analysis. Default: 1.0')
     parser.add_argument('-filter_by', type=str, default='exp', help="filter gene by count or exp")
     parser.add_argument('--passed_number_cutoff', type=int, default=None,
                         help='sample( count > count_cutoff ) number cutoff for filtering before '
