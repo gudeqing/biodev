@@ -28,7 +28,7 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
         geneid2symbol = dict(x.strip().split()[:2] for x in open(geneid2symbol) if x.strip())
     else:
         geneid2symbol = dict()
-    obo = GODag(obo)
+    obo = GODag(obo, optional_attrs=['relationship', 'is_a'])
     gene2go = read_associations(gene2go)
     study_genes = [x.strip().split()[0] for x in open(study)]
     try:
@@ -74,16 +74,20 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
         if len(goea_results_sig) >= top:
             goea_results_sig = goea_results_sig[:top]
         goid_subset = [r.GO for r in goea_results_sig]
-        print(dag_out[:-4]+'.'+each+dag_out[-4:])
+        # t = obo[goid_subset[5]]
+        # for k, v in t.relationship.items():
+        #     print(t, k, type(v), list(v)[0].id)
+        # print(dag_out[:-4]+'.'+each+dag_out[-4:])
         plot_gos(dag_out[:-4]+'.'+each+dag_out[-4:],
-                 goid_subset,  # Source GO ids
+                 goid_subset,  # Source GO ids, 如果分析结果里面没有包含这个节点，则他的颜色会是苍白绿色，但这里这个情况不会出现
                  obo,
                  goea_results=goea_results_all,  # use pvals for coloring:"p_{M}".format(M=goea[0].method_flds[0].fieldname)
                  # We can further configure the plot...
                  id2symbol=geneid2symbol,  # Print study gene Symbols, not GeneIDs
                  study_items=show_gene_limit,  # Only max 6 gene Symbols on GO terms
                  items_p_line=3,  # Print 3 genes per line)
-                 dpi=0 if dag_out.endswith('svg') else dpi
+                 dpi=0 if dag_out.endswith('svg') else dpi,
+                 # title="Directed Graph of enriched {} terms".format(each)
                  )
 
 
