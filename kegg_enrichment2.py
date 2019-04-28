@@ -56,8 +56,17 @@ def parse_gene_annot(map_file, header=False):
 
 def read_diff_genes(deg_file):
     """ get diff gene list"""
+    deg_list = []
     with open(deg_file) as f:
-        deg_list = [x.strip().split()[0:2] for x in f if x.strip()]
+        first_line = f.readline()
+        if len(first_line.strip().split()) < 2:
+            print('found no up or down info in deg file')
+            print('assume that all deg being up regulated!')
+            deg_list += [[first_line.strip(), 'up']]
+            deg_list += [[x.strip(), 'up'] for x in f if x.strip()]
+        else:
+            deg_list += [first_line.strip().split()[0:2]]
+            deg_list += [x.strip().split()[0:2] for x in f if x.strip()]
     return dict(deg_list)
 
 
