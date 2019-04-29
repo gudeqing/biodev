@@ -85,7 +85,7 @@ def parse_br08901(brite):
             C = line.split()[1]
             C_detail = ' '.join(line.split()[2:])
             if A and B:
-                cls_dict['ko' + C] = (C_detail, B, A)
+                cls_dict[C] = (C_detail, B, A)
             else:
                 raise Exception('file format is wrong, A or B not found')
     f.close()
@@ -237,18 +237,18 @@ def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gen
                 if regulate.lower() == 'up':
                     color = 'red'
                 elif regulate.lower() == 'down':
-                    color = 'green'
+                    color = 'blue'
                 else:
-                    color = 'purple'  # not up and down
+                    color = 'pink'  # not up and down
 
                 for each_kid in k_id:
                     if each_kid in ks:  # becasuse many genes -> one Kxxxxx
                         if colors[ks.index(each_kid)] == color:
                             pass
                         else:
-                            if colors[ks.index(each_kid)] == 'purple':
+                            if colors[ks.index(each_kid)] == 'pink':
                                 colors[ks.index(each_kid)] = color
-                            elif color == 'purple':
+                            elif color == 'pink':
                                 pass
                             else:
                                 colors[ks.index(each_kid)] = 'yellow'
@@ -282,7 +282,7 @@ def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gen
         else:
             link = 'None'
 
-        path_name, typeII, typeI = path_annot_dict[each_class]
+        path_name, typeII, typeI = path_annot_dict[each_class[-5:]]  # 提取后5位数
         associated_diff_info = ';'.join(associated_diff_info)
         study_hitnumber = len(associated_diff_genes)
         yield study_hitnumber, pop_number, pop_hitnumber, study_number, each_class, associated_diff_info, link, path_name, typeII, typeI
