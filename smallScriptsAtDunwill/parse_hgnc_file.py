@@ -66,7 +66,7 @@ class ParseHGNC(object):
             not_found = []
             for each in queries:
                 if each in known_dict:
-                    f.write('{}\t{}\n'.format(each, known_dict[each]))
+                    f.write('{}\t{}\n'.format(known_dict[each], each))
                     result.append(known_dict[each])
                 else:
                     not_found.append(each)
@@ -82,14 +82,14 @@ class ParseHGNC(object):
                     if len(s2e[each]) > 1:
                         print("{} was found associated with {} genes".format(each, len(s2e[each])))
                     for g in s2e[each]:
-                        f.write('{}\t{}\n'.format(each, g))
+                        f.write('{}\t{}\n'.format(g, each))
                 elif each in withdraw_dict:
                     print('{} was found in withdraw'.format(each))
                     for new_sym in withdraw_dict[each]:
                         if new_sym in s2e:
                             result.append(s2e[new_sym])
                             for g in s2e[new_sym]:
-                                f.write('{}\t{}\n'.format(each, g))
+                                f.write('{}\t{}\n'.format(g, each))
                 else:
                     failed_ones.append(each)
                     # print('{} is not found'.format(each))
