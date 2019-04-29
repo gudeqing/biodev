@@ -7,10 +7,11 @@ import logging
 """
 目的：获取某物种的ensembl_id对应的go注释和kegg注释信息，需要联网获取
 根据ftp://ftp.ncbi.nih.gov/gene/DATA/，该网址更新信息频繁，最好每次都执行该脚本。
- 把ensembl id转换为对应的ncbi_id
+ ensembl id --> ncbi_id
  ncbi_id --> go_id
- ncbi_id --> kegg的ko_id
- ko_id --> path_id
+ ncbi_id --> kegg k_id
+ ncbi_id --> kegg path
+ ncbi_id --> kegg enzyme
  Note that KEGG IDs are the same as Entrez Gene IDs for most species anyway
  KEGG uses Entrez Gene ID as its standard gene ID
 注释：经检查发现，至少在human中，kegg中特定物种的基因id就是ncbi_id前加上物种缩写名，如'1'对应的kegg中的"hsa:1"
