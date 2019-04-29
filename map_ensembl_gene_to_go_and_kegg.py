@@ -2,6 +2,7 @@
 import os
 import wget
 import gzip
+import logging
 
 """
 目的：获取某物种的ensembl_id对应的go注释和kegg注释信息，需要联网获取
@@ -10,8 +11,18 @@ import gzip
  ncbi_id --> go_id
  ncbi_id --> kegg的ko_id
  ko_id --> path_id
+ Note that KEGG IDs are the same as Entrez Gene IDs for most species anyway
+ KEGG uses Entrez Gene ID as its standard gene ID
 注释：经检查发现，至少在human中，kegg中特定物种的基因id就是ncbi_id前加上物种缩写名，如'1'对应的kegg中的"hsa:1"
 """
+
+
+def set_logger(name='log.info', logger_id='x'):
+    logger = logging.getLogger(logger_id)
+    fh = logging.FileHandler(name, mode='w+')
+    logger.addHandler(fh)
+    logger.setLevel(logging.INFO)
+    return logger
 
 
 def ensembl2ncbi(gene2ensembl_file="gene2ensembl.gz", tax_id='9606'):
@@ -23,44 +34,67 @@ def ensembl2ncbi(gene2ensembl_file="gene2ensembl.gz", tax_id='9606'):
     7227	30971	FBgn0040372	NM_001272159.1	FBtr0332992	NP_001259088.1	FBpp0305207
     """
     # human taxonomy id is 9606
+    logger = set_logger()
     if not os.path.exists(gene2ensembl_file):
-        wget.download('ftp://ftp.ncbi.nih.gov/gene/DATA/gene2ensembl.gz', gene2ensembl_file)
+        print('downloading gene2ensembl.gz from ncbi')
+        wget.download('ftp://ftp.ncbi.nih.gov/gene/DATA/gene2ensembl.gz', gene2ensembl_file, bar=None)
     gene2ncbi = dict()
     transcript2ncbi = dict()
-    for line in gzip.open(gene2ensembl_file, mode='rt'):
+    out_name = '{}.EnsemblGene2ncbi.txt'.format(tax_id if tax_id != '9606' else 'hsa')
+    out_name2 = '{}.EnsemblTranscript2ncbi.txt'.format(tax_id if tax_id != '9606' else 'hsa')
+    f = open(out_name, 'w')
+    f2 = open(out_name2, 'w')
+    for line in gzip.open(gene2ensembl_file, mode='rt', encoding='utf-8'):
         if line.startswith(tax_id):
-            line_list = line.split()
+            line_list = line.strip().split('\t')
             if line_list[2] in gene2ncbi:
                 if line_list[1] not in gene2ncbi[line_list[2]]:
-                    print(line_list[2]+' has multiple ncbi gene id')
+                    if line_list[2].strip() == '-':
+                        continue
+                    logger.info(line_list[2]+' has multiple ncbi gene id')
                     gene2ncbi[line_list[2]].append(line_list[1])
+                    f.write('{}\t{}\n'.format(line_list[2], line_list[1]))
             else:
                 gene2ncbi[line_list[2]] = [line_list[1]]
+                f.write('{}\t{}\n'.format(line_list[2], line_list[1]))
+
             if line_list[4] in transcript2ncbi:
                 if line_list[1] not in transcript2ncbi[line_list[4]]:
-                    print(line_list[4]+' has multiple ncbi gene id')
+                    if line_list[4].strip() == '-':
+                        continue
+                    logger.info(line_list[4]+' has multiple ncbi gene id')
                     transcript2ncbi[line_list[4]].append(line_list[1])
+                    f2.write('{}\t{}\n'.format(line_list[4], line_list[1]))
             else:
                 transcript2ncbi[line_list[4]] = [line_list[1]]
+                f2.write('{}\t{}\n'.format(line_list[4], line_list[1]))
+    f.close()
+    f2.close()
     return gene2ncbi, transcript2ncbi
 
 
 def ncbi2go(gene2go_file='gene2go.gz', tax_id='9606'):
     if not os.path.exists(gene2go_file):
-        wget.download('ftp://ftp.ncbi.nih.gov/gene/DATA/gene2go.gz', gene2go_file)
+        print('downloading gene2go.gz from ncbi')
+        wget.download('ftp://ftp.ncbi.nih.gov/gene/DATA/gene2go.gz', gene2go_file, bar=None)
     gene2go = dict()
-    for line in gzip.open(gene2go_file, mode='rt'):
+    out_name = '{}.gene2go.txt'.format(tax_id if tax_id != '9606' else 'hsa')
+    f = open(out_name, 'w')
+    for line in gzip.open(gene2go_file, mode='rt', encoding='utf-8'):
         if line.startswith(tax_id):
             line_list = line.split()
             gene2go.setdefault(line_list[1], list())
             gene2go[line_list[1]].append(line_list[2])
+            f.write('{}\t{}\n'.format(line_list[1], line_list[2]))
+    f.close()
     return gene2go
 
 
 def ncbi2ko(species='hsa'):
     ncbi2kegg_url = 'http://rest.kegg.jp/link/ko/{}'.format(species)
-    ncbi2kegg_file = 'ncbi2ko.txt'
-    wget.download(ncbi2kegg_url, ncbi2kegg_file)
+    ncbi2kegg_file = '{}.gene2kegg.txt'.format(species)
+    print('downloading {} ko information from kegg'.format(species))
+    wget.download(ncbi2kegg_url, ncbi2kegg_file, bar=None)
     n2k = dict()
     with open(ncbi2kegg_file) as f:
         for line in f:
@@ -72,10 +106,43 @@ def ncbi2ko(species='hsa'):
     return n2k
 
 
+def ncbi2path(species='hsa'):
+    url = 'http://rest.kegg.jp/link/pathway/{}'.format(species)
+    print('downloading {} pathway information from kegg'.format(species))
+    g2p_file = '{}.gene2path.txt'.format(species)
+    wget.download(url, g2p_file, bar=None)
+    g2p = dict()
+    with open(g2p_file) as f:
+        for line in f:
+            gene, path = line.strip().split()
+            gene = gene.strip().split(":", 1)[1]  # 把gene前的物种缩写去掉，得到的就是ncbi，至少hsa是这样的
+            path = path.strip()
+            g2p.setdefault(gene, list())
+            g2p[gene].append(path)
+    return g2p
+
+
+def ncbi2enzyme(species='hsa'):
+    url = 'http://rest.kegg.jp/link/enzyme/{}'.format(species)
+    g2e_file = '{}.gene2enzyme.txt'.format(species)
+    print('downloading {} enzyme information from kegg'.format(species))
+    wget.download(url, g2e_file, bar=None)
+    g2e = dict()
+    with open(g2e_file) as f:
+        for line in f:
+            gene, enzyme = line.strip().split()
+            gene = gene.strip().split(":", 1)[1]  # 把gene前的物种缩写去掉，得到的就是ncbi，至少hsa是这样的
+            enzyme = enzyme.strip()
+            g2e.setdefault(gene, list())
+            g2e[gene].append(enzyme)
+    return g2e
+
+
 def ko2path():
+    _ = 'not used now'
     k2p_url = 'http://rest.kegg.jp/link/pathway/ko'
     k2p_file = 'ko2pathway.txt'
-    wget.download(k2p_url, k2p_file)
+    wget.download(k2p_url, k2p_file, bar=None)
     k2p_dict = dict()
     with open(k2p_file) as f:
         for line in f:
@@ -93,50 +160,52 @@ def map_ensembl_to_go_kegg(species='hsa', tax_id='9606'):
     g2n, t2n = ensembl2ncbi(tax_id=tax_id)
     n2go = ncbi2go(tax_id=tax_id)
     n2k = ncbi2ko(species=species)
-    k2p = ko2path()
+    n2p = ncbi2path(species=species)
+    n2e = ncbi2enzyme(species=species)
+    # map gene info
     gene2go = dict()
     gene2path = dict()
     gene2ko = dict()
+    gene2enzyme = dict()
     for g, n_lst in g2n.items():
         for n in n_lst:
             if n in n2go:
                 gene2go.setdefault(g, list())
                 gene2go[g] += n2go[n]
-            if n in n2k:
-                path_lst = list()
-                k_lst = n2k[n]
-                gene2ko.setdefault(g, list())
-                gene2ko[g] += k_lst
-                for k in k_lst:
-                    if k in k2p:
-                        path_lst.extend(k2p[k])
+            if n in n2p:
                 gene2path.setdefault(g, list())
-                gene2path[g] += path_lst
-
+                gene2path[g] += n2p[n]
+            if n in n2k:
+                gene2ko.setdefault(g, list())
+                gene2ko[g] += n2k[n]
+            if n in n2e:
+                gene2enzyme.setdefault(g, list())
+                gene2enzyme[g] += n2e[n]
+    # map transcript info
     trans2go = dict()
     trans2path = dict()
     trans2ko = dict()
-    for t, n_lst in t2n.items():
+    trans2enzyme = dict()
+    for g, n_lst in t2n.items():
         for n in n_lst:
             if n in n2go:
-                trans2go.setdefault(t, list())
-                trans2go[t] += n2go[n]
+                trans2go.setdefault(g, list())
+                trans2go[g] += n2go[n]
+            if n in n2p:
+                trans2path.setdefault(g, list())
+                trans2path[g] += n2p[n]
             if n in n2k:
-                path_lst = list()
-                k_lst = n2k[n]
-                trans2ko.setdefault(t, list())
-                trans2ko[t] += k_lst
-                for k in k_lst:
-                    if k in k2p:
-                        path_lst.extend(k2p[k])
-                trans2path.setdefault(t, list())
-                trans2path[t] += path_lst
+                trans2ko.setdefault(g, list())
+                trans2ko[g] += n2k[n]
+            if n in n2e:
+                trans2enzyme.setdefault(g, list())
+                trans2enzyme[g] += n2e[n]
 
     result = zip(
-        ['gene2ncbi.txt', 'trans2ncbi.txt', 'gene2go.txt', 'gene2ko.txt', 'gene2path.txt',
-         'trans2go.txt', 'trans2ko.txt', 'trans2path.txt'],
-        [g2n, t2n, gene2go, gene2ko, gene2path,
-         trans2go, trans2ko, trans2path]
+        [species+'.ensembl.'+x for x in ['gene2go.txt', 'gene2ko.txt', 'gene2path.txt', 'gene2enzyme.txt'
+         'trans2go.txt', 'trans2ko.txt', 'trans2path.txt', 'trans2enzyme.txt']],
+        [gene2go, gene2ko, gene2path, gene2enzyme,
+         trans2go, trans2ko, trans2path, trans2enzyme]
     )
     for name, data in result:
         with open(name, 'w') as f:
@@ -148,9 +217,12 @@ def map_ensembl_to_go_kegg(species='hsa', tax_id='9606'):
 
 if __name__ == '__main__':
     map_ensembl_to_go_kegg(species='hsa', tax_id='9606')
-    wget.download('http://rest.kegg.jp/link/enzyme/ko', 'ko2enzyme.txt')
+    # wget.download('http://rest.kegg.jp/link/enzyme/ko', 'ko2enzyme.txt')
     from urllib.request import urlretrieve
     url = 'https://www.kegg.jp/kegg-bin/download_htext?htext=br08901&format=htext&filedir='
+    print('downloading br08901.keg')
     urlretrieve(url, 'br08901.keg')
-    wget.download('http://purl.obolibrary.org/obo/go/go-basic.obo', 'go-basic.obo')
+    if not os.path.exists('go-basic.obo'):
+        print('downloading go-basic.obo')
+        wget.download('http://purl.obolibrary.org/obo/go/go-basic.obo', 'go-basic.obo', bar=None)
 
