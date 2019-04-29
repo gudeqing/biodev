@@ -41,8 +41,8 @@ def ensembl2ncbi(gene2ensembl_file="gene2ensembl.gz", tax_id='9606'):
         wget.download('ftp://ftp.ncbi.nih.gov/gene/DATA/gene2ensembl.gz', gene2ensembl_file, bar=None)
     gene2ncbi = dict()
     transcript2ncbi = dict()
-    out_name = '{}.EnsemblGene2ncbi.txt'.format(tax_id if tax_id != '9606' else 'hsa')
-    out_name2 = '{}.EnsemblTranscript2ncbi.txt'.format(tax_id if tax_id != '9606' else 'hsa')
+    out_name = '{}.ensembl.gene2ncbi.txt'.format(tax_id if tax_id != '9606' else 'hsa')
+    out_name2 = '{}.ensembl.trans2ncbi.txt'.format(tax_id if tax_id != '9606' else 'hsa')
     f = open(out_name, 'w')
     f2 = open(out_name2, 'w')
     for line in gzip.open(gene2ensembl_file, mode='rt', encoding='utf-8'):
@@ -203,8 +203,9 @@ def map_ensembl_to_go_kegg(species='hsa', tax_id='9606'):
                 trans2enzyme[g] += n2e[n]
 
     result = zip(
-        [species+'.ensembl.'+x for x in ['gene2go.txt', 'gene2ko.txt', 'gene2path.txt', 'gene2enzyme.txt'
-         'trans2go.txt', 'trans2ko.txt', 'trans2path.txt', 'trans2enzyme.txt']],
+        [species+'.ensembl.'+x for x in [
+            'gene2go.txt', 'gene2ko.txt', 'gene2path.txt', 'gene2enzyme.txt',
+            'trans2go.txt', 'trans2ko.txt', 'trans2path.txt', 'trans2enzyme.txt']],
         [gene2go, gene2ko, gene2path, gene2enzyme,
          trans2go, trans2ko, trans2path, trans2enzyme]
     )
