@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 import venn
 
 
-def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2, control_name='MT'):
+def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2, control_name='MT', out_name="TopExpGenes.html"):
     controls = [x.strip().split()[0] for x in open(controls)] if controls else []
     id2symbol = dict(x.strip().split()[:2] for x in open(id2symbol)) if id2symbol else dict()
     df = pd.read_csv(exp_matrix, sep='\t', header=0, index_col=0)
@@ -25,8 +25,16 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2, 
         top_dict[sample] = set(plot_data.index)
         total_percent = plot_data['percent'].sum()
         plot_data['order'] = range(plot_data.shape[0])
+        plot_data['symbols'] = [id2symbol[x] if x in id2symbol else x for x in plot_data.index]
         plot_data['marker'] = ['*' if x in controls else "circle" for x in plot_data.index]
-        p = figure(title="Top {} account for {:.2%} of total in {}".format(top, total_percent, sample))
+        p = figure(
+            title="Top {} account for {:.2%} of total in {}".format(top, total_percent, sample),
+            tools="wheel_zoom,reset,hover",
+            tooltips=[
+                ('x', '@percent{0.00%}'),
+                ('y', '@symbols'),
+            ]
+        )
         # min_val = plot_data['percent'].min()
         # max_val = plot_data['percent'].max()
         # mapper = linear_cmap(field_name='percent', palette=bp.Oranges[8], low=min_val, high=max_val)
@@ -57,7 +65,7 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2, 
         plots.append(p)
     else:
         fig = gridplot(plots, ncols=ncols)
-        output_file("TopExpGenes.html")
+        output_file(out_name)
         save(fig)
     # plot venn
     venn.venn(top_dict, cmap="tab10")
