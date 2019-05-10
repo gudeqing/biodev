@@ -32,6 +32,33 @@ def get_all_fastq_abs_path(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].
                 os.symlink(each, os.path.join(sample, os.path.basename(each)))
 
 
+def link_fastq(fastq):
+    fastq_info = dict()
+    with open(fastq) as f:
+        for line in f:
+            if line.startswith('#') or (not line.strip()):
+                pass
+            tmp_list = line.strip().split('\t')
+            sample, fqs = tmp_list[0], tmp_list[1:]
+            fastq_info.setdefault(sample, list())
+            read1_list = [x.strip() for x in fqs[0].split(';')]
+            fastq_info[sample].append(read1_list)
+            if len(fqs) >= 2:
+                read2_list = [x.strip() for x in fqs[1].split(';')]
+                fastq_info[sample].append(read2_list)
+    os.mkdir('rawdata')
+    os.chdir('rawdata')
+    for sample, lst in fastq_info.items():
+        read1 = sorted(lst[0])
+        read2 = sorted(lst[1])
+        # make link
+        os.mkdir(sample)
+        for each in read1:
+            os.symlink(each, os.path.join(sample, os.path.basename(each)))
+        for each in read2:
+            os.symlink(each, os.path.join(sample, os.path.basename(each)))
+
+
 if __name__ == '__main__':
     from xcmds import xcmds
     xcmds.xcmds(locals())
