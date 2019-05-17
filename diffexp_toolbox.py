@@ -202,10 +202,10 @@ class DiffExpToolbox(PvalueCorrect):
             raise Exception('Each group name of {} is not in {}!'.format(error_names, group_info))
 
         # check the consistency between group info and count table
-        with open(self.count) as f:
-            count_samples = f.readline().strip('\n').split('\t')[1:]
+        count_samples = pd.read_csv(self.count, header=0, index_col=0, sep=None, engine='python').columns
         diff = set(self.samples).difference(set(count_samples))
         if diff:
+            print('count_samples:', count_samples)
             raise Exception('samples: {} are not contained in count table file'.format(diff))
 
         # transform count_table and exp_table to python dict
@@ -217,9 +217,9 @@ class DiffExpToolbox(PvalueCorrect):
             self.exp_calculator_with_count(self.count, exp_type=exp_type)
             self.exp = self.count+'.{}.xls'.format(exp_type)
             self.count = str(self.count) + '.count.xls'
-        df = pd.read_table(self.count, index_col=0)
+        df = pd.read_csv(self.count, index_col=0, sep=None, engine='python')
         self.count_dicts = df.to_dict('index')
-        df = pd.read_table(self.exp, index_col=0)
+        df = pd.read_csv(self.exp, index_col=0, sep=None, engine='python')
         self.exp_dicts = df.to_dict('index')
         if sorted(self.count_dicts.keys()) != sorted(self.exp_dicts.keys()):
             cha = set(self.count_dicts.keys()) ^ set(self.exp_dicts.keys())
@@ -230,14 +230,15 @@ class DiffExpToolbox(PvalueCorrect):
             output = os.getcwd()
         out_count = os.path.join(output, os.path.basename(self.count) + '_filtered')
         filter_on = self.count if filter_by=='count' else self.exp
-        df = pd.read_table(filter_on, index_col=0, header=0)
+        df = pd.read_csv(filter_on, index_col=0, header=0, sep=None, engine='python')
         sample_num = df.shape[1]
         if passed_number_cutoff is None:
             passed_number_cutoff = int((sample_num-1) / 2)
 
         ind = df.apply(lambda x: sum(y > cutoff for y in x) >= passed_number_cutoff , axis=1)
         self.filtered_seqs = list(df.index[ind==False])
-        df[ind].to_csv(out_count, header=True, index=True, sep='\t')
+        df = pd.read_csv(self.count, index_col=0, header=0, sep=None, engine='python')
+        df.loc[ind].to_csv(out_count, header=True, index=True, sep='\t')
         self.count_filtered = out_count
 
     @staticmethod
@@ -255,7 +256,7 @@ class DiffExpToolbox(PvalueCorrect):
         """
         if exp_type not in ['fpkm', 'tpm', 'both']:
             raise Exception('exp_type should be fpkm or tpm or both')
-        count_table = pd.read_table(count_table_file, index_col=0)
+        count_table = pd.read_csv(count_table_file, index_col=0, sep=None, engine='python')
         columns = count_table.columns
         gene_len = count_table[columns[0]]
         if gene_len.min() < 11 or gene_len.max() > 200000:
@@ -448,7 +449,7 @@ class DiffExpToolbox(PvalueCorrect):
         all_stat_dicts = dict()
         for each in cmp_result_dirs:
             cmp_result = output + '/' + each + '/output_score.txt'
-            df = pd.read_table(cmp_result, index_col=0)
+            df = pd.read_csv(cmp_result, index_col=0, sep=None, engine='python')
             if int(threshold_kind) == 5 or int(threshold_kind) == 4:
                 padjust = 'q-value(Storey et al. 2003)'
             elif int(threshold_kind) == 1:
@@ -541,7 +542,7 @@ class DiffExpToolbox(PvalueCorrect):
             '.edger.tmp')]
         all_stat_dicts = dict()
         for each in cmp_result_dirs:
-            stat_table = pd.read_table(each, index_col=0)
+            stat_table = pd.read_csv(each, index_col=0, sep=None, engine='python')
             pvalues = stat_table['PValue']
             df = pd.DataFrame(dict(pvalue=pvalues,
                                    padjust=self.multtest_correct(pvalues, method=self.padjust_way),
@@ -623,7 +624,7 @@ class DiffExpToolbox(PvalueCorrect):
             '.deseq2.tmp')]
         all_stat_dicts = dict()
         for each in cmp_result_dirs:
-            stat_table = pd.read_table(each, index_col=0)
+            stat_table = pd.read_csv(each, index_col=0, sep=None, engine='python')
             pvalues = stat_table['pvalue']
             if padjust_way is None:
                 pvalue_correct = self.multtest_correct
@@ -665,7 +666,7 @@ if __name__ == "__main__":
     parser.add_argument('-cmp', type=str, required=True,
                         help="path of comparison info file with only two columns(ctrl vs test)."
                              " Header line starts with '#'")
-    parser.add_argument('-method', type=str, default="edgeR", help='DEGseq or edgeR or DESeq2')
+    parser.add_argument('-method', type=str, default="DESeq2", help='DEGseq or edgeR or DESeq2')
     parser.add_argument('--no_filter', default=False, action='store_true',
                         help='Do no filtering. This option will be ignored by default.')
     parser.add_argument('-output', type=str, default=None, help='output directory.')
@@ -718,18 +719,18 @@ if __name__ == "__main__":
         toolbox.filter(cutoff=args.count_cutoff, output=args.output, filter_by=args.filter_by,
                        passed_number_cutoff=args.passed_number_cutoff)
 
-    if args.method == 'DEGseq':
+    if args.method.lower() == 'degseq':
         toolbox.DEGseq(method=args.degseq_method, threshold_kind=args.degseq_padjust_way,
                        output=args.output, )
-    elif args.method == 'edgeR':
+    elif args.method.lower() == 'edger':
         toolbox.edgeR(dispersion=args.dispersion, output=args.output, )
-    elif args.method == 'DESeq2':
+    elif args.method.lower() == 'deseq2':
         toolbox.DESeq2(output=args.output, padjust_way=args.deseq2_padjust_way, )
     else:
         raise Exception('Method {} is not supported'.format(args.method))
 
     def diff_plot(table):
-        df = pd.read_table(table, index_col=0, header=0)
+        df = pd.read_csv(table, index_col=0, header=0, sep=None, engine='python')
         colors = pd.DataFrame(['gray']*df.shape[0], index=df.index, columns=['color'])
         colors[df['significant'] == 'yes'] = 'red'
         colors[df['regulate'] == "down"] = 'green'
@@ -750,7 +751,7 @@ if __name__ == "__main__":
         plt.close()
 
     def density_plot():
-        exp = pd.read_table(toolbox.exp, index_col=0, header=0)
+        exp = pd.read_csv(toolbox.exp, index_col=0, header=0, sep=None, engine='python')
         exp = exp[exp.mean(axis=1) >= 0.05]
         # exp_df = np.log(exp+1).dropna()
         exp_df = np.log2(exp+0.01).dropna()
@@ -759,7 +760,7 @@ if __name__ == "__main__":
         plt.savefig(os.path.join(args.output, 'exp_based.density.png'), dpi=300)
         plt.close()
 
-        exp = pd.read_table(toolbox.count, index_col=0, header=0)
+        exp = pd.read_csv(toolbox.count, index_col=0, header=0, sep=None, engine='python')
         exp = exp[exp.mean(axis=1) >= 0.8]
         # exp_df = np.log(exp+1).dropna()
         exp_df = np.log2(exp+0.01).dropna()
