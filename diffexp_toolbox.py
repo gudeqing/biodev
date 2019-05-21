@@ -233,7 +233,7 @@ class DiffExpToolbox(PvalueCorrect):
         df = pd.read_csv(filter_on, index_col=0, header=0, sep=None, engine='python')
         sample_num = df.shape[1]
         if passed_number_cutoff is None:
-            passed_number_cutoff = int((sample_num-1) / 2)
+            passed_number_cutoff = int((sample_num-1) / 3)
 
         ind = df.apply(lambda x: sum(y > cutoff for y in x) >= passed_number_cutoff , axis=1)
         self.filtered_seqs = list(df.index[ind==False])
@@ -608,6 +608,9 @@ class DiffExpToolbox(PvalueCorrect):
             f.write('dds <- DESeqDataSetFromMatrix(countData=tmp_counts, colData=colData, '
                     'design= ~group)\n')
             f.write('dds <- DESeq(dds)\n')
+            f.write('rlogCounts = rlog(dds, blind=F)\n')
+            f.write('write.table(assay(rlogCounts), "{}/{}_vs_{}.rlogCounts.matrix", quote=F, col.names = NA)\n'.format(
+                output, ctrl, test))
             if padjust_way is None:
                 padjust_way = 'BH'
             f.write('res <- results(dds, contrast<-c("group", "{}", "{}"), '
