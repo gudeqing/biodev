@@ -332,11 +332,11 @@ class DiffExpToolbox(PvalueCorrect):
                     line_list.append(tmp_fc)
                     # get pvalue
                     tmp_pvalue = tmp_stat_dict['pvalue']
-                    tmp_pvalue = 1 if tmp_pvalue != tmp_pvalue else tmp_pvalue
+                    tmp_pvalue = 'untested' if tmp_pvalue != tmp_pvalue else tmp_pvalue
                     line_list.append(tmp_pvalue)
                     # get adjusted pvalue
                     tmp_padjust = tmp_stat_dict['padjust']
-                    tmp_padjust = 1 if tmp_padjust != tmp_padjust else tmp_padjust
+                    tmp_padjust = 'untested' if tmp_padjust != tmp_padjust else tmp_padjust
                     line_list.append(tmp_padjust)
                     # judge significant
                     tmp_stat = tmp_stat_dict[self.sig_type]
@@ -608,7 +608,7 @@ class DiffExpToolbox(PvalueCorrect):
             f.write('dds <- DESeqDataSetFromMatrix(countData=tmp_counts, colData=colData, '
                     'design= ~group)\n')
             f.write('dds <- DESeq(dds)\n')
-            f.write('rlogCounts = rlog(dds, blind=F)\n')
+            f.write('rlogCounts = rlog(dds, blind=T)\n')
             f.write('write.table(assay(rlogCounts), "{}/{}_vs_{}.rlogCounts.matrix", quote=F, col.names = NA)\n'.format(
                 output, ctrl, test))
             if padjust_way is None:
@@ -696,7 +696,7 @@ if __name__ == "__main__":
                         help="pvalue or padjust, for diff significance judgement. Default: padjust")
     parser.add_argument('--dispersion', type=float, default=0.1,
                         help='Only used for single sample vs single sample with edgeR.Default: 0.1')
-    parser.add_argument('--deseq2_padjust_way', type=str, default=None,
+    parser.add_argument('--deseq2_padjust_way', type=str, default="BH",
                         help='One of ("holm", "hochberg", "hommel", "bonferroni", "BH", "BY",)'
                              'Default: None')
     parser.add_argument('-padjust_way', type=int, default=3,
