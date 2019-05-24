@@ -781,5 +781,10 @@ if __name__ == "__main__":
         from concurrent.futures import ThreadPoolExecutor as Pool
         with Pool(args.pool) as pool:
             pool.map(diff_plot, results)
+    # log
+    import sys, time
+    with open("cmd." + os.path.basename(sys.argv[0])[:-3] + '.' + str(time.time()) + ".txt", 'w') as f:
+        f.write(' '.join(sys.argv) + '\n')
+
 
 
