@@ -120,7 +120,7 @@ class DiffExpToolbox(PvalueCorrect):
     Currently, only 3 tools supported: edgeR, DEseq2, DEGseq
     Note: only parts of the functions of each tool are implemented.
     """
-    def __init__(self, count_matrix, group_info, cmp_info, exp_matrix=None, exp_type='fpkm',
+    def __init__(self, count_matrix, group_info, cmp_info, exp_matrix=None, exp_type='fpkm', gene_annot=None,
                  sig_type='pvalue', stat_cutoff=0.05, fc_cutoff=2, padjust_way=3, pool_size=5):
         """
         initial inputs
@@ -160,24 +160,26 @@ class DiffExpToolbox(PvalueCorrect):
         self.fc_cutoff = fc_cutoff
         self.stat_cutoff = stat_cutoff
         self.padjust_way = padjust_way
+        self.gene_annot_dict = dict()
+        if gene_annot is not None:
+            gene_annot = pd.read_csv(gene_annot, sep=None, engine='python', header=None)
+            self.gene_annot_dict = dict(zip(gene_annot[0], gene_annot[1]))
         self.count_filtered = None
         self.filtered_seqs = []
         # group_info -> dict, group_name as key, list of sample names as values. {group:[s1,s2,]}
-        sample_list = list()
-        with open(group_info) as f:
-            group_dict = dict()
-            for line in f:
-                if line.startswith("#") or not line.strip():
-                    continue
-                tmp_list = line.strip().split()
-                sample_list.append(tmp_list[0])
-                for g in tmp_list[1:]:
-                    group_dict.setdefault(g, list())
-                    group_dict[g].append(tmp_list[0])
-            for g in group_dict.keys():
-                group_dict[g] = sorted(list(set(group_dict[g])))
+        group_df = pd.read_csv(group_info, sep=None, engine='python', header=0, index_col=0)
+        self.samples = sorted(group_df.index)
+        self.batch_dict = dict()
+        if 'batch' in group_df.columns:
+            self.batch_dict = dict(zip(group_df.index, group_df['batch']))
+            group_df = group_df.loc[:, [x for x in group_df.columns if x != 'batch']]
+        group_dict = dict()
+        for scheme in group_df:
+            tmp_dict = dict(list(group_df.loc[:, [scheme]].groupby(scheme)))
+            for group, df_val in tmp_dict.items():
+                group_dict[group] = sorted(df_val.index)
         self.group_dict = group_dict
-        self.samples = sorted(list(set(sample_list)))
+
         # comparison info -> list. [(ctrl, test), ...]
         with open(cmp_info) as f:
             cmp_list = list()
@@ -186,9 +188,9 @@ class DiffExpToolbox(PvalueCorrect):
                 if line.startswith("#") or not line.strip():
                     continue
                 tmp_ctrl, tmp_test = line.strip().split()
-                if tmp_ctrl not in self.group_dict and tmp_ctrl not in sample_list:
+                if tmp_ctrl not in self.group_dict and tmp_ctrl not in self.samples:
                     error_names.append(tmp_ctrl)
-                if tmp_test not in self.group_dict and tmp_test not in sample_list:
+                if tmp_test not in self.group_dict and tmp_test not in self.samples:
                     error_names.append(tmp_test)
                 cmp_list.append((tmp_ctrl, tmp_test))
         cmp_list = sorted(list(set(cmp_list)))
@@ -309,21 +311,21 @@ class DiffExpToolbox(PvalueCorrect):
             if len(test_samples) >= 2:
                 exp_header_list.append(test)
             exp_header = tmp_sep.join(exp_header_list) + '_' + self.exp_type
-
-            f.write('seq_id\t{}\t{}\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\n'.format(
-                count_header, exp_header))
+            if self.gene_annot_dict:
+                f.write('seq_id\tgene_symbol\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\t{}\t{}\n'.format(
+                    count_header, exp_header))
+            else:
+                f.write('seq_id\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\t{}\t{}\n'.format(
+                    count_header, exp_header))
             cmp_samples = ctrl_samples + test_samples
             for seq_id in target_seqs:
                 line_list = [seq_id]
-                tmp_count_dict = self.count_dicts[seq_id]
-                line_list += [tmp_count_dict[x] for x in cmp_samples]
-                tmp_exp_dict = self.exp_dicts[seq_id]
-                tmp_exp_list = [tmp_exp_dict[x] for x in cmp_samples]
-                if len(ctrl_samples) >= 2:
-                    tmp_exp_list.append(sum([tmp_exp_dict[x] for x in ctrl_samples])/len(ctrl_samples))
-                if len(test_samples) >= 2:
-                    tmp_exp_list.append(sum([tmp_exp_dict[x] for x in test_samples])/len(test_samples))
-                line_list += tmp_exp_list
+                if self.gene_annot_dict:
+                    if seq_id in self.gene_annot_dict:
+                        annot = self.gene_annot_dict[seq_id]
+                    else:
+                        annot = seq_id
+                    line_list += [annot]
                 tmp_stat_dict = stat_dict.get(seq_id)
                 if tmp_stat_dict:
                     # get fold change
@@ -356,7 +358,17 @@ class DiffExpToolbox(PvalueCorrect):
                     if line_list[-2] == 'yes':
                         f2.write(seq_id.rsplit('.', 1)[0] + '\t' + reg + '\n')
                 else:
-                    line_list += [0, 1, 1, 'untested', 'untested']
+                    line_list += ['untested', 'untested', 'untested', 'untested', 'untested']
+                # add exp and count
+                tmp_count_dict = self.count_dicts[seq_id]
+                line_list += [tmp_count_dict[x] for x in cmp_samples]
+                tmp_exp_dict = self.exp_dicts[seq_id]
+                tmp_exp_list = [tmp_exp_dict[x] for x in cmp_samples]
+                if len(ctrl_samples) >= 2:
+                    tmp_exp_list.append(sum([tmp_exp_dict[x] for x in ctrl_samples]) / len(ctrl_samples))
+                if len(test_samples) >= 2:
+                    tmp_exp_list.append(sum([tmp_exp_dict[x] for x in test_samples]) / len(test_samples))
+                line_list += tmp_exp_list
                 # save
                 f.write('\t'.join([str(x) for x in line_list])+'\n')
 
@@ -604,17 +616,41 @@ class DiffExpToolbox(PvalueCorrect):
             f.write('tmp_counts <- counts[, c({})]\n'.format(ctrl_ind + ',' + test_ind))
             f.write('tmp_counts = floor(tmp_counts+0.5)\n')
             f.write('tmp_group <- c({})\n'.format(','.join(ctrl_names + test_names)))
-            f.write('colData <- data.frame(row.names=colnames(tmp_counts), group=tmp_group)\n')
-            f.write('dds <- DESeqDataSetFromMatrix(countData=tmp_counts, colData=colData, '
-                    'design= ~group)\n')
-            f.write('dds <- DESeq(dds)\n')
+            if self.batch_dict:
+                batch_info = [self.batch_dict[x] for x in (self.group_dict[ctrl] + self.group_dict[test])]
+                batch_info = ["'{}'".format(x) for x in batch_info]
+                f.write('batch <- c({})\n'.format(','.join(batch_info)))
+                f.write('colData <- data.frame(row.names=colnames(tmp_counts), group=tmp_group, batch=batch)\n')
+                f.write('dds <- DESeqDataSetFromMatrix(countData=tmp_counts, colData=colData, '
+                        'design= ~ batch + group)\n')
+            else:
+                f.write('colData <- data.frame(row.names=colnames(tmp_counts), group=tmp_group)\n')
+                f.write('dds <- DESeqDataSetFromMatrix(countData=tmp_counts, colData=colData, design= ~group)\n')
             f.write('rlogCounts = rlog(dds, blind=T)\n')
-            f.write('write.table(assay(rlogCounts), "{}/{}_vs_{}.rlogCounts.matrix", quote=F, col.names = NA)\n'.format(
-                output, ctrl, test))
+            f.write('pdf("{}/{}_vs_{}.pca.pdf")\n'.format(output, ctrl, test))
+            if self.batch_dict:
+                f.write('plotPCA(rlogCounts, "batch")\n')
+                f.write('plotPCA(rlogCounts, "group")\n')
+            else:
+                f.write('plotPCA(rlogCounts, "group")\n')
+            f.write('dev.off()\n')
+            f.write('write.table(assay(rlogCounts), "{}/{}_vs_{}.rlogCounts.matrix", '
+                    'quote=F, col.names = NA)\n'.format(output, ctrl, test))
+            if self.batch_dict:
+                f.write('assay(rlogCounts) <- limma::removeBatchEffect(assay(rlogCounts), c(colData$batch))\n')
+                f.write('pdf("{}/{}_vs_{}.batchCorrected.pca.pdf")\n'.format(output, ctrl, test))
+                f.write('plotPCA(rlogCounts, "batch")\n')
+                f.write('plotPCA(rlogCounts, "group")\n')
+                f.write('dev.off()\n')
+                f.write('write.table(assay(rlogCounts), "{}/{}_vs_{}.batchCorrected.rlogCounts.matrix", '
+                        'quote=F, col.names = NA)\n'.format(output, ctrl, test))
+
             if padjust_way is None:
                 padjust_way = 'BH'
+            f.write('dds <- DESeq(dds)\n')
             f.write('res <- results(dds, contrast<-c("group", "{}", "{}"), '
                     'pAdjustMethod="{}")\n'.format(test, ctrl, padjust_way))
+            f.write('summary(res)\n')
             tmp_out_file = os.path.join(output, "{}_vs_{}.deseq2.tmp".format(ctrl, test))
             f.write('write.table(res, file="{}", sep="\\t", quote=F, '
                     'row.names=T, col.names=NA)\n'.format(tmp_out_file))
@@ -639,9 +675,17 @@ class DiffExpToolbox(PvalueCorrect):
                                        padjust=stat_table['padj'],
                                        log2fc=stat_table['log2FoldChange']), index=pvalues.index)
             stat_dict = df.to_dict('index')
-            target_seqs = list(df[self.sig_type].sort_values().index) + self.filtered_seqs
+            target_seqs = df[self.sig_type].sort_values().index
             result_table = each.split('.tmp')[0] + '.xls'
             result_delist = each.split('.tmp')[0] + '.DE.list'
+            if self.batch_dict:
+                rlog_count = each.split('deseq2.tmp')[0] + 'rlogCounts.matrix'
+            else:
+                rlog_count = each.split('deseq2.tmp')[0] + 'batchCorrected.rlogCounts.matrix'
+            rlog = pd.read_csv(rlog_count, index_col=0, sep=None, engine='python')
+            rlog.columns = [x[1:] if x.startswith('X') and x[1:] in self.samples else x for x in rlog.columns]
+            rlog.round(4).to_csv(rlog_count, index=True, header=True, sep='\t')
+            self.exp_dicts = rlog.to_dict('index')
             ctrl, test = os.path.basename(each).split('.deseq2.tmp')[0].split('_vs_')
             all_stat_dicts['{}_vs_{}'.format(ctrl, test)] = df
             self.__make_result(ctrl, test, target_seqs, stat_dict, result_table, result_delist)
