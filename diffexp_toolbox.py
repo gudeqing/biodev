@@ -304,13 +304,13 @@ class DiffExpToolbox(PvalueCorrect):
             test_samples = [test]
         with open(out_diff_table, 'w') as f, open(out_deg_list, 'w') as f2:
             count_header = '_count\t'.join(ctrl_samples+test_samples) + '_count'
-            tmp_sep = '_' + self.exp_type + '\t'
+            tmp_sep = '_' + 'normalized' + '\t'
             exp_header_list = ctrl_samples+test_samples
-            if len(ctrl_samples) >= 2:
-                exp_header_list.append(ctrl)
-            if len(test_samples) >= 2:
-                exp_header_list.append(test)
-            exp_header = tmp_sep.join(exp_header_list) + '_' + self.exp_type
+            # if len(ctrl_samples) >= 2:
+            #     exp_header_list.append(ctrl)
+            # if len(test_samples) >= 2:
+            #     exp_header_list.append(test)
+            exp_header = tmp_sep.join(exp_header_list) + '_' + 'normalized'
             if self.gene_annot_dict:
                 f.write('seq_id\tgene_symbol\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\t{}\t{}\n'.format(
                     count_header, exp_header))
@@ -364,10 +364,10 @@ class DiffExpToolbox(PvalueCorrect):
                 line_list += [tmp_count_dict[x] for x in cmp_samples]
                 tmp_exp_dict = self.exp_dicts[seq_id]
                 tmp_exp_list = [tmp_exp_dict[x] for x in cmp_samples]
-                if len(ctrl_samples) >= 2:
-                    tmp_exp_list.append(sum([tmp_exp_dict[x] for x in ctrl_samples]) / len(ctrl_samples))
-                if len(test_samples) >= 2:
-                    tmp_exp_list.append(sum([tmp_exp_dict[x] for x in test_samples]) / len(test_samples))
+                # if len(ctrl_samples) >= 2:
+                #     tmp_exp_list.append(sum([tmp_exp_dict[x] for x in ctrl_samples]) / len(ctrl_samples))
+                # if len(test_samples) >= 2:
+                #     tmp_exp_list.append(sum([tmp_exp_dict[x] for x in test_samples]) / len(test_samples))
                 line_list += tmp_exp_list
                 # save
                 f.write('\t'.join([str(x) for x in line_list])+'\n')
@@ -678,7 +678,7 @@ class DiffExpToolbox(PvalueCorrect):
             target_seqs = df[self.sig_type].sort_values().index
             result_table = each.split('.tmp')[0] + '.xls'
             result_delist = each.split('.tmp')[0] + '.DE.list'
-            if self.batch_dict:
+            if not self.batch_dict:
                 rlog_count = each.split('deseq2.tmp')[0] + 'rlogCounts.matrix'
             else:
                 rlog_count = each.split('deseq2.tmp')[0] + 'batchCorrected.rlogCounts.matrix'
