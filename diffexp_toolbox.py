@@ -162,7 +162,7 @@ class DiffExpToolbox(PvalueCorrect):
         self.padjust_way = padjust_way
         self.gene_annot_dict = dict()
         if gene_annot is not None:
-            gene_annot = pd.read_csv(gene_annot, sep=None, engine='python', header=None)
+            gene_annot = pd.read_csv(gene_annot, sep=None, engine='python', header=None).fillna('None')
             self.gene_annot_dict = dict(zip(gene_annot[0], gene_annot[1]))
         self.count_filtered = None
         self.filtered_seqs = []
@@ -705,6 +705,7 @@ if __name__ == "__main__":
                              " will be used to calculate fpkm or tpm. NOTE: Expression table "
                              "has nothing to do with differential analysis; Only used in report.")
     parser.add_argument('--exp_type', type=str, default="tpm", help='fpkm or tpm. Default: fpkm')
+    parser.add_argument('--gene_annot', type=str, default=None, help='file with two column gene->geneSymbol')
     parser.add_argument('-group', type=str, required=True,
                         help="path of group info file with at least two columns. First column must"
                              " consist of sample names. Other columns consist of group names."
@@ -724,7 +725,7 @@ if __name__ == "__main__":
     parser.add_argument('--count_cutoff', type=float, default=1.0,
                         help='count number or expression cutoff for filtering before diff analysis. Default: 1.0')
     parser.add_argument('-filter_by', type=str, default='exp', help="filter gene by count or exp")
-    parser.add_argument('--passed_number_cutoff', type=int, default=None,
+    parser.add_argument('--passed_number_cutoff', type=int, default=3,
                         help='sample( count > count_cutoff ) number cutoff for filtering before '
                              'diff analysis. Let M=passed_number_cutoff, N=total_sample_number, '
                              'the following event must happen for a gene to be tested: '
@@ -761,7 +762,9 @@ if __name__ == "__main__":
                              fc_cutoff=args.fc,
                              stat_cutoff=args.pvalue,
                              padjust_way=args.padjust_way,
-                             pool_size=args.pool)
+                             pool_size=args.pool,
+                             gene_annot=args.gene_annot)
+
     if not args.no_filter:
         toolbox.filter(cutoff=args.count_cutoff, output=args.output, filter_by=args.filter_by,
                        passed_number_cutoff=args.passed_number_cutoff)
