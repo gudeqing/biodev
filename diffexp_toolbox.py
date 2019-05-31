@@ -172,11 +172,15 @@ class DiffExpToolbox(PvalueCorrect):
         self.batch_dict = dict()
         if 'batch' in group_df.columns:
             self.batch_dict = dict(zip(group_df.index, group_df['batch']))
+            if len(set(self.batch_dict.values())) == 1:
+                raise Exception('Only one batch found, this is invalid!')
             group_df = group_df.loc[:, [x for x in group_df.columns if x != 'batch']]
         group_dict = dict()
         for scheme in group_df:
             tmp_dict = dict(list(group_df.loc[:, [scheme]].groupby(scheme)))
             for group, df_val in tmp_dict.items():
+                if df_val.shape[0] == group_df.index:
+                    raise Exception('In column of {}, group of all samples is the same!'.format(scheme))
                 group_dict[group] = sorted(df_val.index)
         self.group_dict = group_dict
 
@@ -237,7 +241,7 @@ class DiffExpToolbox(PvalueCorrect):
         if passed_number_cutoff is None:
             passed_number_cutoff = int((sample_num-1) / 3)
         print('Filtering genes with its {} {} out {} times over {}'.format(
-            passed_number_cutoff, filter_by, sample_num, cutoff))
+            filter_by, passed_number_cutoff, sample_num, cutoff))
         ind = df.apply(lambda x: sum(y > cutoff for y in x) >= passed_number_cutoff , axis=1)
         self.filtered_seqs = list(df.index[ind==False])
         df = pd.read_csv(self.count, index_col=0, header=0, sep=None, engine='python')
