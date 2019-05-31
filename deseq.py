@@ -20,107 +20,11 @@ def run_script(codes):
     subprocess.call("Rscript {}".format(codes), shell=True)
 
 
-class PvalueCorrect(object):
-    def multtest_correct(self, p_values, method=3):
-        """
-        1. Bonferroni. ---> bonferroni
-        2. Bonferroni Step-down(Holm) ---> Holm
-        3. Benjamini and Hochberg False Discovery Rate ---> BH
-        4. FDR Benjamini-Yekutieli --->BY
-        :param pvalue_list:
-        :param method:
-        :return: np.array
-        """
-        pvalue_list = list(p_values)
-        n = len(pvalue_list)
-        if method == 1:
-            fdr = [eachP*n for eachP in pvalue_list]
-        elif method == 2:
-            sorted_pvalues = sorted(pvalue_list)
-            fdr = [eachP*(n - sorted_pvalues.index(eachP)) for eachP in pvalue_list]
-        elif method == 3:
-            sorted_pvalues = sorted(pvalue_list)
-            fdr = [eachP*n/(sorted_pvalues.index(eachP)+1) for eachP in pvalue_list]
-        elif method == 4:
-            _, fdr = self.fdr_correction(pvalue_list, alpha=0.05, method='negcorr', is_sorted=False)
-        fdr = np.array(fdr)
-        fdr[fdr > 1] = 1.
-        return fdr
-
-    @staticmethod
-    def fdr_correction(pvals, alpha=0.05, method='indep', is_sorted=False):
-        """pvalue correction for false discovery rate
-        This covers Benjamini/Hochberg for independent or positively correlated and
-        Benjamini/Yekutieli for general or negatively correlated tests. Both are
-        available in the function multipletests, as method=`fdr_bh`, resp. `fdr_by`.
-        Parameters
-        ----------
-        pvals : array_like
-            set of p-values of the individual tests.
-        alpha : float
-            error rate
-        method : {'indep', 'negcorr')
-        Returns
-        -------
-        rejected : array, bool
-            True if a hypothesis is rejected, False if not
-        pvalue-corrected : array
-            pvalues adjusted for multiple hypothesis testing to limit FDR
-        Notes
-        -----
-        If there is prior information on the fraction of true hypothesis, then alpha
-        should be set to alpha * m/m_0 where m is the number of tests,
-        given by the p-values, and m_0 is an estimate of the true hypothesis.
-        (see Benjamini, Krieger and Yekuteli)
-        """
-        def _ecdf(x):
-            """
-            no frills empirical cdf used in fdrcorrection
-            """
-            nobs = len(x)
-            return np.arange(1, nobs+1)/float(nobs)
-
-        pvals = np.asarray(pvals)
-        if not is_sorted:
-            pvals_sortind = np.argsort(pvals)
-            pvals_sorted = np.take(pvals, pvals_sortind)
-        else:
-            pvals_sorted = pvals  # alias
-
-        if method in ['i', 'indep', 'p', 'poscorr']:
-            ecdffactor = _ecdf(pvals_sorted)
-        elif method in ['n', 'negcorr']:
-            cm = np.sum(1./np.arange(1, len(pvals_sorted)+1))   #corrected this
-            ecdffactor = _ecdf(pvals_sorted) / cm
-        else:
-            raise ValueError('only indep and negcorr implemented')
-        reject = pvals_sorted <= ecdffactor*alpha
-        if reject.any():
-            rejectmax = max(np.nonzero(reject)[0])
-            reject[:rejectmax] = True
-
-        pvals_corrected_raw = pvals_sorted / ecdffactor
-        pvals_corrected = np.minimum.accumulate(pvals_corrected_raw[::-1])[::-1]
-        del pvals_corrected_raw
-        pvals_corrected[pvals_corrected > 1] = 1
-        if not is_sorted:
-            pvals_corrected_ = np.empty_like(pvals_corrected)
-            pvals_corrected_[pvals_sortind] = pvals_corrected
-            del pvals_corrected
-            reject_ = np.empty_like(reject)
-            reject_[pvals_sortind] = reject
-            return reject_, pvals_corrected_
-        else:
-            return reject, pvals_corrected
-
-
-class DiffExpToolbox(PvalueCorrect):
+class DiffExp():
     """
-    A toolbox contains several differential analysis tools for RNAseq data.
-    Currently, only 3 tools supported: edgeR, DEseq2, DEGseq
-    Note: only parts of the functions of each tool are implemented.
+    simple wrapper of deseq2
     """
-    def __init__(self, count_matrix, group_info, cmp_info, exp_matrix=None, exp_type='fpkm', gene_annot=None,
+    def __init__(self, count_matrix, group_info, cmp_info, exp_matrix=None, exp_type='fpkm',
                  sig_type='pvalue', stat_cutoff=0.05, fc_cutoff=2, padjust_way=3, pool_size=5):
         """
         initial inputs
@@ -160,10 +64,6 @@ class DiffExpToolbox(PvalueCorrect):
         self.fc_cutoff = fc_cutoff
         self.stat_cutoff = stat_cutoff
         self.padjust_way = padjust_way
-        self.gene_annot_dict = dict()
-        if gene_annot is not None:
-            gene_annot = pd.read_csv(gene_annot, sep=None, engine='python', header=None).fillna('None')
-            self.gene_annot_dict = dict(zip(gene_annot[0], gene_annot[1]))
         self.count_filtered = None
         self.filtered_seqs = []
         # group_info -> dict, group_name as key, list of sample names as values. {group:[s1,s2,]}
@@ -236,8 +136,7 @@ class DiffExpToolbox(PvalueCorrect):
         sample_num = df.shape[1]
         if passed_number_cutoff is None:
             passed_number_cutoff = int((sample_num-1) / 3)
-        print('Filtering genes with its {} {} out {} times over {}'.format(
-            passed_number_cutoff, filter_by, sample_num, cutoff))
+
         ind = df.apply(lambda x: sum(y > cutoff for y in x) >= passed_number_cutoff , axis=1)
         self.filtered_seqs = list(df.index[ind==False])
         df = pd.read_csv(self.count, index_col=0, header=0, sep=None, engine='python')
@@ -305,28 +204,28 @@ class DiffExpToolbox(PvalueCorrect):
             test_samples = [test]
         with open(out_diff_table, 'w') as f, open(out_deg_list, 'w') as f2:
             count_header = '_count\t'.join(ctrl_samples+test_samples) + '_count'
-            tmp_sep = '_' + 'normalized' + '\t'
+            tmp_sep = '_' + self.exp_type + '\t'
             exp_header_list = ctrl_samples+test_samples
-            # if len(ctrl_samples) >= 2:
-            #     exp_header_list.append(ctrl)
-            # if len(test_samples) >= 2:
-            #     exp_header_list.append(test)
-            exp_header = tmp_sep.join(exp_header_list) + '_' + 'normalized'
-            if self.gene_annot_dict:
-                f.write('seq_id\tgene_symbol\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\t{}\t{}\n'.format(
-                    count_header, exp_header))
-            else:
-                f.write('seq_id\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\t{}\t{}\n'.format(
-                    count_header, exp_header))
+            if len(ctrl_samples) >= 2:
+                exp_header_list.append(ctrl)
+            if len(test_samples) >= 2:
+                exp_header_list.append(test)
+            exp_header = tmp_sep.join(exp_header_list) + '_' + self.exp_type
+
+            f.write('seq_id\t{}\t{}\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\n'.format(
+                count_header, exp_header))
             cmp_samples = ctrl_samples + test_samples
             for seq_id in target_seqs:
                 line_list = [seq_id]
-                if self.gene_annot_dict:
-                    if seq_id in self.gene_annot_dict:
-                        annot = self.gene_annot_dict[seq_id]
-                    else:
-                        annot = seq_id
-                    line_list += [annot]
+                tmp_count_dict = self.count_dicts[seq_id]
+                line_list += [tmp_count_dict[x] for x in cmp_samples]
+                tmp_exp_dict = self.exp_dicts[seq_id]
+                tmp_exp_list = [tmp_exp_dict[x] for x in cmp_samples]
+                if len(ctrl_samples) >= 2:
+                    tmp_exp_list.append(sum([tmp_exp_dict[x] for x in ctrl_samples])/len(ctrl_samples))
+                if len(test_samples) >= 2:
+                    tmp_exp_list.append(sum([tmp_exp_dict[x] for x in test_samples])/len(test_samples))
+                line_list += tmp_exp_list
                 tmp_stat_dict = stat_dict.get(seq_id)
                 if tmp_stat_dict:
                     # get fold change
@@ -360,16 +259,6 @@ class DiffExpToolbox(PvalueCorrect):
                         f2.write(seq_id.rsplit('.', 1)[0] + '\t' + reg + '\n')
                 else:
                     line_list += ['untested', 'untested', 'untested', 'untested', 'untested']
-                # add exp and count
-                tmp_count_dict = self.count_dicts[seq_id]
-                line_list += [tmp_count_dict[x] for x in cmp_samples]
-                tmp_exp_dict = self.exp_dicts[seq_id]
-                tmp_exp_list = [tmp_exp_dict[x] for x in cmp_samples]
-                # if len(ctrl_samples) >= 2:
-                #     tmp_exp_list.append(sum([tmp_exp_dict[x] for x in ctrl_samples]) / len(ctrl_samples))
-                # if len(test_samples) >= 2:
-                #     tmp_exp_list.append(sum([tmp_exp_dict[x] for x in test_samples]) / len(test_samples))
-                line_list += tmp_exp_list
                 # save
                 f.write('\t'.join([str(x) for x in line_list])+'\n')
 
@@ -618,7 +507,7 @@ class DiffExpToolbox(PvalueCorrect):
             f.write('tmp_counts = floor(tmp_counts+0.5)\n')
             f.write('tmp_group <- c({})\n'.format(','.join(ctrl_names + test_names)))
             if self.batch_dict:
-                batch_info = [self.batch_dict[x] for x in (self.group_dict[ctrl] + self.group_dict[test])]
+                batch_info = [self.batch_dict[x] for x in [self.group_dict[ctrl] + self.group_dict[test]]]
                 batch_info = ["'{}'".format(x) for x in batch_info]
                 f.write('batch <- c({})\n'.format(','.join(batch_info)))
                 f.write('colData <- data.frame(row.names=colnames(tmp_counts), group=tmp_group, batch=batch)\n')
@@ -627,6 +516,7 @@ class DiffExpToolbox(PvalueCorrect):
             else:
                 f.write('colData <- data.frame(row.names=colnames(tmp_counts), group=tmp_group)\n')
                 f.write('dds <- DESeqDataSetFromMatrix(countData=tmp_counts, colData=colData, design= ~group)\n')
+            f.write('dds <- DESeq(dds)\n')
             f.write('rlogCounts = rlog(dds, blind=T)\n')
             f.write('pdf("{}/{}_vs_{}.pca.pdf")\n'.format(output, ctrl, test))
             if self.batch_dict:
@@ -638,7 +528,7 @@ class DiffExpToolbox(PvalueCorrect):
             f.write('write.table(assay(rlogCounts), "{}/{}_vs_{}.rlogCounts.matrix", '
                     'quote=F, col.names = NA)\n'.format(output, ctrl, test))
             if self.batch_dict:
-                f.write('assay(rlogCounts) <- limma::removeBatchEffect(assay(rlogCounts), c(colData$batch))\n')
+                f.write('assay(rlogCounts) < - limma::removeBatchEffect(assay(rlogCounts), c(colData$batch))\n')
                 f.write('pdf("{}/{}_vs_{}.batchCorrected.pca.pdf")\n'.format(output, ctrl, test))
                 f.write('plotPCA(rlogCounts, "batch")\n')
                 f.write('plotPCA(rlogCounts, "group")\n')
@@ -648,10 +538,8 @@ class DiffExpToolbox(PvalueCorrect):
 
             if padjust_way is None:
                 padjust_way = 'BH'
-            f.write('dds <- DESeq(dds)\n')
             f.write('res <- results(dds, contrast<-c("group", "{}", "{}"), '
                     'pAdjustMethod="{}")\n'.format(test, ctrl, padjust_way))
-            f.write('summary(res)\n')
             tmp_out_file = os.path.join(output, "{}_vs_{}.deseq2.tmp".format(ctrl, test))
             f.write('write.table(res, file="{}", sep="\\t", quote=F, '
                     'row.names=T, col.names=NA)\n'.format(tmp_out_file))
@@ -676,17 +564,9 @@ class DiffExpToolbox(PvalueCorrect):
                                        padjust=stat_table['padj'],
                                        log2fc=stat_table['log2FoldChange']), index=pvalues.index)
             stat_dict = df.to_dict('index')
-            target_seqs = df[self.sig_type].sort_values().index
+            target_seqs = list(df[self.sig_type].sort_values().index) + self.filtered_seqs
             result_table = each.split('.tmp')[0] + '.xls'
             result_delist = each.split('.tmp')[0] + '.DE.list'
-            if not self.batch_dict:
-                rlog_count = each.split('deseq2.tmp')[0] + 'rlogCounts.matrix'
-            else:
-                rlog_count = each.split('deseq2.tmp')[0] + 'batchCorrected.rlogCounts.matrix'
-            rlog = pd.read_csv(rlog_count, index_col=0, sep=None, engine='python')
-            rlog.columns = [x[1:] if x.startswith('X') and x[1:] in self.samples else x for x in rlog.columns]
-            rlog.round(4).to_csv(rlog_count, index=True, header=True, sep='\t')
-            self.exp_dicts = rlog.to_dict('index')
             ctrl, test = os.path.basename(each).split('.deseq2.tmp')[0].split('_vs_')
             all_stat_dicts['{}_vs_{}'.format(ctrl, test)] = df
             self.__make_result(ctrl, test, target_seqs, stat_dict, result_table, result_delist)
@@ -706,7 +586,6 @@ if __name__ == "__main__":
                              " will be used to calculate fpkm or tpm. NOTE: Expression table "
                              "has nothing to do with differential analysis; Only used in report.")
     parser.add_argument('--exp_type', type=str, default="tpm", help='fpkm or tpm. Default: fpkm')
-    parser.add_argument('--gene_annot', type=str, default=None, help='file with two column gene->geneSymbol')
     parser.add_argument('-group', type=str, required=True,
                         help="path of group info file with at least two columns. First column must"
                              " consist of sample names. Other columns consist of group names."
@@ -723,10 +602,10 @@ if __name__ == "__main__":
     parser.add_argument('--plot', default=False, action='store_true', help="do plotting")
     parser.add_argument('-pvalue', type=float, default=0.05, help='p(q)value cutoff. Default: 0.05')
     parser.add_argument('-fc', type=float, default=2.0, help='fold change cutoff. Default: 2.0')
-    parser.add_argument('--count_cutoff', type=float, default=2.5,
+    parser.add_argument('--count_cutoff', type=float, default=1.0,
                         help='count number or expression cutoff for filtering before diff analysis. Default: 1.0')
-    parser.add_argument('-filter_by', type=str, default='count', help="filter gene by count or exp")
-    parser.add_argument('--passed_number_cutoff', type=int, default=3,
+    parser.add_argument('-filter_by', type=str, default='exp', help="filter gene by count or exp")
+    parser.add_argument('--passed_number_cutoff', type=int, default=None,
                         help='sample( count > count_cutoff ) number cutoff for filtering before '
                              'diff analysis. Let M=passed_number_cutoff, N=total_sample_number, '
                              'the following event must happen for a gene to be tested: '
@@ -763,9 +642,7 @@ if __name__ == "__main__":
                              fc_cutoff=args.fc,
                              stat_cutoff=args.pvalue,
                              padjust_way=args.padjust_way,
-                             pool_size=args.pool,
-                             gene_annot=args.gene_annot)
-
+                             pool_size=args.pool)
     if not args.no_filter:
         toolbox.filter(cutoff=args.count_cutoff, output=args.output, filter_by=args.filter_by,
                        passed_number_cutoff=args.passed_number_cutoff)
@@ -833,6 +710,4 @@ if __name__ == "__main__":
     import sys, time
     with open("cmd." + os.path.basename(sys.argv[0])[:-3] + '.' + str(time.time()) + ".txt", 'w') as f:
         f.write(' '.join(sys.argv) + '\n')
-
-
 
