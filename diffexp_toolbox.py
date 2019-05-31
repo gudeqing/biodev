@@ -179,7 +179,7 @@ class DiffExpToolbox(PvalueCorrect):
         for scheme in group_df:
             tmp_dict = dict(list(group_df.loc[:, [scheme]].groupby(scheme)))
             for group, df_val in tmp_dict.items():
-                if df_val.shape[0] == group_df.index:
+                if df_val.shape[0] == group_df.shape[0]:
                     raise Exception('In column of {}, group of all samples is the same!'.format(scheme))
                 group_dict[group] = sorted(df_val.index)
         self.group_dict = group_dict
