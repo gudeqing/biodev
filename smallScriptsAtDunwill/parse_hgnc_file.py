@@ -61,37 +61,42 @@ class ParseHGNC(object):
             known_dict = dict(x.strip().split()[:2][::-1] for x in open(known_pair) if x.strip()) if known_pair else dict()
         else:
             known_dict = dict(x.strip().split()[:2] for x in open(known_pair) if x.strip()) if known_pair else dict()
+        known_dict = {x.lower(): y for x,y in known_dict.items()}
         s2e = self.symbol2ensembl() if symbol2id else self.ensembl2symbols()
+        s2e = {x.lower(): y for x,y in s2e.items()}
         with open(out, 'w') as f:
             not_found = []
-            for each in queries:
+            for each_ori in queries:
+                each = each_ori.lower()
                 if each in known_dict:
-                    f.write('{}\t{}\n'.format(known_dict[each], each))
+                    f.write('{}\t{}\n'.format(known_dict[each], each_ori))
                     result.append(known_dict[each])
                 else:
-                    not_found.append(each)
+                    not_found.append(each_ori)
             if known_pair:
                 print('Success to convert {} genes by querying prior known pair'.format(len(result)))
 
             # find the remained ones
             withdraw_dict = self.withdraw_dict() if symbol2id else dict()
+            withdraw_dict = {x.lower(): y for x, y in withdraw_dict.items()}
             failed_ones = []
-            for each in not_found:
+            for each_ori in not_found:
+                each = each_ori.lower()
                 if each in s2e:
                     result.append(s2e[each])
                     if len(s2e[each]) > 1:
-                        print("{} was found associated with {} genes".format(each, len(s2e[each])))
+                        print("{} was found associated with {} genes".format(each_ori, len(s2e[each])))
                     for g in s2e[each]:
-                        f.write('{}\t{}\n'.format(g, each))
+                        f.write('{}\t{}\n'.format(g, each_ori))
                 elif each in withdraw_dict:
-                    print('{} was found in withdraw'.format(each))
+                    print('{} was found in withdraw'.format(each_ori))
                     for new_sym in withdraw_dict[each]:
                         if new_sym in s2e:
                             result.append(s2e[new_sym])
                             for g in s2e[new_sym]:
-                                f.write('{}\t{}\n'.format(g, each))
+                                f.write('{}\t{}\n'.format(g, each_ori))
                 else:
-                    failed_ones.append(each)
+                    failed_ones.append(each_ori)
                     # print('{} is not found'.format(each))
                     # f.write('{}\t{}\n'.format(each, 'not_found'))
             if not_found:
