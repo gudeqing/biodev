@@ -3,6 +3,19 @@
 
 def run(files:list, exp=None, out=None, has_header=False,
         intersect_only=True, intersect_xoy=1, union_only=False):
+    """
+    根据文件内容构建集合，并按指定规则进行运算，默认计算所有集合的交集
+    :param files: 当仅提供一个文件时，文件的各列被当作是集合，集合的元素是单元格的内容；
+    提供多个文件时，对每个文件的内容被一个集合，集合的元素为一整行。
+    :param exp: 表达式，字符串的形式，如's1-s2'表示第一个集合减去第二个集合，集合顺序与文件提供的顺序一一对应
+    :param out: 指定集合运算结果的文件名
+    :param has_header: 指定文件是否包含header，默认无，如有header，header不参与计算
+    :param intersect_only: 如提供，不考虑exp指定的运算，而是计算所有集合的交集，即交集结果的所有元素在集合中出现的频数等于集合数。
+    :param intersect_xoy: 如提供，不考虑exp指定的运算，而是计算所有集合的交集，而且输出交集结果的元素
+    在所有集合中出现的频数大于或等于该参数指定的阈值。
+    :param union_only: 计算各个集合的并集
+    :return: None
+    """
     set_number = len(files)
     if len(files) >= 2:
         for ind, each in enumerate(files, start=1):
@@ -42,106 +55,5 @@ def run(files:list, exp=None, out=None, has_header=False,
 
 
 if __name__ == '__main__':
-    class Func2Command(object):
-        def __init__(self, callable_dict):
-            self.call(callable_dict)
-
-        @staticmethod
-        def introduce_command(func):
-            import argparse
-            import inspect
-            import json
-            import time
-            import sys
-            if isinstance(func, type):
-                description = func.__init__.__doc__
-            else:
-                description = func.__doc__
-            if '-h' not in sys.argv or '--help' in sys.argv or '-help' in sys.argv:
-                description = None
-            if description:
-                _ = [print(x.strip()) for x in description.split('\n') if x.strip()]
-                parser = argparse.ArgumentParser(add_help=False)
-            else:
-                parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, description=description)
-            func_args = inspect.getfullargspec(func)
-            arg_names = func_args.args
-            if not arg_names:
-                func()
-                return
-            arg_defaults = func_args.defaults
-            if not arg_defaults:
-                arg_defaults = []
-            arg_defaults = ['None']*(len(arg_names) - len(arg_defaults)) + list(arg_defaults)
-            sig = inspect.signature(func)
-            for arg, value in zip(arg_names, arg_defaults):
-                arg_type = sig.parameters[arg].annotation
-                if arg == 'self':
-                    continue
-                if value == 'None':
-                    if arg_type in [list, tuple, set]:
-                        parser.add_argument('-' + arg, nargs='+', required=True, metavar=arg)
-                    elif arg_type in [int, str, float]:
-                        parser.add_argument('-' + arg, type=arg_type, required=True, metavar=arg)
-                    else:
-                        parser.add_argument('-'+arg, required=True, metavar=arg)
-                elif type(value) == bool:
-                    if value:
-                        parser.add_argument('--'+arg, action="store_false", help='default: True')
-                    else:
-                        parser.add_argument('--'+arg, action="store_true", help='default: False')
-                elif value is None:
-                    if arg_type in [list, tuple, set]:
-                        parser.add_argument('-' + arg, nargs='+', required=False, metavar=arg)
-                    elif arg_type in [int, str, float]:
-                        parser.add_argument('-' + arg, type=arg_type, required=False, metavar=arg)
-                    else:
-                        parser.add_argument('-'+arg, required=False, metavar='Default:' + str(value))
-                else:
-                    if arg_type in [list, tuple, set] or (type(value) in [list, tuple, set]):
-                        default_value = ' '.join(str(x) for x in value)
-                        if type(value) in [list, tuple]:
-                            one_value = value[0]
-                        else:
-                            one_value = value.pop()
-                        parser.add_argument('-' + arg, default=value, nargs='+', type=type(one_value),
-                                            metavar='Default:'+default_value, )
-                    else:
-                        parser.add_argument('-' + arg, default=value, type=type(value),
-                                            metavar='Default:' + str(value), )
-            if func_args.varargs is not None:
-                print("warning: *varargs is not supported, and will be neglected! ")
-            if func_args.varkw is not None:
-                print("warning: **keywords args is not supported, and will be neglected! ")
-            args = parser.parse_args().__dict__
-            try:
-                with open("Argument_detail.json", 'w') as f:
-                    json.dump(args, f, indent=2, sort_keys=True)
-            except IOError:
-                print('Current Directory is not writable, thus argument log is not written !')
-            start = time.time()
-            func(**args)
-            # print("total time: {}s".format(time.time() - start))
-
-        def call(self, callable_dict):
-            import sys
-            excludes = ['introduce_command', 'Func2Command']
-            _ = [callable_dict.pop(x) for x in excludes if x in callable_dict]
-            if len(callable_dict) >= 2:
-                if len(sys.argv) <= 1:
-                    print("The tool has the following sub-commands: ")
-                    _ = [print(x) for x in callable_dict]
-                    return
-                sub_cmd = sys.argv[1]
-                sys.argv.remove(sub_cmd)
-
-                if sub_cmd in callable_dict:
-                    self.introduce_command(callable_dict[sub_cmd])
-                else:
-                    print('sub-command: {} is not defined'.format(sub_cmd))
-            elif len(callable_dict) == 1:
-                self.introduce_command(callable_dict.pop(list(callable_dict.keys())[0]))
-
-    callable_dict = {x: y for x, y in locals().items() if callable(y)}
-    _ = [callable_dict.pop(x) for x in {'Func2Command'} if x in callable_dict]
-    Func2Command(callable_dict)
+    from xcmds.xcmds import xcmds
+    xcmds(locals(), include=['run'])
