@@ -235,11 +235,17 @@ def prepare_hypergeom_data(class_gene_dict, gene_class_dict, deg_dict, total_gen
                 k_id = gene2k_dict[each_gene]
                 # color = 'red' if deg_dict[each_gene].lower() == 'up' else 'green'
                 if regulate.lower() == 'up':
-                    color = 'red'
+                    color = 'red,blue'
                 elif regulate.lower() == 'down':
-                    color = 'blue'
+                    color = 'blue,red'
+                    if each_class.endswith('01100'):
+                        # global overview map have many colors, thus we use black
+                        color = 'black'
                 else:
-                    color = 'pink'  # not up and down
+                    color = 'pink,blue'  # not up and down
+                    if each_class.endswith('01100'):
+                        # global overview map have many colors, thus we use black
+                        color = 'black'
 
                 for each_kid in k_id:
                     if each_kid in ks:  # becasuse many genes -> one Kxxxxx
@@ -448,6 +454,9 @@ if __name__ == '__main__':
     parser.add_argument('-geneid2symbol', default=None, help='file with at least two columns: geneid\tgene_symbol')
 
     args = parser.parse_args()
+    with open(os.path.join(args.o, 'cmd.info'), 'w') as f:
+        import sys
+        f.write(' '.join(sys.argv) + '\n')
 
     g2p_file = args.g2p
     deg_file = args.deg
