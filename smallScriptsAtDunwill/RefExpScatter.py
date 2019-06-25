@@ -9,9 +9,10 @@ from bokeh.transform import linear_cmap
 import pandas as pd
 import numpy as np
 from colorpool import colorpool
+from scipy import stats
 
 
-def refExpScatter(exp_matrix, ref_samples:list, ref_mode='mean', ref_name='ref', id2symbol=None,
+def refExpScatter(exp_matrix, ref_samples:list, ref_mode='mean', ref_name='ref', id2symbol=None, corr_method='pearson',
                   log_base=2, log_additive=1, group_gene_files:list=None, scatter_ncols=2, mad_ncols=4,
                   prefix='refExpScatter', mad_ymax:float=None):
     exp_df = pd.read_csv(exp_matrix, index_col=0, header=0, sep=None, engine='python')
@@ -50,8 +51,11 @@ def refExpScatter(exp_matrix, ref_samples:list, ref_mode='mean', ref_name='ref',
         plot_data = plot_data[plot_data[ref_name]*plot_data[each]>0]
         plot_data = plot_data.round(4)
         plot_data['symbols'] = exp_df['symbols']
+        corr, pval = correlation_function(corr_method)(plot_data[each], plot_data[ref_name])
+        pval = format(pval, '.2e') if pval < 0.001 else round(pval, 4)
+        corr = round(corr, 3)
         p = figure(
-            title="{} vs {}({})".format(each, ref_mode, ref_name),
+            title="{} vs {}({}) {}_Corr={} Pval={}".format(each, ref_mode, ref_name,corr_method, corr, pval),
             # tools="wheel_zoom,reset,hover",
             tooltips=[
                 ('x', '@{}'.format(ref_name)),
@@ -130,12 +134,25 @@ def refExpScatter(exp_matrix, ref_samples:list, ref_mode='mean', ref_name='ref',
         p.yaxis.axis_label = '|expr - {}_expr| / {}_expr'.format(ref_mode, ref_mode)
         plots.append(p)
         if mad_ymax is not None:
-            p.y_range = Range1d(0, mad_ymax+0.1)
+            p.y_range = Range1d(0, mad_ymax)
     else:
         fig = gridplot(plots, ncols=mad_ncols, sizing_mode='stretch_width')
         output_file(prefix+'.MDA.html')
         save(fig)
 
+
+def correlation_function(func_name):
+    func_name = func_name.lower()
+    if func_name == "pearson":
+        return stats.pearsonr
+    elif func_name == "spearman":
+        return stats.spearmanr
+    elif func_name == "biserial":
+        return stats.pointbiserialr
+    elif func_name == 'kendall':
+        return stats.kendalltau
+    else:
+        raise Exception('{} is not in [pearson, spearman, biserial, kendall]')
 
 if __name__ == '__main__':
     from xcmds import xcmds
