@@ -46,6 +46,7 @@ def exp_calculator_with_count(count_table_file):
     #
     return rpkm_dict, tpm_dict
 
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
