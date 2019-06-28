@@ -28,6 +28,8 @@ def get_all_fastq_abs_path(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].
             read2 = sorted(lst[1])
             if replace_with_underscore:
                 sample = sample.replace('-', '_')
+            if sample.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')):
+                sample = 'S' + sample
             f.write('{}\t{}\t{}\n'.format(sample, ';'.join(read1), ';'.join(read2)))
             if link_rawdata:
                 # make link

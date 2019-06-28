@@ -137,11 +137,11 @@ def get_all_read_len(in_file, p_num=3, chunk_size=50000, plot_rank=None):
         sum_ratio = 0
         for rank, i in enumerate(ratio):
             sum_ratio += i
-            if sum_ratio >= 0.95:
+            if sum_ratio >= 0.999:
                 plot_rank = rank
                 break
     # plot frequency bar
-    data = data[:plot_rank]
+    data = data[:plot_rank+1]
     data = data.sort_index()
     plt.subplot(211)
     data.plot.bar()
