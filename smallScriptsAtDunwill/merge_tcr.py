@@ -36,8 +36,8 @@ def merge_metric_matrix(file_list:list, column_sep='D', out='merged.metric.csv',
     return table
 
 
-def violin_plot(df, data_col, group_cols:list, hue_cols:list=None, index_col=None,
-                out=None, scale='width', style='darkgrid', target_index=None, inner=None):
+def violin_plot(df, data_col, group_cols:list, hue_cols:list=None, index_col=None, split=False, orient=None,
+                exchange_xy=False, out=None, scale='width', style='darkgrid', target_index=None, inner=None):
     sns.set(style=style)
     sns.set(font_scale=0.5)
     init_inner = inner
@@ -78,8 +78,12 @@ def violin_plot(df, data_col, group_cols:list, hue_cols:list=None, index_col=Non
             if hue_col is not None:
                 if hue_col.lower() == 'none':
                     hue_col = None
-            ax = sns.violinplot(x=group_col, y=data_col, data=data, hue=hue_col, scale=scale,
-                                width=0.8, linewidth=0.5, inner=inner, split=False, ax=axes[ind])
+            if not exchange_xy:
+                ax = sns.violinplot(x=group_col, y=data_col, data=data, hue=hue_col, scale=scale, orient=orient,
+                                    width=0.8, linewidth=0.5, inner=inner, split=split, ax=axes[ind])
+            else:
+                ax = sns.violinplot(x=data_col, y=group_col, data=data, hue=hue_col, scale=scale, orient=orient,
+                                    width=0.8, linewidth=0.5, inner=inner, split=split, ax=axes[ind])
             plt.setp(ax.collections, linewidth=0.3)
     else:
         for ind, group_col, hue_col in zip(range(len(group_cols)), group_cols, hue_cols):
@@ -91,8 +95,12 @@ def violin_plot(df, data_col, group_cols:list, hue_cols:list=None, index_col=Non
             if hue_col is not None:
                 if hue_col.lower() == 'none':
                     hue_col = None
-            ax = sns.violinplot(x=group_col, y=data_col, data=data, hue=hue_col, scale=scale,
-                                width=0.8, linewidth=0.5, inner=inner, split=False)
+            if not exchange_xy:
+                ax = sns.violinplot(x=group_col, y=data_col, data=data, hue=hue_col, scale=scale, orient=orient,
+                                    width=0.8, linewidth=0.5, inner=inner, split=split)
+            else:
+                ax = sns.violinplot(x=data_col, y=group_col, data=data, hue=hue_col, scale=scale, orient=orient,
+                                    width=0.8, linewidth=0.5, inner=inner, split=split)
             plt.setp(ax.collections, linewidth=0.3)
 
     plt.savefig(out, dpi=300)
