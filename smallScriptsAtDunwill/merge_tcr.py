@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import scipy.stats as stats
 import matplotlib
@@ -34,6 +35,20 @@ def merge_metric_matrix(file_list:list, column_sep='D', out='merged.metric.csv',
     table = group_df.join(table, how='right', sort=False)
     table.columns = [x.strip() for x in table.columns]
     table.to_csv(out)
+    # extract_vj_frequency matrix
+    vj_freq_cols = [x for x in table.columns if x.endswith('_frequency') and x.startswith('TR')]
+    freq_data = table[vj_freq_cols]
+    freq_data = freq_data.transpose()
+    freq_data.index.name = 'Gene'
+    freq_data.index = [x.split('_frequency')[0] for x in freq_data.index]
+    freq_data.to_csv(out.rsplit('.', 1)[0]+'.frequency.csv')
+    # _counts
+    count_cols = [x for x in table.columns if x.endswith('_counts') and x.startswith('TR')]
+    count_data = table[count_cols]
+    count_data = count_data.transpose()
+    count_data.index.name = 'Gene'
+    count_data.index = [x.split('_counts')[0] for x in count_data.index]
+    count_data.to_csv(out.rsplit('.', 1)[0] + '.count.csv')
     return table
 
 
@@ -256,6 +271,39 @@ def mean_duplicated(df, dup_col:list, target_index=None, index_col=None, out=Non
         out = 'uniq.{}.mean.csv'.format('-'.join(dup_col))
     data.to_csv(out)
     data.to_excel(out.rsplit('.', 1)[0] + '.xlsx')
+
+
+def convert2vdjtools(files:list, out_dir=os.getcwd(), group_info=None):
+    samples = list()
+    out_path = list()
+    for each in files:
+        sample = os.path.basename(each).split('_', 1)[0]
+        samples.append(sample[:-4])
+        out_name = os.path.join(out_dir, '{}.clone_summary.txt'.format(sample))
+        out_path.append(out_name)
+        table = pd.read_csv(each, index_col=None, header=0, sep=None, engine='python')
+        target_cols = ['Total Counts', 'Frequency', 'CDR3 NT', 'CDR3 AA', 'Variable', 'Diversity', 'Joining']
+        new_cols = ['count', 'frequency', 'CDR3nt', 'CDR3aa', 'V', 'D', 'J']
+        table = table[target_cols]
+        table.columns = new_cols
+        table.to_csv(out_name, sep='\t', index=False)
+    # make matadata
+    if group_info:
+        group_df = pd.read_csv(group_info, index_col=0, header=0, sep=None, engine='python')
+        group_df = group_df.applymap(lambda x: x.replace(' ', '_'))
+        if len(set(samples) & set(group_df.index)) < 1:
+            print(samples)
+            print(set(group_df.index))
+            raise Exception('sample id does not match!')
+        ori_order = group_df.index
+        group_df = group_df.loc[samples]
+        group_df['files'] = out_path
+        group_df['sample_id'] = group_df.index
+        cols = ['files', 'sample_id'] + [x for x in group_df.columns if x not in ['files', 'sample_id']]
+        group_df = group_df[cols]
+        group_df = group_df.loc[[x for x in ori_order if x in samples]]
+        group_df.to_csv(os.path.join(out_dir, 'metadata.txt'), sep='\t', index=False)
+
 
 
 if __name__ == '__main__':
