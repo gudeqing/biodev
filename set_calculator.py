@@ -1,31 +1,48 @@
 #! /data/users/dqgu/anaconda3/bin/python
+import os
+import matplotlib
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
+import venn
 
 
-def run(files:list, exp=None, out=None, has_header=False,
-        intersect_only=True, intersect_xoy=1, union_only=False):
+def run(files:list, exp=None, out_prefix='result', has_header=False,
+        intersect_only=True, intersect_xoy=1, union_only=False,
+        venn_names:list=None, venn_list:list=None):
     """
-    根据文件内容构建集合，并按指定规则进行运算，默认计算所有集合的交集
-    :param files: 当仅提供一个文件时，文件的各列被当作是集合，集合的元素是单元格的内容；
-    提供多个文件时，对每个文件的内容被一个集合，集合的元素为一整行。
-    :param exp: 表达式，字符串的形式，如's1-s2'表示第一个集合减去第二个集合，集合顺序与文件提供的顺序一一对应
-    :param out: 指定集合运算结果的文件名
-    :param has_header: 指定文件是否包含header，默认无，如有header，header不参与计算
-    :param intersect_only: 如提供，不考虑exp指定的运算，而是计算所有集合的交集，即交集结果的所有元素在集合中出现的频数等于集合数。
-    :param intersect_xoy: 如提供，不考虑exp指定的运算，而是计算所有集合的交集，而且输出交集结果的元素
-    在所有集合中出现的频数大于或等于该参数指定的阈值。
+    根据文件内容构建集合, 并按指定规则进行运算, 默认计算所有集合的交集
+    :param files: 当仅提供一个文件时, 文件的各列被当作是集合, 集合的元素是单元格的内容;
+    提供多个文件时, 每个文件内容被当作一个集合, 集合的元素为一整行。
+    :param exp: 表达式, 字符串的形式, 如's1-s2'表示第一个集合减去第二个集合, 集合顺序与文件提供的顺序一一对应
+    :param out_prefix: 指定集合运算结果的文件名前缀
+    :param has_header: 指定文件是否包含header, 默认无, 如有header, header不参与计算
+    :param intersect_only: 如提供, 不考虑exp指定的运算, 而是计算所有集合的交集, 即交集结果的所有元素在集合中出现的频数等于集合数
+    :param intersect_xoy: 如提供, 不考虑exp指定的运算, 而是计算所有集合的交集, 而且输出交集结果的元素
+    在所有集合中出现的频数大于或等于该参数指定的阈值.
     :param union_only: 计算各个集合的并集
+    :param venn_names: 用于画venn图, 对各个集合进行命名, 与文件名顺序应一致, 默认对文件名进行'.'分割获取第一个字符串作为集合名
+    :param venn_list: 用于画venn图, 如 'A,B,C' 'B,C,D'表示画两个韦恩图, 第一个韦恩图用ABC集合, 而第二个韦恩图用BCD集合,
+    默认用所有集合画一个韦恩图
     :return: None
     """
+    venn_set_dict = dict()
     set_number = len(files)
     if len(files) >= 2:
         for ind, each in enumerate(files, start=1):
             exec('s{}=set(open("{}").readlines())'.format(ind, each))
+            if venn_names is None:
+                name = os.path.basename(each).split('.', 1)[0]
+                exec('venn_set_dict["{}"] = s{}'.format(name, ind))
+            else:
+                exec('venn_set_dict["{}"] = s{}'.format(venn_names[ind-1], ind))
     else:
         import pandas as pd
         table = pd.read_table(files[0], header=0 if has_header else None)
         set_number = table.shape[1]
+        venn_names = table.columns if venn_names is None else venn_names
         for i in range(table.shape[1]):
             exec('s{}=set(table.iloc[:, {}])'.format(i+1, i))
+            exec('venn_set_dict["{}"] = s{}'.format(venn_names[i], i+1))
 
     result = list()
     if exp:
@@ -50,8 +67,24 @@ def run(files:list, exp=None, out=None, has_header=False,
         print('result is empty!')
     else:
         print('result size: {}'.format(len(result)))
-    with open(out or 'result.list', 'w') as f:
+    with open(out_prefix + '.list', 'w') as f:
         _ = [f.write(x) for x in result]
+
+    # plot venn
+    if venn_list is None:
+        if len(venn_set_dict) <= 6:
+            venn.venn(venn_set_dict, cmap="tab10")
+            plt.savefig(out_prefix+'.venn.pdf')
+    else:
+        for group in venn_list:
+            groups = group.split(',')
+            tmp_dict = {x: y for x, y in venn_set_dict.items() if x in groups}
+            if len(tmp_dict) <= 6:
+                venn.venn(tmp_dict, cmap="tab10")
+                plt.savefig(out_prefix+'.venn.{}.pdf'.format(group.replace(',', '-')))
+            else:
+                print('venn for {}?'.format(groups))
+                print('venn only support 2-6 sets')
 
 
 if __name__ == '__main__':
