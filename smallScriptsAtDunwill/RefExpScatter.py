@@ -15,6 +15,23 @@ from scipy import stats
 def refExpScatter(exp_matrix, ref_samples:list, ref_mode='mean', ref_name='ref', id2symbol=None, corr_method='pearson',
                   log_base=2, log_additive=1, group_gene_files:list=None, scatter_ncols=2, mad_ncols=4,
                   prefix='refExpScatter', mad_ymax:float=None):
+    """
+    输入表达矩阵，指定参考样本，计算其他样本与其的相关性，并以scatter和MAD图的形式呈现
+    :param exp_matrix: 表达矩阵
+    :param ref_samples: 参考样列表
+    :param ref_mode: 如mean表示计算参考样的平均值作为参考表达量
+    :param ref_name: 参考样的名称
+    :param id2symbol: 第一列为geneid而第二列为symbol的文件
+    :param corr_method: 相关系数计算方法
+    :param log_base: log base default 2
+    :param log_additive: pseudo count added before log
+    :param group_gene_files: 每个文件记录一组基因id, 方便对基因进行分组并标注不同的颜色
+    :param scatter_ncols: 散点图的列数
+    :param mad_ncols: MAD图的列数
+    :param prefix: 输出文件prefix
+    :param mad_ymax: MAD图的y坐标最大值
+    :return:
+    """
     exp_df = pd.read_csv(exp_matrix, index_col=0, header=0, sep=None, engine='python')
     if log_base == 2:
         exp_df = np.log2(exp_df + log_additive)
