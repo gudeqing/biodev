@@ -22,19 +22,22 @@ def merge_vj_matrix(file_list:list, column_sep='D', out='merged.counts.csv', gro
     return table
 
 
-def merge_metric_matrix(file_list:list, column_sep='D', out='merged.metric.csv', group_info:str=None):
+def merge_metric_matrix(file_list:list, name_sep='D', out='merged.metric.csv', group_info:str=None, name_col='NewName'):
     table = pd.read_csv(file_list[0], index_col=None, header=0, sep=None, engine='python')
     for each in file_list[1:]:
         each_table = pd.read_csv(each, index_col=0, header=0)
         table = table.append(each_table, sort=False)
-    samples = [x.strip().split(column_sep, 1)[0] for x in table['Sample_Name']]
+    samples = [x.strip().split(name_sep, 1)[0] for x in table['Sample_Name']]
     table = table.iloc[:, 4:]
     table.index = samples
     table.index.name = 'SampleID'
     group_df = pd.read_csv(group_info, index_col=0, header=0, sep=None, engine='python')
     table = group_df.join(table, how='right', sort=False)
+    table = table.loc[group_df.index]
     table.columns = [x.strip() for x in table.columns]
     table.to_csv(out)
+    # set new_name as index
+    table.set_index(name_col, inplace=True)
     # extract_vj_frequency matrix
     vj_freq_cols = [x for x in table.columns if x.endswith('_frequency') and x.startswith('TR')]
     freq_data = table[vj_freq_cols]
