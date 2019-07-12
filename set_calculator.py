@@ -8,7 +8,7 @@ import venn
 
 def run(files:list, exp=None, out_prefix='result', has_header=False,
         intersect_only=True, intersect_xoy=1, union_only=False,
-        venn_names:list=None, venn_list:list=None):
+        set_names:list=None, venn_list:list=None, venn_names:list=None, venn_format='pdf'):
     """
     根据文件内容构建集合, 并按指定规则进行运算, 默认计算所有集合的交集
     :param files: 当仅提供一个文件时, 文件的各列被当作是集合, 集合的元素是单元格的内容;
@@ -20,9 +20,11 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     :param intersect_xoy: 如提供, 不考虑exp指定的运算, 而是计算所有集合的交集, 而且输出交集结果的元素
     在所有集合中出现的频数大于或等于该参数指定的阈值.
     :param union_only: 计算各个集合的并集
-    :param venn_names: 用于画venn图, 对各个集合进行命名, 与文件名顺序应一致, 默认对文件名进行'.'分割获取第一个字符串作为集合名
+    :param set_names: 用于画venn图, 对各个集合进行命名, 与文件名顺序应一致, 默认对文件名进行'.'分割获取第一个字符串作为集合名
     :param venn_list: 用于画venn图, 如 'A,B,C' 'B,C,D'表示画两个韦恩图, 第一个韦恩图用ABC集合, 而第二个韦恩图用BCD集合,
     默认用所有集合画一个韦恩图
+    :param venn_names: 与venn_list一一对应, 分别命名最终的venn图文件
+    :param venn_format: output figure format, default pdf
     :return: None
     """
     venn_set_dict = dict()
@@ -30,19 +32,19 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     if len(files) >= 2:
         for ind, each in enumerate(files, start=1):
             exec('s{}=set(open("{}").readlines())'.format(ind, each))
-            if venn_names is None:
+            if set_names is None:
                 name = os.path.basename(each).split('.', 1)[0]
                 exec('venn_set_dict["{}"] = s{}'.format(name, ind))
             else:
-                exec('venn_set_dict["{}"] = s{}'.format(venn_names[ind-1], ind))
+                exec('venn_set_dict["{}"] = s{}'.format(set_names[ind - 1], ind))
     else:
         import pandas as pd
         table = pd.read_table(files[0], header=0 if has_header else None)
         set_number = table.shape[1]
-        venn_names = table.columns if venn_names is None else venn_names
+        set_names = table.columns if set_names is None else set_names
         for i in range(table.shape[1]):
             exec('s{}=set(table.iloc[:, {}])'.format(i+1, i))
-            exec('venn_set_dict["{}"] = s{}'.format(venn_names[i], i+1))
+            exec('venn_set_dict["{}"] = s{}'.format(set_names[i], i + 1))
 
     result = list()
     if exp:
@@ -76,12 +78,17 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
             venn.venn(venn_set_dict, cmap="tab10")
             plt.savefig(out_prefix+'.venn.pdf')
     else:
-        for group in venn_list:
+        for ind, group in enumerate(venn_list):
             groups = group.split(',')
             tmp_dict = {x: y for x, y in venn_set_dict.items() if x in groups}
             if len(tmp_dict) <= 6:
                 venn.venn(tmp_dict, cmap="tab10")
-                plt.savefig(out_prefix+'.venn.{}.pdf'.format(group.replace(',', '-')))
+                if not venn_names:
+                   out_name = out_prefix + '.venn.{}.{}'.format(group.replace(',', '-'), venn_format)
+                else:
+                    out_name = out_prefix + '{}.{}'.format(venn_names[ind], venn_format)
+                plt.savefig(out_name, dpi=300)
+
             else:
                 print('venn for {}?'.format(groups))
                 print('venn only support 2-6 sets')
