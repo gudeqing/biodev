@@ -4,11 +4,13 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import venn
+from upsetplot import from_contents
+from upsetplot import plot
 
 
 def run(files:list, exp=None, out_prefix='result', has_header=False,
         intersect_only=True, intersect_xoy=1, union_only=False,
-        set_names:list=None, venn_list:list=None, venn_names:list=None, venn_format='pdf'):
+        set_names:list=None, venn_list:list=None, venn_names:list=None, graph_format='pdf'):
     """
     根据文件内容构建集合, 并按指定规则进行运算, 默认计算所有集合的交集
     :param files: 当仅提供一个文件时, 文件的各列被当作是集合, 集合的元素是单元格的内容;
@@ -22,9 +24,9 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     :param union_only: 计算各个集合的并集
     :param set_names: 用于画venn图, 对各个集合进行命名, 与文件名顺序应一致, 默认对文件名进行'.'分割获取第一个字符串作为集合名
     :param venn_list: 用于画venn图, 如 'A,B,C' 'B,C,D'表示画两个韦恩图, 第一个韦恩图用ABC集合, 而第二个韦恩图用BCD集合,
-    默认用所有集合画一个韦恩图
-    :param venn_names: 与venn_list一一对应, 分别命名最终的venn图文件
-    :param venn_format: output figure format, default pdf
+    默认None, 用所有集合画一个韦恩图; 另外, 可以给该参数输入一个文件, 第一列为集合名, 第二列为分组信息, 后续画图将按照此分组信息分别进行
+    :param venn_names: 与venn_list一一对应, 用于分别命名venn图文件
+    :param graph_format: output figure format, default pdf
     :return: None
     """
     venn_set_dict = dict()
@@ -78,20 +80,49 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
             venn.venn(venn_set_dict, cmap="tab10")
             plt.savefig(out_prefix+'.venn.pdf')
     else:
-        for ind, group in enumerate(venn_list):
+        if len(venn_list) == 1 and ',' not in venn_list[0]:
+            with open(venn_list[0]) as f:
+                group_dict = dict(x.strip().split()[:2] for x in f)
+                tmp_dict = dict()
+                for k, v in group_dict.items():
+                    tmp_dict.setdefault(v, set())
+                    tmp_dict[v].add(k)
+            venn_list = []
+            venn_names = []
+            for k, v in tmp_dict.items():
+                venn_list.append(','.join(v))
+                venn_names.append(k)
+
+        if venn_names is None:
+            venn_names = []
+            for group in venn_list:
+                venn_names.append(group.replace(',', '-'))
+
+        for group, name in zip(venn_list, venn_names):
             groups = group.split(',')
             tmp_dict = {x: y for x, y in venn_set_dict.items() if x in groups}
             if len(tmp_dict) <= 6:
                 venn.venn(tmp_dict, cmap="tab10")
-                if not venn_names:
-                   out_name = out_prefix + '.venn.{}.{}'.format(group.replace(',', '-'), venn_format)
-                else:
-                    out_name = out_prefix + '{}.{}'.format(venn_names[ind], venn_format)
+                out_name = out_prefix + '.{}.venn.{}'.format(name, graph_format)
                 plt.savefig(out_name, dpi=300)
+                plt.close()
 
             else:
                 print('venn for {}?'.format(groups))
                 print('venn only support 2-6 sets')
+
+    # intersection plot
+    if venn_list is None:
+        plot(from_contents(venn_set_dict), sum_over=False, sort_categories_by=None, show_counts=True)
+        plt.savefig('all.cmbVenn.{}'.format(graph_format), dpi=300)
+        plt.close()
+    else:
+        for group, name in zip(venn_list, venn_names):
+            groups = group.split(',')
+            tmp_dict = {x: y for x, y in venn_set_dict.items() if x in groups}
+            plot(from_contents(tmp_dict), sum_over=False, sort_categories_by=None, show_counts=True)
+            plt.savefig('all.{}.cmbVenn.{}'.format(name, graph_format), dpi=300)
+            plt.close()
 
 
 if __name__ == '__main__':

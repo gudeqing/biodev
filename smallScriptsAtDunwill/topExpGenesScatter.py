@@ -1,3 +1,4 @@
+import os
 from bokeh.models import ColumnDataSource, ColorBar, NumeralTickFormatter
 from bokeh.plotting import figure, save, output_file
 from bokeh.layouts import gridplot
@@ -8,11 +9,14 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import venn
+from upsetplot import from_contents
+from upsetplot import plot
+
 
 
 def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
                     control_name='MT', out_name="TopExpGenes.html",
-                    venn_list:list=None):
+                    venn_list:list=None, venn_names:list=None):
     controls = [x.strip().split()[0] for x in open(controls)] if controls else []
     id2symbol = dict(x.strip().split()[:2] for x in open(id2symbol)) if id2symbol else dict()
     df = pd.read_csv(exp_matrix, sep='\t', header=0, index_col=0)
@@ -20,8 +24,10 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
     # plot for each sample
     plots = list()
     top_dict = dict()
+    detected_gene_dict = dict()
     for sample in df.columns:
         data = df.loc[:, [sample]].sort_values(by=sample, ascending=False)
+        detected_gene_dict[sample] = list(data[data[sample]>0].index)
         data['percent'] = data[sample]/data[sample].sum()
         plot_data = data.iloc[:top].copy()
         top_dict[sample] = set(plot_data.index)
@@ -75,15 +81,45 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
             venn.venn(top_dict, cmap="tab10")
             plt.savefig('venn.pdf')
     else:
-        for group in venn_list:
+        if len(venn_list) == 1 and ',' not in venn_list[0]:
+            with open(venn_list[0]) as f:
+                group_dict = dict(x.strip().split()[:2] for x in f)
+                tmp_dict = dict()
+                for k, v in group_dict.items():
+                    tmp_dict.setdefault(v, set())
+                    tmp_dict[v].add(k)
+            venn_list = []
+            venn_names = []
+            for k, v in tmp_dict.items():
+                venn_list.append(','.join(v))
+                venn_names.append(k)
+        if venn_names is None:
+            venn_names = []
+            for group in venn_list:
+                venn_names.append(group.replace(',', '-'))
+        for group, name in zip(venn_list, venn_names):
             groups = group.split(',')
             tmp_dict = {x: y for x, y in top_dict.items() if x in groups}
-            if len(tmp_dict) <= 6:
+            if 2<= len(tmp_dict) <= 6:
                 venn.venn(tmp_dict, cmap="tab10")
-                plt.savefig('venn.{}.pdf'.format(group.replace(',', '-')))
+                plt.savefig('top{}.{}.venn.pdf'.format(top, name))
             else:
                 print('venn for {}?'.format(groups))
                 print('venn only support 2-6 sets')
+    plt.close()
+    # intersection plot
+    if venn_list is None:
+        plot(from_contents(detected_gene_dict), sum_over=False, sort_categories_by=None, show_counts=True)
+        plt.savefig('all.cmbVenn.pdf')
+        plt.close()
+    else:
+        for group, name in zip(venn_list, venn_names):
+            groups = group.split(',')
+            tmp_dict = {x: y for x,y in detected_gene_dict.items() if x in groups}
+            plot(from_contents(tmp_dict), sum_over=False, sort_categories_by=None, show_counts=True)
+            plt.savefig('all.{}.cmbVenn.pdf'.format(name))
+            plt.close()
+
 
 
 if __name__ == '__main__':
