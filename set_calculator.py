@@ -102,7 +102,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
             groups = group.split(',')
             tmp_dict = {x: y for x, y in venn_set_dict.items() if x in groups}
             if len(tmp_dict) <= 6:
-                venn.venn(tmp_dict, cmap="tab10")
+                venn.venn(tmp_dict, cmap="tab10", fmt="{size}\n{percentage:.2f}%", fontsize=9)
                 out_name = out_prefix + '.{}.venn.{}'.format(name, graph_format)
                 plt.savefig(out_name, dpi=300)
                 plt.close()

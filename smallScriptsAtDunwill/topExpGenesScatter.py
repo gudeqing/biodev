@@ -101,7 +101,7 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
             groups = group.split(',')
             tmp_dict = {x: y for x, y in top_dict.items() if x in groups}
             if 2<= len(tmp_dict) <= 6:
-                venn.venn(tmp_dict, cmap="tab10")
+                venn.venn(tmp_dict, cmap="tab10", fmt="{size}\n{percentage:.2f}%", fontsize=9)
                 plt.savefig('top{}.{}.venn.pdf'.format(top, name))
             else:
                 print('venn for {}?'.format(groups))
