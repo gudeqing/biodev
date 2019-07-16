@@ -13,7 +13,6 @@ from upsetplot import from_contents
 from upsetplot import plot
 
 
-
 def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
                     control_name='MT', out_name="TopExpGenes.html",
                     venn_list:list=None, venn_names:list=None):
@@ -119,7 +118,6 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
             plot(from_contents(tmp_dict), sum_over=False, sort_categories_by=None, show_counts=True)
             plt.savefig('all.{}.cmbVenn.pdf'.format(name))
             plt.close()
-
 
 
 if __name__ == '__main__':
