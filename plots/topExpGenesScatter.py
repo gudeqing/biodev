@@ -108,12 +108,15 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
     plt.close()
     # intersection plot
     if venn_list is None:
-        plot(from_contents(detected_gene_dict), sum_over=False, sort_categories_by=None, show_counts=True)
-        plt.savefig('all.cmbVenn.pdf')
-        plt.close()
+        if len(detected_gene_dict) <= 9:
+            plot(from_contents(detected_gene_dict), sum_over=False, sort_categories_by=None, show_counts=True)
+            plt.savefig('all.cmbVenn.pdf')
+            plt.close()
     else:
         for group, name in zip(venn_list, venn_names):
             groups = group.split(',')
+            if len(groups) < 2:
+                continue
             tmp_dict = {x: y for x,y in detected_gene_dict.items() if x in groups}
             plot(from_contents(tmp_dict), sum_over=False, sort_categories_by=None, show_counts=True)
             plt.savefig('all.{}.cmbVenn.pdf'.format(name))
