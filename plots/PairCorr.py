@@ -32,7 +32,7 @@ def corr_annotate(x, y, method='pearson', **kwargs):
                 xy=(.1, .9), xycoords=ax.transAxes)
 
 
-def pair_corr(data, hue=None, hue_order=None, palette=None, vars=None,
+def pair_corr(data, hue=None, hue_order=None, palette=None, vars=None, top:int=None,
               x_vars=None, y_vars=None, kind='scatter', diag_kind='auto',
               markers=None, height=2.5, aspect=1, dropna=True, plot_kws=None,
               diag_kws=None, grid_kws=None, size=None,
@@ -49,6 +49,8 @@ def pair_corr(data, hue=None, hue_order=None, palette=None, vars=None,
             group_dict[v].append(k)
     elif type(group) == dict:
         group_dict = group
+    elif group is None:
+        pass
     else:
         raise Exception('value of group should be a group file or a python dict!')
 
@@ -58,6 +60,9 @@ def pair_corr(data, hue=None, hue_order=None, palette=None, vars=None,
     for group_name, samples in group_dict.items():
         tdata = data[samples]
         tdata = tdata[tdata.apply(lambda x: sum(x > 0), axis=1) >= len(samples)]
+        if top is not None:
+            mean_expr = tdata.mean(axis=1).sort_values(ascending=False)
+            tdata = tdata.loc[mean_expr.index[:top]]
         if log_base == 2:
             tdata = np.log2(tdata+log_additive)
         elif log_base == 10:
@@ -71,8 +76,10 @@ def pair_corr(data, hue=None, hue_order=None, palette=None, vars=None,
                                 diag_kind=diag_kind, markers=markers, height=height,
                                 aspect=aspect, dropna=dropna, plot_kws=plot_kws,
                                 diag_kws=diag_kws, grid_kws=grid_kws, size=size)
-        gridplot.map_upper(sns.regplot, scatter=False)
-        gridplot.map_upper(corr_annotate, method=corr_method)
+        gridplot.map_lower(sns.regplot, scatter=False)
+        gridplot.map_lower(corr_annotate, method=corr_method)
+        for ax, col in zip(np.diag(gridplot.axes), tdata.columns):
+            ax.set_xlabel(col)
         plt.savefig(prefix + f'.{group_name}.common{tdata.shape[0]}genes.{fig_format}')
         plt.close()
 

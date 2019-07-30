@@ -11,7 +11,7 @@ def table_knife(table, index_cols:list=None, header:list=[0],
     功能: 对数据表进行切割, 排序, 求和, 统计, 修改列名或行名
     :param table: 数据表路径
     :param index_cols: 指定哪一列或哪些列作为行索引, 默认用行的序号作为索引，如果第一列没有header，默认用"index"作为列名
-    :param header: 指定那一列或哪些列作为表头header
+    :param header: 指定那一行或哪些行作为表头header
     :param target_cols: 文件路径，包含一列，指定要提取的列, 当header为多列时，无效
     :param target_rows: 文件路径，包含一列，指定要提取的行, 当行索引为多列时，无效
     :param sum_table: 打印出每一列的和或每一行的和, 默认统计行

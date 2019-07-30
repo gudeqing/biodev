@@ -10,7 +10,7 @@ from upsetplot import plot
 
 def run(files:list, exp=None, out_prefix='result', has_header=False,
         intersect_only=True, intersect_xoy=1, union_only=False,
-        set_names:list=None, venn_list:list=None, venn_names:list=None, graph_format='pdf'):
+        set_names:list=None, venn_list:list=None, venn_names:list=None, graph_format='png'):
     """
     根据文件内容构建集合, 并按指定规则进行运算, 默认计算所有集合的交集
     :param files: 当仅提供一个文件时, 文件的各列被当作是集合, 集合的元素是单元格的内容;
@@ -26,7 +26,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     :param venn_list: 用于画venn图, 如 'A,B,C' 'B,C,D'表示画两个韦恩图, 第一个韦恩图用ABC集合, 而第二个韦恩图用BCD集合,
     默认None, 用所有集合画一个韦恩图; 另外, 可以给该参数输入一个文件, 第一列为集合名, 第二列为分组信息, 后续画图将按照此分组信息分别进行
     :param venn_names: 与venn_list一一对应, 用于分别命名venn图文件
-    :param graph_format: output figure format, default pdf
+    :param graph_format: output figure format, default png
     :return: None
     """
     venn_set_dict = dict()
@@ -76,7 +76,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
 
     # plot venn
     if venn_list is None:
-        if len(venn_set_dict) <= 6:
+        if 2 <= len(venn_set_dict) <= 6:
             venn.venn(venn_set_dict, cmap="tab10")
             plt.savefig(out_prefix+'.venn.pdf')
     else:
@@ -101,7 +101,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
         for group, name in zip(venn_list, venn_names):
             groups = group.split(',')
             tmp_dict = {x: y for x, y in venn_set_dict.items() if x in groups}
-            if len(tmp_dict) <= 6:
+            if 2 <= len(tmp_dict) <= 6:
                 venn.venn(tmp_dict, cmap="tab10", fmt="{size}\n{percentage:.2f}%", fontsize=9)
                 out_name = out_prefix + '.{}.venn.{}'.format(name, graph_format)
                 plt.savefig(out_name, dpi=300)
@@ -114,15 +114,16 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     # intersection plot
     if venn_list is None:
         plot(from_contents(venn_set_dict), sum_over=False, sort_categories_by=None, show_counts=True)
-        plt.savefig('all.cmbVenn.{}'.format(graph_format), dpi=300)
+        plt.savefig('all.upSet.{}'.format(graph_format), dpi=300)
         plt.close()
     else:
         for group, name in zip(venn_list, venn_names):
             groups = group.split(',')
             tmp_dict = {x: y for x, y in venn_set_dict.items() if x in groups}
-            plot(from_contents(tmp_dict), sum_over=False, sort_categories_by=None, show_counts=True)
-            plt.savefig('all.{}.cmbVenn.{}'.format(name, graph_format), dpi=300)
-            plt.close()
+            if len(tmp_dict) > 1:
+                plot(from_contents(tmp_dict), sum_over=False, sort_categories_by=None, show_counts=True)
+                plt.savefig('all.{}.upSet.{}'.format(name, graph_format), dpi=300)
+                plt.close()
 
 
 if __name__ == '__main__':
