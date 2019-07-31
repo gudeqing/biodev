@@ -20,8 +20,8 @@ def bar3dplot(data, out='bar3d.png'):
     colors = list()
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
-            x.append(j+0.5)
-            y.append(i+0.5)
+            x.append(j)
+            y.append(i)
             height = data.iloc[i, j]
             dz.append(height)
             if height < 0.005:
@@ -37,9 +37,11 @@ def bar3dplot(data, out='bar3d.png'):
     z = [0]*len(dz)
     dx = [0.5]*len(x)
     dy = [0.5]*len(y)
-    ax.bar3d(x, y, z, dx, dy, dz, alpha=0.6, zsort='average', shade=True, color=colors)
-    ax.set_xticks([x+1 for x in range(data.shape[1])])
-    ax.set_yticks([x+1 for x in range(data.shape[0])])
+    ax.bar3d(x, y, z, dx, dy, dz, alpha=0.8, zsort='average', shade=True, color=colors)
+    # grid
+    # ax.xaxis._axinfo["grid"].update({"linewidth":1, "color" : 'k'})
+    ax.set_xticks([x-0.5 for x in range(data.shape[1])])
+    ax.set_yticks([x+0.6 for x in range(data.shape[0])])
     ax.set_xticklabels(data.columns, size=7, rotation=90)
     ax.set_yticklabels(data.index, size=7, rotation=90)
     ax.set_zlabel('frequency')
@@ -50,6 +52,8 @@ def bar3dplot(data, out='bar3d.png'):
     lg4 = plt.Rectangle((-1, 0), 1, 1, fc="pink")
     lg5 = plt.Rectangle((-1, 0), 1, 1, fc="red")
     ax.legend([lg1, lg2, lg3, lg4, lg5], ['<0.005', '<0.01', '<0.02', '<0.03', '>=0.03'])
+    # adjust tick label to axis distance
+    ax.tick_params(axis='both', which='major', pad=0.1)
 
     plt.autoscale(enable=True, axis='both', tight=True)
     plt.savefig(out, dpi=300)
