@@ -113,9 +113,10 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
 
     # intersection plot
     if venn_list is None:
-        plot(from_contents(venn_set_dict), sum_over=False, sort_categories_by=None, show_counts=True)
-        plt.savefig('all.upSet.{}'.format(graph_format), dpi=300)
-        plt.close()
+        if len(venn_set_dict) <= 8:
+            plot(from_contents(venn_set_dict), sum_over=False, sort_categories_by=None, show_counts=True)
+            plt.savefig('all.upSet.{}'.format(graph_format), dpi=300)
+            plt.close()
     else:
         for group, name in zip(venn_list, venn_names):
             groups = group.split(',')
