@@ -49,6 +49,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
             exec('venn_set_dict["{}"] = s{}'.format(set_names[i], i + 1))
 
     result = list()
+    count_dict = dict()
     if exp:
         print("do as you say in exp")
         result = eval(exp)
@@ -61,6 +62,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
             in_times = sum(eval("each in s{}".format(x), varspace) for x in range(1, set_number+1))
             if in_times >= intersect_xoy:
                 result.add(each)
+                count_dict[each] = in_times
     elif union_only:
         print('do union only')
         result = eval('|'.join(['s'+str(x) for x in range(1, set_number+1)]))
@@ -72,7 +74,11 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     else:
         print('result size: {}'.format(len(result)))
     with open(out_prefix + '.list', 'w') as f:
-        _ = [f.write(x) for x in result]
+        if not count_dict:
+            _ = [f.write(x) for x in result]
+        else:
+            data = ([x, count_dict[x]] for x in result)
+            _ = [f.write(x.strip() + '\t' + str(count_dict[x]) + '\n') for x in result]
 
     # plot venn
     if venn_list is None:
