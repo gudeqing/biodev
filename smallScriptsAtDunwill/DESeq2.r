@@ -46,19 +46,20 @@ for (i in 1:nrow(compare)){
     ctrl_num = sum(group$group==ctrl)
     test_num = sum(group$group==test)
     print(paste(ctrl,'(', ctrl_num, ')', ' vs ', test, '(', test_num, ')', sep=''))
-    res <- results(dds, contrast<-c('group', test, ctrl), pAdjustMethod="BH", parallel=T, alpha=opt$s, lfcThreshold=opt$f)
+    res <- results(dds, contrast<-c('group', test, ctrl), pAdjustMethod="BH")
     summary(res)
     if (opt$t == 'padjust'){
         res$significant = (abs(res$log2FoldChange) >= opt$f) & (res[, 'padj'] <= opt$s)
         res[order(res$padj), ]
         print(paste('cutoff: |log2fc| >= ', opt$f, " & pajust", ' <= ', opt$s, sep=''))
     }else{
-        res$significant = (abs(res$log2FoldChange) >= opt$f) & (res[, 'P.Value'] <= opt$s)
+        res$significant = (abs(res$log2FoldChange) >= opt$f) & (res[, 'pvalue'] <= opt$s)
         res[order(res[, 'pvalue']), ]
         print(paste('cutoff: |log2fc| >= ', opt$f, " & pvalue", ' <= ', opt$s, sep=''))
     }
     res$regulate = 'up'
     res[res$log2FoldChange < 0, 'regulate'] = 'down'
+    res[res$log2FoldChange == 0, 'regulate'] = 'stable'
     out_name = paste(opt$o, ctrl, '_vs_', test, ".deseq2.xls", sep='')
     write.table(res, file=out_name, sep="\t", quote=F, row.names=T, col.names=NA)
     ##根据p值筛选

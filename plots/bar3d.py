@@ -12,7 +12,7 @@ from pyecharts.render import make_snapshot
 
 def bar3dplot(data, out='bar3d.png'):
     data = pd.read_csv(data, header=0, index_col=0, sep=None, engine='python')
-    fig = plt.figure(figsize=(14, 8))
+    fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     x = list()
     y = list()
