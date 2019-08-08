@@ -101,7 +101,7 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
             tmp_dict = {x: y for x, y in top_dict.items() if x in groups}
             if 2<= len(tmp_dict) <= 6:
                 venn.venn(tmp_dict, cmap="tab10", fmt="{size}\n{percentage:.2f}%", fontsize=9)
-                plt.savefig('top{}.{}.venn.pdf'.format(top, name))
+                plt.savefig('top{}.{}.venn.png'.format(top, name), dpi=300)
             else:
                 print('venn for {}?'.format(groups))
                 print('venn only support 2-6 sets')
@@ -110,7 +110,7 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
     if venn_list is None:
         if len(detected_gene_dict) <= 9:
             plot(from_contents(detected_gene_dict), sum_over=False, sort_categories_by=None, show_counts=True)
-            plt.savefig('all.cmbVenn.pdf')
+            plt.savefig('all.cmbVenn.png', dpi=300)
             plt.close()
     else:
         for group, name in zip(venn_list, venn_names):
@@ -119,7 +119,7 @@ def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
                 continue
             tmp_dict = {x: y for x,y in detected_gene_dict.items() if x in groups}
             plot(from_contents(tmp_dict), sum_over=False, sort_categories_by=None, show_counts=True)
-            plt.savefig('all.{}.cmbVenn.pdf'.format(name))
+            plt.savefig('all.{}.cmbVenn.png'.format(name), dpi=300)
             plt.close()
 
 
