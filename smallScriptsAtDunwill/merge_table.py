@@ -16,7 +16,10 @@ def merge_data(files:list, index_cols:list=None, new_col_name=None, out='merged.
         new_name_df = pd.read_csv(new_col_name, index_col=None, header=0, sep=None, engine='python')
         new_name_dict = dict(zip(new_name_df.iloc[0], new_name_df.iloc[1]))
         table.columns = [new_name_dict[x] for x in table.columns]
-    table.to_csv(out, sep='\t')
+    if not out.endswith('.csv'):
+        table.to_csv(out, sep='\t')
+    else:
+        table.to_csv(out)
 
 
 if __name__ == '__main__':
