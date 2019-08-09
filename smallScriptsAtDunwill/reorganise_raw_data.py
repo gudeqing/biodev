@@ -7,7 +7,15 @@ import shutil
 import sys
 import glob
 import gzip
+import logging
 
+
+def set_logger(name='log.info', logger_id='x'):
+    logger = logging.getLogger(logger_id)
+    fh = logging.FileHandler(name, mode='w+')
+    logger.addHandler(fh)
+    logger.setLevel(logging.INFO)
+    return logger
 
 def query_type(query):
     query_dict = dict(
@@ -110,7 +118,7 @@ def copy_file_to_target_dir(source, target_part, target_full, veri_success, targ
                         file_exists.append(ph)
 
                     else:
-                        print('copying  {}'.format(file_path))
+                        print('Copying  {} --> {}'.format(file_path, target_final))
                         shutil.copy2(file_path, target_final)
                         ph = "{}".format(target_final)
                         file_des.append(ph)
@@ -120,6 +128,7 @@ def copy_file_to_target_dir(source, target_part, target_full, veri_success, targ
 
 
 def run(original_path, sample_info_excel, target_path):
+    logger = set_logger(os.path.join(target_path, 'logger.txt'))
     missing_file = []
     veri_failed = []
     file_exists = []
@@ -127,9 +136,8 @@ def run(original_path, sample_info_excel, target_path):
     veri_success = []
 
     msg = u"是否检查数据的完整性？"
-    title = u"请确认是否检查数据的完整性"
     integ = 0
-    if eg.ynbox(msg, title, ('Yes', 'No')):
+    if eg.ynbox(msg, choices=['是(较耗时)', '否']):
         integ = 1
     else:
         pass
@@ -138,24 +146,25 @@ def run(original_path, sample_info_excel, target_path):
     for row in info_pd.iterrows():
         _, cols = row
         file_name_pattern = '*-{}'.format(cols[2].strip())
-        # print(file_name_pattern, "THIS IS THE NAME PATTERN")
         file_name_pattern_path = os.path.join(original_path, file_name_pattern)
         find_result = glob.glob(file_name_pattern_path)
         if not find_result or len(find_result) > 1:
+            # 如果用第四列信息找不到文件或者找到多个符合条件的文件，就改用第8列作为搜素条件
             file_name_pattern = '*-{}'.format(cols[6].strip().replace('_', '-'))
             file_name_pattern_path = os.path.join(original_path, file_name_pattern)
             find_result = glob.glob(file_name_pattern_path)
-        target_directory = ""
+
         if find_result:
             target_directory = find_result[0]
-
             x = cols[1].split('_')[1]
             x = query_type(x)
             target_part = os.path.join(target_path, str(cols[0]))
             target_full = os.path.join(target_path, str(cols[0]), x)
 
             if integ:
-                veri_failed, veri_success = check_integrity(target_directory)
+                check_failed, check_success = check_integrity(target_directory)
+                veri_failed += check_failed
+                veri_success += check_success
             else:
                 for item in os.listdir(original_path):
                     item_path = os.path.join(original_path, item)
@@ -165,77 +174,69 @@ def run(original_path, sample_info_excel, target_path):
                         if files.endswith(".gz"):
                             veri_success.append(files)
 
-            file_exists, file_des = copy_file_to_target_dir(original_path, target_part, target_full, veri_success,
+            existed, copied = copy_file_to_target_dir(original_path, target_part, target_full, veri_success,
                                                             target_directory)
+            file_exists += existed
+            file_des += copied
 
         else:
             missing_file.append(cols[2])
 
     # GUI print failed verify
     if integ:
-        title = "Please Confirm Error(s)"
-        msg = "Couldn't Verify these files."
-        veri = eg.choicebox(msg, title, veri_failed)
-        if not veri:
-            sys.exit(0)
+        logger.info("下列文件没有通过完整性检验, 已跳过这些文件:")
+        msg = '\n'.join(veri_failed)
+        logger.info(msg)
+        title = "下列文件没有通过完整性检验，已跳过这些文件"
+        eg.msgbox(msg, title=title)
     else:
         pass
 
     # GUI print missing files
     if missing_file:
-        title = "Please Confirm Error(s)"
-        msg = "Couldn't find these files."
-        veri = eg.choicebox(msg, title, missing_file)
-        if not veri:
-            sys.exit(0)
-
-    else:
-        pass
+        logger.info('找不到下列样本的文件:')
+        msg = '\n'.join(missing_file)
+        logger.info(msg)
+        title = "找不到下列样本的文件，已跳过这些样本"
+        eg.msgbox(msg, title=title)
 
     # GUI print already file at destination
     if file_exists:
-        title = "Please Confirm Error(s)"
-        msg = "The following file(s) already exists at destination."
-        veri = eg.choicebox(msg, title, file_exists)
-        if not veri:
-            sys.exit(0)
+        logger.info("下列文件已经在目的地存在, 请核对:")
+        logger.info("\n".join(file_exists))
+        title = "下列文件已经在目的地存在, 已跳过再次复制这些文件, 请核对!"
+        msg = "\n".join(file_exists)
+        eg.msgbox(msg, title=title)
     else:
         pass
 
     # GUI print final destination
     if file_des:
-        title = "Please Confirm Result"
-        msg = "These files were copied"
-        veri = eg.choicebox(msg, title, file_des)
-        if not veri:
-            sys.exit(0)
+        logger.info("成功复制下列文件到目的地:")
+        logger.info("\n".join(file_des))
+        title = "成功复制下列文件到目的地"
+        msg = "\n".join(file_des)
+        eg.msgbox(msg, title=title)
     else:
-        pass
+        eg.msgbox("没有复制任何文件！！")
+        logger.info("请知悉：没有复制任何文件！！！")
 
 
 def gui():
-    # Select original_path
-    eg.msgbox(u"选择下机数据目录", title=u"选择下机数据目录")
-    original_path = eg.diropenbox(u"选择下机数据目录", title=u"选择下机数据目录")
+    original_path = eg.diropenbox(u"选择下机数据目录")
     if not original_path:
         sys.exit(0)
     print(original_path)
-    # Select final_path
-    eg.msgbox(u"选择拆分数据存放目录", title=u"选择拆分数据存放目录")
-    target_path = eg.diropenbox(u"选择拆分数据存放目录", title=u"选择拆分数据存放目录")
+
+    target_path = eg.diropenbox(u"选择拆分数据存放目录")
     if not target_path:
         sys.exit(0)
     print(target_path)
-    # Select input file
-    eg.msgbox(u"选择拆分项目数据所需的样本项目信息文件(.xlsx)", title=u"选择拆分项目数据所需的样本项目信息文件(.xlsx)")
-    excel = eg.fileopenbox(u"选择拆分项目数据所需的样本项目信息文件(.xlsx)", title=u"选择拆分项目数据所需的样本项目信息文件(.xlsx)")
+
+    excel = eg.fileopenbox(u"选择项目或样本信息表(*.xlsx)")
     if not excel:
         sys.exit(0)
     print(excel)
-    ##    title = "Files to be copied"
-    ##    msg ="These are the files that will be copied"
-    ##    choices = input.iloc[:,3].tolist()
-    ##    eg.choicebox(msg, title, choices)
     run(original_path, excel, target_path)
 
 
