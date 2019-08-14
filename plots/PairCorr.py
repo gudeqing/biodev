@@ -60,7 +60,7 @@ def pair_corr(data, hue=None, hue_order=None, palette=None, vars=None, top:int=N
     for group_name, samples in group_dict.items():
         tdata = data[samples]
         tdata = tdata[tdata.apply(lambda x: sum(x > 0), axis=1) >= len(samples)]
-        tdata.to_csv(f'{group_name}.comm.data.txt', sep='\t')
+        tdata.to_csv(f'{group_name}.comm.data.xls', sep='\t')
         if top is not None:
             mean_expr = tdata.mean(axis=1).sort_values(ascending=False)
             tdata = tdata.loc[mean_expr.index[:top]]
