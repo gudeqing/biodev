@@ -9,6 +9,11 @@ def run_cmd(cmd):
 
 
 def downBam2Fq(data):
+    """
+    samtools sort + view + fastq -> down sample bam to fastq
+    :param data: 第一列样本名，第二列为bam路径，其他列为百分比，第二列的header需指定为"path"
+    :return:
+    """
     data = pd.read_csv(data, header=0, index_col=0, sep=None, engine='python')
     cmd_list = list()
     for sample in data.index:
