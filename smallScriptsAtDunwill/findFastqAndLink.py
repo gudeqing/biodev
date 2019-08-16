@@ -3,7 +3,7 @@ import re
 
 
 def get_all_fastq_abs_path(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].fastq.gz',
-                           r1_end_with='R1.fastq.gz', link_rawdata=False,
+                           r1_end_with='R1.fastq.gz', link_rawdata=False, prefix='',
                            replace_with_underscore=True):
     # ./180824_13_180905/Sample_R18054231-180824R-Pool-02-T180701R1L2/R18054231-180824R-Pool-02-T180701R1L2_combined_R2.fastq.gz
     result_dict = dict()
@@ -19,7 +19,7 @@ def get_all_fastq_abs_path(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].
                     else:
                         result_dict[sample][1].append(os.path.join(root, each))
 
-    with open('fastq.info', 'w') as f:
+    with open(f'{prefix}fastq.info', 'w') as f:
         if link_rawdata:
             os.mkdir('rawdata')
             os.chdir('rawdata')
