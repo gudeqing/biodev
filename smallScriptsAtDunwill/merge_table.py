@@ -1,7 +1,8 @@
+#! /data/users/dqgu/anaconda3/bin/python
 import pandas as pd
 
 
-def merge_data(files:list, index_cols:list=None, new_col_name=None, out='merged.table.xls'):
+def merge_data(files:list, index_cols:list=None, new_col_name=None, out='merged.table.xls', how='outer'):
     if index_cols is None:
         index_cols = ('Target', 'Gene', 'ENTREZ_GENE_ID', 'NCBI_NAME', 'NCBI_ACCESSION', 'GENE_FUNCTION')
     table = pd.read_csv(files[0], index_col=None, header=0, sep=None, engine='python')
@@ -10,7 +11,7 @@ def merge_data(files:list, index_cols:list=None, new_col_name=None, out='merged.
     for each in files[1:]:
         each_table = pd.read_csv(each, index_col=None, header=0, sep=None, engine='python')
         each_table.set_index(index_cols, inplace=True)
-        table = table.join(each_table, how='outer')
+        table = table.join(each_table, how=how)
     table.columns = [x.strip() for x in table.columns]
     if new_col_name is not None:
         new_name_df = pd.read_csv(new_col_name, index_col=None, header=0, sep=None, engine='python')

@@ -1,3 +1,4 @@
+#! /data/users/dqgu/anaconda3/bin/python
 # coding=utf-8
 import pandas as pd
 import hashlib as hash
@@ -127,20 +128,22 @@ def copy_file_to_target_dir(source, target_part, target_full, veri_success, targ
     return (file_exists, file_des)
 
 
-def run(original_path, sample_info_excel, target_path):
+def run(original_path, sample_info_excel, target_path, check=False):
+    """
+    重新组织原始数据
+    :param original_path: 原下机数据路径
+    :param sample_info_excel: 样本信息表
+    :param target_path: 新的数据存放路径
+    :param check: 是否检查数据完整性，默认不检查
+    :return:
+    """
     logger = set_logger(os.path.join(target_path, 'logger.txt'))
     missing_file = []
     veri_failed = []
     file_exists = []
     file_des = []
     veri_success = []
-
-    msg = u"是否检查数据的完整性？"
-    integ = 0
-    if eg.ynbox(msg, choices=['是(较耗时)', '否']):
-        integ = 1
-    else:
-        pass
+    integ = 0 if not check else 1
 
     info_pd = pd.read_excel(sample_info_excel).iloc[:, [1, 2, 3, 4, 5, 6, 7, 8]]
     for row in info_pd.iterrows():
@@ -237,7 +240,16 @@ def gui():
     if not excel:
         sys.exit(0)
     print(excel)
-    run(original_path, excel, target_path)
+
+    msg = u"是否检查数据的完整性？"
+    check = False
+    if eg.ynbox(msg, choices=['是(较耗时)', '否']):
+        check = True
+
+    run(original_path, excel, target_path, check=check)
 
 
-gui()
+# gui()
+if __name__ == '__main__':
+    from xcmds import xcmds
+    xcmds.xcmds(locals(), include=['run'])
