@@ -187,8 +187,9 @@ def exp_calculate_and_stat(count_lst,  exp_type='tpm', outdir=os.getcwd(), exp_l
     plt.close()
 
 
-def exp_saturation_pipeline(bam, annotation, outdir=os.getcwd(), step=5, samtools="samtools", outlier_limit=10,
-                            threads=3, pool_size=4, featureCounts="featureCounts", paired=True):
+def exp_saturation_pipeline(bam, annotation, outdir=os.getcwd(), step=5,
+                            samtools="samtools", outlier_limit=10, threads=2,
+                            pool_size=4, featureCounts="featureCounts", paired=True):
     bam = os.path.abspath(bam)
     down_bam_lst = down_sample_bam(bam, outdir=outdir, step=step, samtools=samtools,
                                    threads=threads, pool_size=pool_size)
