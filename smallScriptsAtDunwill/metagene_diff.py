@@ -88,8 +88,8 @@ def diff_test(score_df, group_dict, cmp_list, method='mannwhitneyu', equal_var=T
             continue
         ctrl_samples = group_dict[ctrl]
         test_samples = group_dict[test]
-        # print(ctrl_samples)
-        # print(test_samples)
+        print(ctrl_samples)
+        print(test_samples)
         ctrl_num = len(ctrl_samples)
         target_data = score_df[ctrl_samples+test_samples]
         centered = target_data.sub(target_data.mean(axis=1), axis=0)
@@ -109,7 +109,8 @@ def diff_test(score_df, group_dict, cmp_list, method='mannwhitneyu', equal_var=T
             else:
                 test_func = partial(stats.ttest_ind, equal_var=False)
         else:
-            raise Exception(f'{method} is not supported!')
+            raise Exception(f'{method} is not supported! '
+                            f'Choose one of [ranksums, mannwhitneyu, wilcoxon, ttest_ind')
         test_df = pd.DataFrame()
         test_df['pvalue'] = target_data.apply(lambda x:test_func(x[:ctrl_num], x[ctrl_num:])[1], axis=1)
         ctrl_median_exp = target_data[ctrl_samples].apply(statistics.median, axis=1)
@@ -155,6 +156,7 @@ def metagene_diff(exp_matrix, sample_group, metagene_group, compare, prefix='',
     expr_box_plot(box_data, sample_group, x_col=box_x, xlabel=box_xlabel, prefix=prefix)
     sample_group_dict = read_sample_group(sample_group)
     compare_list = read_compare_info(compare, sample_group_dict)
+    print(compare_list)
     diff_test(metagene_score_df, sample_group_dict, compare_list,
               method=method, equal_var=equal_var, prefix=prefix)
 
