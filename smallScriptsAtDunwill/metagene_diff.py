@@ -159,6 +159,13 @@ def metagene_diff(exp_matrix, sample_group, metagene_group, compare, prefix='',
     print(compare_list)
     diff_test(metagene_score_df, sample_group_dict, compare_list,
               method=method, equal_var=equal_var, prefix=prefix)
+    # plot
+    centered_score = metagene_score_df.sub(metagene_score_df.mean(axis=1), axis=0)
+    mean_centered_score = pd.DataFrame()
+    for group, samples in sample_group_dict.items():
+        mean_centered_score[group] = centered_score[samples].mean(axis=1)
+    mean_centered_score.index = [x[0] for x in mean_centered_score.index]
+    plot_exp_lines(mean_centered_score, out=f'{prefix}all.metagene.mean_centered.png')
 
 
 def _plot_multiline(data, out='multiline.png', annotate_at_end=False):
@@ -185,7 +192,7 @@ def _plot_multiline(data, out='multiline.png', annotate_at_end=False):
                 fontsize=5
             )
     plt.xticks(range(data.shape[1]), data.columns)
-    plt.xlim(-0.2, data.shape[1])
+    plt.xlim(-0.2, data.shape[1]-1+(data.shape[1]+1)*0.32)
     if not annotate_at_end:
         plt.legend(loc=1, fontsize='xx-small')
     plt.savefig(out, dpi=300, bbox_inches='tight')
