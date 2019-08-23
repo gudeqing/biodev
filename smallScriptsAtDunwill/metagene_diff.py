@@ -81,7 +81,10 @@ def score_metagene(exp_matrix, metagene_dict:dict, score='geometric_mean'):
     return score_df
 
 
-def diff_test(score_df, group_dict, cmp_list, method='mannwhitneyu', equal_var=True, prefix=''):
+def diff_test(score_df, group_txt, compare_txt, method='mannwhitneyu', equal_var=True, prefix='',
+              box_x='gene', box_xlabel='MetaGene'):
+    group_dict = read_sample_group(group_txt)
+    cmp_list = read_compare_info(compare_txt, group_dict)
     for ctrl, test in cmp_list:
         if not(ctrl in group_dict and test in group_dict):
             print(f'skip {ctrl} and {test} for both or one of them are/is not in group info dict!')
@@ -123,13 +126,19 @@ def diff_test(score_df, group_dict, cmp_list, method='mannwhitneyu', equal_var=T
         test_df = test_df.join(target_data)
         test_df.sort_values(by='pvalue', inplace=True)
         test_df.to_csv(f'{prefix}{ctrl}_vs_{test}.metagene.{method}.xls', sep='\t')
-        # plot
+        # plot box
+        box_data = target_data.loc[test_df.index]
+        box_data.index = [x for x, _ in box_data.index]
+        group_df = pd.DataFrame({f'{ctrl}_vs_{test}': [ctrl] * len(ctrl_samples) + [test] * len(test_samples)},
+                                index=ctrl_samples + test_samples)
+        expr_box_plot(box_data, group_df, x_col=box_x, xlabel=box_xlabel, prefix=prefix)
+        # plot multiline
         mean_centered = mean_centered.loc[test_df.index]
         mean_centered.index = [x[0] for x in mean_centered.index]
         plot_exp_lines(mean_centered, out=f'{prefix}{ctrl}_vs_{test}.metagene.mean_centered.png')
 
 
-def metagene_diff(exp_matrix, sample_group, metagene_group, compare, prefix='',
+def metagene_diff(exp_matrix, metagene_group, sample_group, compare, prefix='',
                   metagene_group_format='gene2group', score='geometric_mean',
                   method='mannwhitneyu', equal_var=True, box_x='gene',
                   box_xlabel='MetaGene'):
@@ -149,20 +158,22 @@ def metagene_diff(exp_matrix, sample_group, metagene_group, compare, prefix='',
     :param box_xlabel: 画box图的参数 横轴的label, 默认为MetaGene
     :return:
     """
+    # score
     metagene_group_dict = read_metagene_group(metagene_group, format=metagene_group_format)
     metagene_score_df = score_metagene(exp_matrix, metagene_group_dict, score=score)
+
+    # test
+    diff_test(metagene_score_df, sample_group, compare,
+              method=method, equal_var=equal_var, prefix=prefix)
+    # plot box
     box_data = metagene_score_df.copy()
     box_data.index = [x for x, _ in box_data.index]
     expr_box_plot(box_data, sample_group, x_col=box_x, xlabel=box_xlabel, prefix=prefix)
-    sample_group_dict = read_sample_group(sample_group)
-    compare_list = read_compare_info(compare, sample_group_dict)
-    print(compare_list)
-    diff_test(metagene_score_df, sample_group_dict, compare_list,
-              method=method, equal_var=equal_var, prefix=prefix)
-    # plot
+
+    # plot multiline
     centered_score = metagene_score_df.sub(metagene_score_df.mean(axis=1), axis=0)
     mean_centered_score = pd.DataFrame()
-    for group, samples in sample_group_dict.items():
+    for group, samples in read_sample_group(sample_group).items():
         mean_centered_score[group] = centered_score[samples].mean(axis=1)
     mean_centered_score.index = [x[0] for x in mean_centered_score.index]
     plot_exp_lines(mean_centered_score, out=f'{prefix}all.metagene.mean_centered.png')
@@ -196,6 +207,7 @@ def _plot_multiline(data, out='multiline.png', annotate_at_end=False):
     if not annotate_at_end:
         plt.legend(loc=1, fontsize='xx-small')
     plt.savefig(out, dpi=300, bbox_inches='tight')
+    plt.close()
 
 
 def plot_exp_lines(data, index_col:list=0, sample_group=None, annotate_at_end=False,
@@ -233,7 +245,10 @@ def expr_box_plot(expr_matrix, sample_group, x_col='gene', xlabel=None, prefix='
     data.index.name = 'Gene'
     data = data.reset_index('Gene')
     data = data.melt(id_vars=['Gene'], var_name='Sample', value_name='Expression')
-    group = pd.read_csv(sample_group, header=0, index_col=0, sep=None, engine='python')
+    if type(sample_group) == str:
+        group = pd.read_csv(sample_group, header=0, index_col=0, sep=None, engine='python')
+    else:
+        group = sample_group
     group.index.name = 'Sample'
     group_names = group.columns
     group.reset_index('Sample', inplace=True)
