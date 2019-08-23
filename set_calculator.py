@@ -84,7 +84,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     if venn_list is None:
         if 2 <= len(venn_set_dict) <= 6:
             venn.venn(venn_set_dict, cmap="tab10")
-            plt.savefig(out_prefix+'.venn.pdf')
+            plt.savefig(out_prefix+f'.venn.{graph_format}')
     else:
         if len(venn_list) == 1 and ',' not in venn_list[0]:
             with open(venn_list[0]) as f:
