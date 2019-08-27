@@ -253,6 +253,7 @@ def expr_box_plot(expr_matrix, sample_group, x_col='gene', xlabel=None, prefix='
     group_names = group.columns
     group.reset_index('Sample', inplace=True)
     data = data.merge(group, on='Sample')
+    data.to_csv(f'{prefix}metagene.expr.csv')
     # print(data.head())
     for name in group_names:
         if x_col.lower() == 'gene':

@@ -89,7 +89,7 @@ def scatter(df, data_col, group_cols:list, hue_cols:list=None, style_cols:list=N
             out_name += '.' + '-'.join(hue_cols)
         if style_cols is not None:
             out_name += '.' + '-'.join(style_cols)
-        out_name += '.pdf'
+        out_name += '.png'
         print('Output:', out_name)
     else:
         out_name = out
