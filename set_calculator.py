@@ -73,7 +73,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
         print('result is empty!')
     else:
         print('result size: {}'.format(len(result)))
-    with open(out_prefix + '.list', 'w') as f:
+    with open(out_prefix + '.intersect.list', 'w') as f:
         if not count_dict:
             _ = [f.write(x) for x in result]
         else:
@@ -121,7 +121,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     if venn_list is None:
         if len(venn_set_dict) <= 8:
             plot(from_contents(venn_set_dict), sum_over=False, sort_categories_by=None, show_counts=True)
-            plt.savefig('all.upSet.{}'.format(graph_format), dpi=300)
+            plt.savefig('{}.upSet.{}'.format(out_prefix, graph_format), dpi=300)
             plt.close()
     else:
         for group, name in zip(venn_list, venn_names):
@@ -129,7 +129,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
             tmp_dict = {x: y for x, y in venn_set_dict.items() if x in groups}
             if len(tmp_dict) > 1:
                 plot(from_contents(tmp_dict), sum_over=False, sort_categories_by=None, show_counts=True)
-                plt.savefig('all.{}.upSet.{}'.format(name, graph_format), dpi=300)
+                plt.savefig('{}.{}.upSet.{}'.format(out_prefix, name, graph_format), dpi=300)
                 plt.close()
 
 
