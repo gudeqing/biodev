@@ -10,9 +10,9 @@ from snapshot_selenium import snapshot as driver
 from pyecharts.render import make_snapshot
 
 
-def bar3dplot(data, out='bar3d.png'):
+def bar3dplot(data, out='bar3d.png', width=12, height=9):
     data = pd.read_csv(data, header=0, index_col=0, sep=None, engine='python')
-    fig = plt.figure()
+    fig = plt.figure(figsize=(width, height))
     ax = fig.add_subplot(111, projection='3d')
     x = list()
     y = list()
@@ -42,7 +42,7 @@ def bar3dplot(data, out='bar3d.png'):
     # ax.xaxis._axinfo["grid"].update({"linewidth":1, "color" : 'k'})
     ax.set_xticks([x-0.5 for x in range(data.shape[1])])
     ax.set_yticks([x+0.6 for x in range(data.shape[0])])
-    ax.set_xticklabels(data.columns, size=7, rotation=90)
+    ax.set_xticklabels(data.columns, size=6, rotation=90)
     ax.set_yticklabels(data.index, size=7, rotation=90)
     ax.set_zlabel('frequency')
     # plot legend
