@@ -4,7 +4,8 @@ import re
 
 def get_all_fastq_abs_path(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].fastq.gz',
                            r1_end_with='R1.fastq.gz', link_rawdata=False, prefix='',
-                           replace_with_underscore=True):
+                           add_S_to_numeric_name=False,
+                           replace_with_underscore=False):
     # ./180824_13_180905/Sample_R18054231-180824R-Pool-02-T180701R1L2/R18054231-180824R-Pool-02-T180701R1L2_combined_R2.fastq.gz
     result_dict = dict()
     for path in path_lst:
@@ -28,8 +29,9 @@ def get_all_fastq_abs_path(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].
             read2 = sorted(lst[1])
             if replace_with_underscore:
                 sample = sample.replace('-', '_')
-            if sample.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')):
-                sample = 'S' + sample
+            if add_S_to_numeric_name:
+                if sample.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')):
+                    sample = 'S' + sample
             f.write('{}\t{}\t{}\n'.format(sample, ';'.join(read1), ';'.join(read2)))
             if link_rawdata:
                 # make link
@@ -60,11 +62,15 @@ def link_fastq(fastq):
         read1 = sorted(lst[0])
         read2 = sorted(lst[1])
         # make link
-        os.mkdir(sample)
+        # os.mkdir(sample)
         for each in read1:
-            os.symlink(each, os.path.join(sample, os.path.basename(each)))
+            new_name = f'{sample}_S1_L001_R1_001.fastq.gz'
+            # os.symlink(each, os.path.join(sample, os.path.basename(each)))
+            os.symlink(each, new_name)
         for each in read2:
-            os.symlink(each, os.path.join(sample, os.path.basename(each)))
+            # os.symlink(each, os.path.join(sample, os.path.basename(each)))
+            new_name = f'{sample}_S1_L001_R2_001.fastq.gz'
+            os.symlink(each, new_name)
 
 
 if __name__ == '__main__':
