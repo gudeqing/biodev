@@ -20,7 +20,7 @@ def read_sample_metadata(metadata):
     pass
 
 
-def vcf_generator(vcf) -> dict:
+def vcf_generator(vcf):
     header = [
         'CHROM', 'POS', 'ID', 'REF', 'ALT',
         'QUAL', 'FILTER', 'INFO', 'FORMAT',
@@ -29,9 +29,11 @@ def vcf_generator(vcf) -> dict:
     with open(vcf) as f:
         for line in f:
             if line.startswith('##'):
+                yield None, line
                 continue
             elif line.startswith('#'):
                 header = line.strip('#').strip().split('\t')
+                yield None, line
                 continue
             lst = line.strip().split('\t')
             line_dict = dict(zip(header, lst))
@@ -53,7 +55,46 @@ def vcf_generator(vcf) -> dict:
                     values = line_dict[sample].split(':')
                     line_dict[sample] = dict(zip(format_lst, values))
                 line_dict['samples'] = header[9:]
-            yield line_dict
+            yield line_dict, line
+
+
+def filter_vcf(vcf, out='new.vcf'):
+    filter_set = {'strand_bias', 'germline', 'weak_evidence'}
+    # filter_set = set()
+    tumour_set = set()
+    tumour = 'unknown'
+    with open(out, 'w') as f:
+        for line_dict, line in vcf_generator(vcf):
+            if line_dict is None:
+                f.write(line)
+                continue
+            # 推断谁是对照样本
+            tumour = line_dict['samples'][0]
+            normal = line_dict['samples'][1]
+            tumour_gt_sum = sum(float(x) for x in re.split(r'/|\|', line_dict[tumour]['GT']))
+            normal_gt_sum = sum(float(x) for x in re.split(r'/|\|', line_dict[normal]['GT']))
+            if tumour_gt_sum + normal_gt_sum == 0:
+                raise Exception('Found GT of tumour and normal are both zero!')
+            if tumour_gt_sum == 0:
+                tumour, normal = normal, tumour
+            tumour_set.add(tumour)
+            if len(tumour_set) != 1:
+                print(f'发现当前推断的肿瘤样本和之前的不同: {tumour_set}! while stating')
+
+            tumour_afs = [float(x) for x in line_dict[tumour]['AF'].split(',')]
+            normal_afs = [float(x) for x in line_dict[normal]['AF'].split(',')]
+            tumour_ad = [float(x) for x in line_dict[tumour]['AD'].split(',')]
+            normal_ad = [float(x) for x in line_dict[normal]['AD'].split(',')]
+
+            # 过滤标准如下
+            if max(tumour_afs) < 0.05 or \
+                    max(tumour_afs) / (max(normal_afs) + 1e-5) < 5 or \
+                    sum(tumour_ad) < 20 or \
+                    max(tumour_ad[1:]) < 3 or \
+                    (set(line_dict['FILTER'].lower().split(';')) & filter_set):
+                pass
+            else:
+                f.write(line)
 
 
 def target_mutate_status(vcf, target_genes):
@@ -62,7 +103,9 @@ def target_mutate_status(vcf, target_genes):
     filter_set = {'strand_bias', 'germline', 'weak_evidence'}
     tumour_set = set()
     tumour = 'unknown'
-    for line_dict in vcf_generator(vcf):
+    for line_dict, _ in vcf_generator(vcf):
+        if not line_dict:
+            continue
         # print('line:', line_dict)
         if 'Gene.refGene' in line_dict['INFO']:
             gene = line_dict['INFO']['Gene.refGene']
@@ -153,5 +196,5 @@ def stat_multi_vcf(vcf_lst, target_genes, p_num=5):
 
 if __name__ == '__main__':
     from xcmds import xcmds
-    xcmds.xcmds(locals(), include=['stat_multi_vcf'])
+    xcmds.xcmds(locals(), include=['stat_multi_vcf', 'filter_vcf'])
 
