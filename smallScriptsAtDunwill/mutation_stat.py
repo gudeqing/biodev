@@ -109,7 +109,9 @@ def target_mutate_status(vcf, target_genes):
             #         max(normal_afs) > 0.01 or \
             #         max(tumour_ad[1:]) < 3 or \
             #         sum(tumour_ad) < 30 or \
-            #         sum(normal_ad) < 30:
+            #         sum(normal_ad) < 30 or \
+            #         line_dict['INFO'][field].lower().startswith('synonymous') or \
+            #         (set(line_dict['FILTER'].lower().split(';')) & filter_set):
             #     status[gene] = 0
             # else:
             #     status[gene] = round(max(tumour_afs), 3)
