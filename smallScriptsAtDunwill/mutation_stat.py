@@ -143,9 +143,10 @@ def target_mutate_status(vcf, target_genes):
                     max(tumour_ad[1:]) < 3 or \
                     line_dict['INFO'][field].lower().startswith('synonymous') or \
                     (set(line_dict['FILTER'].lower().split(';')) & filter_set):
-                status[gene] = 0
+                pass
             else:
-                status[gene] = round(max(tumour_afs), 3)
+                # status[gene] = round(max(tumour_afs), 3)
+                status[gene] += 1
 
             # # 以前的过滤标准如下
             # if max(tumour_afs) < 0.05 or \
