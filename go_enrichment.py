@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from statsmodels.stats.multitest import multipletests
 from goatools.obo_parser import GODag
 from goatools.go_enrichment import GOEnrichmentStudy
 from goatools.godag_plot import plot_gos
@@ -7,7 +8,7 @@ from goatools.associations import read_associations
 __author__ = 'gudeqing'
 
 
-def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:str=None, correct=3,
+def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:str=None, correct='fdr_bh',
               alpha=0.05, top=20, goea_out=None, dag_out=None, dpi=300, show_gene_limit=6):
     """
     Go enrichment based on goatools
@@ -17,10 +18,18 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
     :param population: a file with each row contains one gene; default to use all genes in gene2go file as population
     :param geneid2symbol: file with two columns: gene_id \t gene_symbol, used for DAG plot
     :param correct: pvalue adjustment method:
-        1. Bonferroni
-        2. Bonferroni Step-down(Holm)
-        3. Benjamini and Hochberg False Discovery Rate
-        4. FDR Benjamini-Yekutieli
+        Method used for testing and adjustment of pvalues. Can be either the
+        full name or initial letters. Available methods are:
+        - `bonferroni` : one-step correction
+        - `sidak` : one-step correction
+        - `holm-sidak` : step down method using Sidak adjustments
+        - `holm` : step-down method using Bonferroni adjustments
+        - `simes-hochberg` : step-up method  (independent)
+        - `hommel` : closed method based on Simes tests (non-negative)
+        - `fdr_bh` : Benjamini/Hochberg  (non-negative)
+        - `fdr_by` : Benjamini/Yekutieli (negative)
+        - `fdr_tsbh` : two stage fdr correction (non-negative)
+        - `fdr_tsbky` : two stage fdr correction (non-negative)
     :param alpha: fdr cutoff, default 0.05
     :param top: n top go terms to plot, sorted by corrected pvalue
     :param goea_out: output enrichment result file
@@ -29,6 +38,8 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
     :param show_gene_limit: the max number of gene in a node to show
     :return: None
     """
+    if str(correct) == '3':
+        correct = 'fdr_bh'
     if geneid2symbol:
         geneid2symbol = dict(x.strip().split()[:2] for x in open(geneid2symbol) if x.strip())
     else:
@@ -69,7 +80,7 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
     # func = lambda y: ';'.join(x.strip()+'|'+reg_dict[x.strip()] if x.strip() in reg_dict else x.strip() for x in y.split(','))
     table = pd.read_table(goea_out, header=0, index_col=0)
     # 重新校正pvalue, 修改内容
-    fdr = multtest_correct(table['p_uncorrected'], methods=correct)
+    fdr = multipletests(table['p_uncorrected'], method=correct)[1]
     table['p_fdr_bh'] = fdr
     # 修改goea_result_all方便后续的画图
     for r, fdr in zip(goea_results_all, fdr):
@@ -106,104 +117,6 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
                  dpi=0 if dag_out.endswith('svg') else dpi,
                  # title="Directed Graph of enriched {} terms".format(each)
                  )
-
-
-def multtest_correct(p_values, methods=3):
-    """
-    1. Bonferroni
-    2. Bonferroni Step-down(Holm)
-    3. Benjamini and Hochberg False Discovery Rate
-    4. FDR Benjamini-Yekutieli
-    :param pvalue_list:
-    :param methods:
-    :return: np.array
-    """
-
-    def fdrcorrection(pvals, alpha=0.05, method='indep', is_sorted=False):
-        '''pvalue correction for false discovery rate
-        This covers Benjamini/Hochberg for independent or positively correlated and
-        Benjamini/Yekutieli for general or negatively correlated tests. Both are
-        available in the function multipletests, as method=`fdr_bh`, resp. `fdr_by`.
-        Parameters
-        ----------
-        pvals : array_like
-            set of p-values of the individual tests.
-        alpha : float
-            error rate
-        method : {'indep', 'negcorr')
-        Returns
-        -------
-        rejected : array, bool
-            True if a hypothesis is rejected, False if not
-        pvalue-corrected : array
-            pvalues adjusted for multiple hypothesis testing to limit FDR
-        Notes
-        -----
-        If there is prior information on the fraction of true hypothesis, then alpha
-        should be set to alpha * m/m_0 where m is the number of tests,
-        given by the p-values, and m_0 is an estimate of the true hypothesis.
-        (see Benjamini, Krieger and Yekuteli)
-        The two-step method of Benjamini, Krieger and Yekutiel that estimates the number
-        of false hypotheses will be available (soon).
-        Method names can be abbreviated to first letter, 'i' or 'p' for fdr_bh and 'n' for
-        fdr_by.
-        '''
-
-        def _ecdf(x):
-            '''
-            no frills empirical cdf used in fdrcorrection
-            '''
-            nobs = len(x)
-            return np.arange(1, nobs + 1) / float(nobs)
-
-        pvals = np.asarray(pvals)
-        if not is_sorted:
-            pvals_sortind = np.argsort(pvals)
-            pvals_sorted = np.take(pvals, pvals_sortind)
-        else:
-            pvals_sorted = pvals  # alias
-
-        if method in ['i', 'indep', 'p', 'poscorr']:
-            ecdffactor = _ecdf(pvals_sorted)
-        elif method in ['n', 'negcorr']:
-            cm = np.sum(1. / np.arange(1, len(pvals_sorted) + 1))  # corrected this
-            ecdffactor = _ecdf(pvals_sorted) / cm
-        else:
-            raise ValueError('only indep and negcorr implemented')
-        reject = pvals_sorted <= ecdffactor * alpha
-        if reject.any():
-            rejectmax = max(np.nonzero(reject)[0])
-            reject[:rejectmax] = True
-
-        pvals_corrected_raw = pvals_sorted / ecdffactor
-        pvals_corrected = np.minimum.accumulate(pvals_corrected_raw[::-1])[::-1]
-        del pvals_corrected_raw
-        pvals_corrected[pvals_corrected > 1] = 1
-        if not is_sorted:
-            pvals_corrected_ = np.empty_like(pvals_corrected)
-            pvals_corrected_[pvals_sortind] = pvals_corrected
-            del pvals_corrected
-            reject_ = np.empty_like(reject)
-            reject_[pvals_sortind] = reject
-            return reject_, pvals_corrected_
-        else:
-            return reject, pvals_corrected
-
-    pvalue_list = list(p_values)
-    n = len(pvalue_list)
-    if methods == 1:
-        fdr = [eachP * n for eachP in pvalue_list]
-    elif methods == 2:
-        sorted_pvalues = sorted(pvalue_list)
-        fdr = [eachP * (n - sorted_pvalues.index(eachP)) for eachP in pvalue_list]
-    elif methods == 3:
-        sorted_pvalues = sorted(pvalue_list)
-        fdr = [eachP * n / (sorted_pvalues.index(eachP) + 1) for eachP in pvalue_list]
-    elif methods == 4:
-        _, fdr = fdrcorrection(pvalue_list, alpha=0.05, method='negcorr', is_sorted=False)
-    fdr = np.array(fdr)
-    fdr[fdr > 1] = 1.
-    return fdr
 
 
 if __name__ == '__main__':
