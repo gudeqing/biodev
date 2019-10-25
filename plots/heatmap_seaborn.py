@@ -19,7 +19,7 @@ def heatmap(data, vmin:float=None, vmax:float=None, cmap:str='RdYlBu_r', center:
                     annot=annot, fmt=fmt, linewidths=linewidths, linecolor=linecolor,
                     cbar=cbar, square=square, xticklabels=xticklabels, yticklabels=yticklabels)
     ax.set_xticklabels(ax.get_xmajorticklabels(), fontsize=label_size)
-    plt.savefig(out, dpi=300, bbox_inches='tight')
+    plt.savefig(out, dpi=dpi, bbox_inches='tight')
     plt.close()
 
 
