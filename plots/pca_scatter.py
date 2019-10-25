@@ -11,13 +11,13 @@ def pca(table, row_sum_cutoff=1, exp_cutoff=0.5, cv_cutoff=0.01, pass_exp_cutoff
         explained_ratio=0.9, prefix='pca', no_log_transform=False, log_additive=0, no_pre_scale=False,
         x=1, y=2, group_file=None, annotate=False, text_size='6pt', marker_size=15, stretch='both'):
     data = pd.read_csv(table, header=0, index_col=0, sep=None, engine='python')
-    data = data[data.sum(axis=1) >= row_sum_cutoff]
+    data = data.loc[data.sum(axis=1) >= row_sum_cutoff]
     pass_state = data.apply(lambda x: sum(x > exp_cutoff), axis=1)
     if pass_exp_cutoff_num is None:
-        data = data[pass_state >= int(data.shape[1]) / 3]
+        data = data.loc[pass_state >= int(data.shape[1]) / 3]
     else:
-        data = data[pass_state >= pass_exp_cutoff_num]
-    data = data[data.std(axis=1) / data.mean(axis=1) > cv_cutoff]
+        data = data.loc[pass_state >= pass_exp_cutoff_num]
+    data = data.loc[data.std(axis=1) / data.mean(axis=1) > cv_cutoff]
     data.round(4).to_csv('{}.filtered.data.txt'.format(prefix), header=True, index=True, sep='\t')
     if not no_log_transform:
         data = np.log(data + log_additive)
