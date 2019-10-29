@@ -35,7 +35,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
         for ind, each in enumerate(files, start=1):
             exec('s{}=set(open("{}").readlines())'.format(ind, each))
             if set_names is None:
-                name = os.path.basename(each).split('.', 1)[0]
+                name = os.path.basename(each).rsplit('.', 1)[0]
                 exec('venn_set_dict["{}"] = s{}'.format(name, ind))
             else:
                 exec('venn_set_dict["{}"] = s{}'.format(set_names[ind - 1], ind))
