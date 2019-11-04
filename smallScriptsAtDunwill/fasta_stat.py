@@ -47,6 +47,21 @@ def fasta_stat(fasta_file, targets=None, strip_version=True):
     return seq
 
 
+def extract_chromosome_fasta(genome_fasta):
+    with open(genome_fasta) as fr:
+        fw = None
+        for line in fr:
+            if line.startswith('>'):
+                if fw:
+                    fw.close()
+                chr_name = line[1:].split()[0]
+                fw = open(chr_name+'.fa', 'w')
+                fw.write(f'>{chr_name}\n')
+            else:
+                fw.write(line)
+        fw.close()
+
+
 if __name__ == '__main__':
     from xcmds import xcmds
-    xcmds.xcmds(locals(), include=['fasta_stat'])
+    xcmds.xcmds(locals(), include=['fasta_stat', 'extract_chromosome_fasta'])
