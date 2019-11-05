@@ -7,48 +7,53 @@ import pandas as pd
 import subprocess
 
 
-def parse_star_final_out_log(logfile, outdir=None):
-    if not outdir:
-        outdir = os.path.dirname(logfile)
-    sample = os.path.basename(logfile).split('.', 1)[0]
-    out_table = os.path.join(outdir, '{}.alignment_summary.json'.format(sample))
-    result = dict()
-    with open(logfile) as f:
-        for line in f:
-            if line.strip().endswith(":") or not line.strip():
-                continue
-            desc, data = line.split('|')
-            if "Number of input reads" in desc:
-                result['total'] = int(data.strip())
-            elif 'Average input read length' in desc:
-                result['average_read_length'] = float(data.strip())
-            elif 'Uniquely mapped reads number' in desc:
-                result['unique_mapped'] = int(data.strip())
-            elif 'Uniquely mapped reads %' in desc:
-                result['unique_mapped_ratio'] = float(data.strip().strip('%'))
-            elif 'Average mapped length' in desc:
-                result['average_mapped_read_length'] = float(data.strip())
-            elif 'Number of splices' in desc:
-                result['spliced'] = int(data.strip())
-            elif 'Number of splices: Annotated' in desc:
-                result['annotated_spliced'] = int(data.strip())
-            elif 'Number of reads mapped to multiple loci' in desc:
-                result['multiple_mapped'] = int(data.strip())
-            elif '% of reads mapped to multiple loci' in desc:
-                result['multiple_mapped_ratio'] = float(data.strip().strip('%'))
-            elif 'Number of reads mapped to too many loci' in desc:
-                result['many_mapped(>10)'] = int(data.strip())
-            elif '% of reads mapped to too many loci' in desc:
-                result['many_mapped_ratio'] = float(data.strip().strip('%'))
-            elif ' Number of chimeric reads' in desc:
-                result['chimeric'] = int(data.strip())
-            else:
-                pass
-    result['mapped_ratio'] = result['unique_mapped_ratio'] + result['multiple_mapped_ratio'] + result['many_mapped_ratio']
-    result['mapped'] = result['unique_mapped'] + result['multiple_mapped'] + result['many_mapped(>10)']
-    with open(out_table, 'w') as f:
-        json.dump(result, f, indent=2)
-    return result
+def parse_star_final_out_log(logfiles:list, outdir=None):
+    results = list()
+    for logfile in logfiles:
+        if not outdir:
+            outdir = os.path.dirname(logfile)
+        sample = os.path.basename(logfile).split('.', 1)[0]
+        out_table = os.path.join(outdir, '{}.alignment_summary.json'.format(sample))
+        result = dict()
+        with open(logfile) as f:
+            for line in f:
+                if line.strip().endswith(":") or not line.strip():
+                    continue
+                desc, data = line.split('|')
+                if "Number of input reads" in desc:
+                    result['total_reads'] = int(data.strip())
+                elif 'Average input read length' in desc:
+                    result['average_read_length'] = float(data.strip())
+                elif 'Uniquely mapped reads number' in desc:
+                    result['unique_mapped'] = int(data.strip())
+                elif 'Uniquely mapped reads %' in desc:
+                    result['unique_mapped_ratio'] = float(data.strip().strip('%'))
+                elif 'Average mapped length' in desc:
+                    result['average_mapped_read_length'] = float(data.strip())
+                elif 'Number of splices: Total' in desc:
+                    result['total_splices'] = int(data.strip())
+                elif 'Number of splices: Annotated' in desc:
+                    result['annotated_splices'] = int(data.strip())
+                elif 'Number of reads mapped to multiple loci' in desc:
+                    result['multiple_mapped'] = int(data.strip())
+                elif '% of reads mapped to multiple loci' in desc:
+                    result['multiple_mapped_ratio'] = float(data.strip().strip('%'))
+                elif 'Number of reads mapped to too many loci' in desc:
+                    result['many_mapped(>10)'] = int(data.strip())
+                elif '% of reads mapped to too many loci' in desc:
+                    result['many_mapped_ratio'] = float(data.strip().strip('%'))
+                elif ' Number of chimeric reads' in desc:
+                    result['chimeric'] = int(data.strip())
+                else:
+                    pass
+        result['mapped_ratio'] = result['unique_mapped_ratio'] + result['multiple_mapped_ratio'] + result['many_mapped_ratio']
+        result['mapped'] = result['unique_mapped'] + result['multiple_mapped'] + result['many_mapped(>10)']
+        result['sample'] = sample
+        with open(out_table, 'w') as f:
+            json.dump(result, f, indent=2)
+        results.append(result)
+    pd.DataFrame(results).set_index('sample').to_csv('star.mapping.stat.csv')
+    return results
 
 
 def parse_samtools_flagstat_result(stat_file):
@@ -156,7 +161,7 @@ def stat_target_bam(bed, bam, rRNA_bed=None, overlap=0.05,  rRNA_overlap=0.6, be
     subprocess.check_call(cmd, shell=True)
 
     final_log = glob(os.path.join(os.path.dirname(bam), '*.Log.final.out'))[0]
-    original_bam_summary = parse_star_final_out_log(final_log, outdir=outdir)
+    original_bam_summary = parse_star_final_out_log([final_log], outdir=outdir)[0]
     target_bam_summary = parse_samtools_flagstat_result(out)
     target_ratio = int(target_bam_summary[4][0]) / original_bam_summary['mapped'] / 2
     depth_dict = parse_samtools_depth_result(depth_stat, cov_limit=cov_limit, step=step)
@@ -190,44 +195,5 @@ def stat_target_bam(bed, bam, rRNA_bed=None, overlap=0.05,  rRNA_overlap=0.6, be
 
 
 if __name__ == '__main__':
-    def introduce_command(func):
-        import argparse
-        import inspect
-        import json
-        import time
-        if isinstance(func, type):
-            description = func.__init__.__doc__
-        else:
-            description = func.__doc__
-        parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawTextHelpFormatter)
-        func_args = inspect.getfullargspec(func)
-        arg_names = func_args.args
-        arg_defaults = func_args.defaults
-        arg_defaults = ['None']*(len(arg_names) - len(arg_defaults)) + list(arg_defaults)
-        for arg, value in zip(arg_names, arg_defaults):
-            if arg == 'self':
-                continue
-            if value == 'None':
-                parser.add_argument('-'+arg, required=True, metavar=arg)
-            elif type(value) == bool:
-                if value:
-                    parser.add_argument('--'+arg, action="store_false", help='default: True')
-                else:
-                    parser.add_argument('--'+arg, action="store_true", help='default: False')
-            elif value is None:
-                parser.add_argument('-' + arg, default=value, metavar='Default:' + str(value), )
-            else:
-                parser.add_argument('-' + arg, default=value, type=type(value), metavar='Default:' + str(value), )
-        if func_args.varargs is not None:
-            print("warning: *varargs is not supported, and will be neglected! ")
-        if func_args.varkw is not None:
-            print("warning: **keywords args is not supported, and will be neglected! ")
-        args = parser.parse_args().__dict__
-        with open("Argument_detail.json", 'w') as f:
-            json.dump(args, f, indent=2, sort_keys=True)
-        start = time.time()
-        func(**args)
-        print("total time: {}s".format(time.time() - start))
-
-
-    introduce_command(stat_target_bam)
+    from xcmds import xcmds
+    xcmds.xcmds(locals(), include=['parse_star_final_out_log', 'stat_target_bam'])
