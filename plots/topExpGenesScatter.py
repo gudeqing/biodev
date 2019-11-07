@@ -13,13 +13,15 @@ from upsetplot import from_contents
 from upsetplot import plot
 
 
-def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls=None, ncols=2,
-                    control_name='MT', out_name="TopExpGenes.html",
+def plotTopExpGenes(exp_matrix, id2symbol=None, top=50, controls="/nfs2/database/gencode_v29/chrM.gene.list",
+                    ncols=2, control_name='MT', out_name="TopExpGenes.html", no_strip_version=False,
                     venn_list:list=None, venn_names:list=None):
     controls = [x.strip().split()[0] for x in open(controls)] if controls else []
     id2symbol = dict(x.strip().split()[:2] for x in open(id2symbol)) if id2symbol else dict()
     df = pd.read_csv(exp_matrix, sep='\t', header=0, index_col=0)
     df.index.name = 'id'
+    if not no_strip_version:
+        df.index = [x.split('.')[0] for x in df.index]
     # plot for each sample
     plots = list()
     top_dict = dict()
