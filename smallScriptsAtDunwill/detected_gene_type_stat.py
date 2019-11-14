@@ -133,7 +133,6 @@ def draw(fig: go.Figure, prefix='', outdir=os.getcwd(), formats=('html',),
                 fw.write(desc+'\n')
 
 
-
 def detected_gene_type_stat(expr, gene_type=None, lower=1):
     exp_table = pd.read_csv(expr, header=0, index_col=0, sep=None, engine='python')
     if gene_type is None:
@@ -161,16 +160,15 @@ def detected_gene_type_stat(expr, gene_type=None, lower=1):
     color_dict = dict(zip(df.columns, colors))
     data = [go.Bar(x=df.index, y=df[x] / df.sum(axis=1), name=x, marker=dict(color=color_dict[x])) for x in df.columns]
     layout = go.Layout(
-        title="Read distribution",
+        title="Gene type distribution",
         # xaxis=dict(title='Sample'),
         barmode='stack',
     )
     outdir = os.path.dirname(expr)
     fig = go.Figure(data=data, layout=layout)
-    prefix = "{}.ReadDistribution".format('samples')
+    prefix = "GeneTypeDistribution"
     draw(fig, prefix=prefix, outdir=outdir)
     return stat_data
-
 
 
 if __name__ == '__main__':
