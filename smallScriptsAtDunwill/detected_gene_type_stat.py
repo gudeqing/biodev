@@ -133,6 +133,39 @@ def draw(fig: go.Figure, prefix='', outdir=os.getcwd(), formats=('html',),
                 fw.write(desc+'\n')
 
 
+def redefine_gene_category(gene_type_pair_df):
+    category = {
+        'IG': ['IG_C_gene', 'IG_D_gene', 'IG_J_gene', 'IG_LV_gene', 'IG_V_gene'],
+        'TCR': ['TR_C_gene', 'TR_J_gene', 'TR_V_gene', 'TR_D_gene'],
+        'pseudogene': ['.*pseudogene'],
+        'miRNA': ['miRNA'],
+        'ncRNA': ['Mt_rRNA', 'Mt_tRNA', 'misc_RNA', 'rRNA', 'scRNA', 'snRNA',
+                  'snoRNA', 'ribozyme', 'sRNA', 'scaRNA', 'vaultRNA'],
+        'lncRNA': ['3prime_overlapping_ncRNA', 'antisense', 'antisense_RNA', 'bidirectional_promoter_lncRNA',
+                   'lincRNA', 'macro_lncRNA', ' non_coding', 'processed_transcript',
+                   'sense_intronic', 'sense_overlapping'],
+        # To be Experimentally Confirmed.
+        'TEC': ['TEC'],
+        'protein_coding': ['protein_coding']
+    }
+
+    type_dict = dict()
+    for k, v in category.items():
+        for each in v:
+            type_dict[each] = k
+
+    gene_type_pair_df['GeneType'] = 'unknown'
+    for gene in gene_type_pair_df.index:
+        detail_type = gene_type_pair_df.loc[gene, 'gene_type']
+        if detail_type.endswith('pseudogene'):
+            gene_type_pair_df.loc[gene, 'GeneType'] = 'pseudogene'
+        elif detail_type in type_dict:
+            gene_type_pair_df.loc[gene, 'GeneType'] = type_dict[detail_type]
+    result = gene_type_pair_df.loc[:, ['GeneType']]
+    result.columns = ['gene_type']
+    return result
+
+
 def detected_gene_type_stat(expr, gene_type=None, lower=2, marker_genes=None, gene2symbol=None):
     exp_table = pd.read_csv(expr, header=0, index_col=0, sep=None, engine='python')
     if gene_type is None:
@@ -143,6 +176,7 @@ def detected_gene_type_stat(expr, gene_type=None, lower=2, marker_genes=None, ge
         gene2symbol = dict(x.strip().split()[:2] for x in open(gene2symbol))
     gene_type = pd.read_csv(gene_type, header=0, index_col=0, sep=None, engine='python')
     gene_type.columns = ['gene_type']
+    gene_type = redefine_gene_category(gene_type)
     exp_table = exp_table.join(gene_type)
     exp_table.to_csv(expr+'.AddType.csv')
     stat_data = list()
