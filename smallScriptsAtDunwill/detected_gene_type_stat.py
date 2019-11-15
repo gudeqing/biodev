@@ -133,17 +133,29 @@ def draw(fig: go.Figure, prefix='', outdir=os.getcwd(), formats=('html',),
                 fw.write(desc+'\n')
 
 
-def detected_gene_type_stat(expr, gene_type=None, lower=1):
+def detected_gene_type_stat(expr, gene_type=None, lower=2, marker_genes=None, gene2symbol=None):
     exp_table = pd.read_csv(expr, header=0, index_col=0, sep=None, engine='python')
     if gene_type is None:
         gene_type = "/nfs2/database/gencode_v29/gene_type.txt"
+    if marker_genes:
+        marker_genes = set(x.strip() for x in open(marker_genes))
+    if gene2symbol:
+        gene2symbol = dict(x.strip().split()[:2] for x in open(gene2symbol))
     gene_type = pd.read_csv(gene_type, header=0, index_col=0, sep=None, engine='python')
     gene_type.columns = ['gene_type']
     exp_table = exp_table.join(gene_type)
     exp_table.to_csv(expr+'.AddType.csv')
     stat_data = list()
     for sample in exp_table.columns[:-1]:
-        stat_dict = exp_table.loc[exp_table[sample]>lower].groupby('gene_type').size().to_dict()
+        expressed_genes = exp_table.loc[exp_table[sample] >= lower]
+        if marker_genes:
+            detected_markers = set(expressed_genes.index) & marker_genes
+            if gene2symbol:
+                detected_markers = [gene2symbol[x] if x in gene2symbol else x for x in detected_markers]
+            # print(f'Detected {len(detected_markers)} in {sample}')
+            with open('detected.marker.genes.xls', 'a') as f:
+                f.write(f'{sample}\t{len(detected_markers)}\t{detected_markers}\n')
+        stat_dict = expressed_genes.groupby('gene_type').size().to_dict()
         stat_dict['sample'] = sample
         stat_data.append(stat_dict)
     stat_data = pd.DataFrame(stat_data).set_index('sample').fillna(0)
