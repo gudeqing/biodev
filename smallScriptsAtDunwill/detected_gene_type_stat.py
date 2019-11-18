@@ -142,7 +142,7 @@ def redefine_gene_category(gene_type_pair_df):
         'ncRNA': ['Mt_rRNA', 'Mt_tRNA', 'misc_RNA', 'rRNA', 'scRNA', 'snRNA',
                   'snoRNA', 'ribozyme', 'sRNA', 'scaRNA', 'vaultRNA'],
         'lncRNA': ['3prime_overlapping_ncRNA', 'antisense', 'antisense_RNA', 'bidirectional_promoter_lncRNA',
-                   'lincRNA', 'macro_lncRNA', ' non_coding', 'processed_transcript',
+                   'lincRNA', 'macro_lncRNA', 'non_coding', 'processed_transcript',
                    'sense_intronic', 'sense_overlapping'],
         # To be Experimentally Confirmed.
         'TEC': ['TEC'],
@@ -154,22 +154,32 @@ def redefine_gene_category(gene_type_pair_df):
         for each in v:
             type_dict[each] = k
 
-    gene_type_pair_df['GeneType'] = 'unknown'
+    gene_type_pair_df['GeneType'] = 'other'
     for gene in gene_type_pair_df.index:
         detail_type = gene_type_pair_df.loc[gene, 'gene_type']
         if detail_type.endswith('pseudogene'):
             gene_type_pair_df.loc[gene, 'GeneType'] = 'pseudogene'
         elif detail_type in type_dict:
             gene_type_pair_df.loc[gene, 'GeneType'] = type_dict[detail_type]
+        else:
+            print(gene, detail_type)
     result = gene_type_pair_df.loc[:, ['GeneType']]
     result.columns = ['gene_type']
     return result
 
 
-def detected_gene_type_stat(expr, gene_type=None, lower=2, marker_genes=None, gene2symbol=None):
+def detected_gene_type_stat(expr, gene_type="/nfs2/database/gencode_v29/gene_type.txt", outdir=os.getcwd(),
+                            lower=2, marker_genes=None, gene2symbol=None):
+    """
+    根据gencode的GTF的基因分类进行统计;maker基因可以从CellMarker数据库下载
+    :param expr: 文件路径，count矩阵/expression矩阵
+    :param gene_type: 文件路径，没有header, 第一列为基因id, 第二列为基因的类型(gene_type), 从 gencode的GTF文件提取获得
+    :param lower: 定义一个基因是否有检测到的阈值
+    :param marker_genes: 文件，仅一列,包含基因的id,如果提供,则会统计每个样本有多少marker基因检测到
+    :param gene2symbol: 文件, 两列, 第一列为基因id, 第二列为基因的symbol,如提供，maker统计表会使用这里的symbol
+    :return: detected_marker.stat.xls, detected_gene_type.stat.xls, GeneTypeDistribution.html
+    """
     exp_table = pd.read_csv(expr, header=0, index_col=0, sep=None, engine='python')
-    if gene_type is None:
-        gene_type = "/nfs2/database/gencode_v29/gene_type.txt"
     if marker_genes:
         marker_genes = set(x.strip() for x in open(marker_genes))
     if gene2symbol:
@@ -178,8 +188,9 @@ def detected_gene_type_stat(expr, gene_type=None, lower=2, marker_genes=None, ge
     gene_type.columns = ['gene_type']
     gene_type = redefine_gene_category(gene_type)
     exp_table = exp_table.join(gene_type)
-    exp_table.to_csv(expr+'.AddType.csv')
+    # exp_table.to_csv(os.path.join(outdir, 'expr.add_gene_type.csv'))
     stat_data = list()
+    marker_stat_file = open(os.path.join(outdir, 'detected_marker.stat.xls'), 'w')
     for sample in exp_table.columns[:-1]:
         expressed_genes = exp_table.loc[exp_table[sample] >= lower]
         if marker_genes:
@@ -187,16 +198,16 @@ def detected_gene_type_stat(expr, gene_type=None, lower=2, marker_genes=None, ge
             if gene2symbol:
                 detected_markers = [gene2symbol[x] if x in gene2symbol else x for x in detected_markers]
             # print(f'Detected {len(detected_markers)} in {sample}')
-            with open('detected.marker.genes.xls', 'a') as f:
-                f.write(f'{sample}\t{len(detected_markers)}\t{detected_markers}\n')
+            marker_stat_file.write(f'{sample}\t{len(detected_markers)}\t{detected_markers}\n')
         stat_dict = expressed_genes.groupby('gene_type').size().to_dict()
         stat_dict['sample'] = sample
         stat_data.append(stat_dict)
+    marker_stat_file.close()
     stat_data = pd.DataFrame(stat_data).set_index('sample').fillna(0)
     stat_data = stat_data.transpose()
-    stat_data = stat_data.sort_values(list(stat_data.columns), ascending=False)
+    stat_data = stat_data.sort_values(list(stat_data.columns)[0:3], ascending=False)
     stat_data = stat_data.transpose()
-    stat_data.to_csv(expr+'.TypeStat.csv')
+    stat_data.to_csv(os.path.join(outdir, 'detected_gene_type.stat.csv'))
     # plot
     df = stat_data
     order = sorted(df.index)
@@ -210,7 +221,6 @@ def detected_gene_type_stat(expr, gene_type=None, lower=2, marker_genes=None, ge
         # xaxis=dict(title='Sample'),
         barmode='stack',
     )
-    outdir = os.path.dirname(expr)
     fig = go.Figure(data=data, layout=layout)
     prefix = "GeneTypeDistribution"
     draw(fig, prefix=prefix, outdir=outdir)
