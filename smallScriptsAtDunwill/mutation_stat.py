@@ -53,12 +53,21 @@ def vcf_generator(vcf):
                 format_lst = line_dict.pop('FORMAT').split(':')
                 for sample in header[9:]:
                     values = line_dict[sample].split(':')
+                    if sample in line_dict:
+                        print(f'name of sample {sample} are conflicted with other colnames! We will rename it')
+                        sample += '_x'
                     line_dict[sample] = dict(zip(format_lst, values))
                 line_dict['samples'] = header[9:]
             yield line_dict, line
 
 
-def filter_vcf(vcf, out='new.vcf'):
+def filter_paired_vcf(vcf, out='new.vcf'):
+    """
+    为dna的配对变异分析结果的过滤设计的,当时对比bcftools filter的结果发现，bcftools 似乎并不精确，或者我们对其参数的理解不够精确
+    :param vcf:
+    :param out:
+    :return:
+    """
     filter_set = {'strand_bias', 'germline', 'weak_evidence'}
     # filter_set = set()
     tumour_set = set()
