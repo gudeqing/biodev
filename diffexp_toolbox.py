@@ -5,6 +5,7 @@ import subprocess
 import numpy as np
 import pandas as pd
 import argparse
+from statsmodels.stats.multitest import multipletests
 from pprint import pprint
 # from multiprocessing import Pool
 from concurrent.futures import ThreadPoolExecutor as Pool
@@ -20,108 +21,14 @@ def run_script(codes):
     subprocess.call("Rscript {}".format(codes), shell=True)
 
 
-class PvalueCorrect(object):
-    def multtest_correct(self, p_values, method=3):
-        """
-        1. Bonferroni. ---> bonferroni
-        2. Bonferroni Step-down(Holm) ---> Holm
-        3. Benjamini and Hochberg False Discovery Rate ---> BH
-        4. FDR Benjamini-Yekutieli --->BY
-        :param pvalue_list:
-        :param method:
-        :return: np.array
-        """
-        pvalue_list = list(p_values)
-        n = len(pvalue_list)
-        if method == 1:
-            fdr = [eachP*n for eachP in pvalue_list]
-        elif method == 2:
-            sorted_pvalues = sorted(pvalue_list)
-            fdr = [eachP*(n - sorted_pvalues.index(eachP)) for eachP in pvalue_list]
-        elif method == 3:
-            sorted_pvalues = sorted(pvalue_list)
-            fdr = [eachP*n/(sorted_pvalues.index(eachP)+1) for eachP in pvalue_list]
-        elif method == 4:
-            _, fdr = self.fdr_correction(pvalue_list, alpha=0.05, method='negcorr', is_sorted=False)
-        fdr = np.array(fdr)
-        fdr[fdr > 1] = 1.
-        return fdr
-
-    @staticmethod
-    def fdr_correction(pvals, alpha=0.05, method='indep', is_sorted=False):
-        """pvalue correction for false discovery rate
-        This covers Benjamini/Hochberg for independent or positively correlated and
-        Benjamini/Yekutieli for general or negatively correlated tests. Both are
-        available in the function multipletests, as method=`fdr_bh`, resp. `fdr_by`.
-        Parameters
-        ----------
-        pvals : array_like
-            set of p-values of the individual tests.
-        alpha : float
-            error rate
-        method : {'indep', 'negcorr')
-        Returns
-        -------
-        rejected : array, bool
-            True if a hypothesis is rejected, False if not
-        pvalue-corrected : array
-            pvalues adjusted for multiple hypothesis testing to limit FDR
-        Notes
-        -----
-        If there is prior information on the fraction of true hypothesis, then alpha
-        should be set to alpha * m/m_0 where m is the number of tests,
-        given by the p-values, and m_0 is an estimate of the true hypothesis.
-        (see Benjamini, Krieger and Yekuteli)
-        """
-        def _ecdf(x):
-            """
-            no frills empirical cdf used in fdrcorrection
-            """
-            nobs = len(x)
-            return np.arange(1, nobs+1)/float(nobs)
-
-        pvals = np.asarray(pvals)
-        if not is_sorted:
-            pvals_sortind = np.argsort(pvals)
-            pvals_sorted = np.take(pvals, pvals_sortind)
-        else:
-            pvals_sorted = pvals  # alias
-
-        if method in ['i', 'indep', 'p', 'poscorr']:
-            ecdffactor = _ecdf(pvals_sorted)
-        elif method in ['n', 'negcorr']:
-            cm = np.sum(1./np.arange(1, len(pvals_sorted)+1))   #corrected this
-            ecdffactor = _ecdf(pvals_sorted) / cm
-        else:
-            raise ValueError('only indep and negcorr implemented')
-        reject = pvals_sorted <= ecdffactor*alpha
-        if reject.any():
-            rejectmax = max(np.nonzero(reject)[0])
-            reject[:rejectmax] = True
-
-        pvals_corrected_raw = pvals_sorted / ecdffactor
-        pvals_corrected = np.minimum.accumulate(pvals_corrected_raw[::-1])[::-1]
-        del pvals_corrected_raw
-        pvals_corrected[pvals_corrected > 1] = 1
-        if not is_sorted:
-            pvals_corrected_ = np.empty_like(pvals_corrected)
-            pvals_corrected_[pvals_sortind] = pvals_corrected
-            del pvals_corrected
-            reject_ = np.empty_like(reject)
-            reject_[pvals_sortind] = reject
-            return reject_, pvals_corrected_
-        else:
-            return reject, pvals_corrected
-
-
-class DiffExpToolbox(PvalueCorrect):
+class DiffExpToolbox(object):
     """
     A toolbox contains several differential analysis tools for RNAseq data.
     Currently, only 3 tools supported: edgeR, DEseq2, DEGseq
     Note: only parts of the functions of each tool are implemented.
     """
     def __init__(self, count_matrix, group_info, cmp_info, exp_matrix=None, exp_type='fpkm', gene_annot=None,
-                 sig_type='pvalue', stat_cutoff=0.05, fc_cutoff=2, padjust_way=3, pool_size=5):
+                 sig_type='pvalue', stat_cutoff=0.05, fc_cutoff=2, padjust_way=None, pool_size=5):
         """
         initial inputs
         :param count_matrix: path of raw count table, '\t' as separator. No duplicated row header !
@@ -484,9 +391,8 @@ class DiffExpToolbox(PvalueCorrect):
                                             log2fc=df['log2(Fold_change) normalized'], ),
                                        index=pvalues.index)
             else:
-                correction = self.multtest_correct
                 stat_df = pd.DataFrame(dict(pvalue=df['p-value'],
-                                            padjust=correction(pvalues, method=self.padjust_way),
+                                            padjust=multipletests(pvalues, method=self.padjust_way)[1],
                                             log2fc=df['log2(Fold_change) normalized']),
                                        index=pvalues.index)
 
@@ -562,7 +468,7 @@ class DiffExpToolbox(PvalueCorrect):
             stat_table = pd.read_csv(each, index_col=0, sep=None, engine='python')
             pvalues = stat_table['PValue']
             df = pd.DataFrame(dict(pvalue=pvalues,
-                                   padjust=self.multtest_correct(pvalues, method=self.padjust_way),
+                                   padjust=multipletests(pvalues, method=self.padjust_way)[1],
                                    log2fc=stat_table['logFC']), index=pvalues.index)
             stat_dict = df.to_dict('index')
             target_seqs = list(df[self.sig_type].sort_values().index) + self.filtered_seqs
@@ -671,9 +577,8 @@ class DiffExpToolbox(PvalueCorrect):
             stat_table = pd.read_csv(each, index_col=0, sep=None, engine='python')
             pvalues = stat_table['pvalue']
             if padjust_way is None:
-                pvalue_correct = self.multtest_correct
                 df = pd.DataFrame(dict(pvalue=pvalues,
-                                       padjust=pvalue_correct(pvalues, method=self.padjust_way),
+                                       padjust=multipletests(pvalues, method=self.padjust_way)[1],
                                        log2fc=stat_table['log2FoldChange']), index=pvalues.index)
             else:
                 df = pd.DataFrame(dict(pvalue=pvalues,
@@ -749,14 +654,20 @@ if __name__ == "__main__":
     parser.add_argument('--deseq2_padjust_way', type=str, default="BH",
                         help='One of ("holm", "hochberg", "hommel", "bonferroni", "BH", "BY",)'
                              'Default: None')
-    parser.add_argument('-padjust_way', type=int, default=3,
-                        help='Integer in [1,2,3,4]. '
-                             'This option is not used if other *_padjust_way specified.'
-                             ' 1. Bonferroni. ---> bonferroni;'
-                             ' 2. Bonferroni Step-down(Holm) ' '---> Holm;'
-                             ' 3. Benjamini and Hochberg False Discovery Rate ---> BH;'
-                             ' 4. FDR Benjamini-Yekutieli --->BY'
-                             ' Default: 3')
+    parser.add_argument('-padjust_way', type=str, default='fdr_bh',
+                        help="""
+                        bonferroni : one-step correction
+                        sidak : one-step correction
+                        holm-sidak : step down method using Sidak adjustments
+                        holm : step-down method using Bonferroni adjustments
+                        simes-hochberg : step-up method (independent)
+                        hommel : closed method based on Simes tests (non-negative)
+                        fdr_bh : Benjamini/Hochberg (non-negative)
+                        fdr_by : Benjamini/Yekutieli (negative)
+                        fdr_tsbh : two stage fdr correction (non-negative)
+                        fdr_tsbky : two stage fdr correction (non-negative)
+                        Default: fdr_bh
+                        """)
 
     # ----------------------------------------------------------------------------------------------
     args = parser.parse_args()
