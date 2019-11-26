@@ -449,6 +449,8 @@ class DiffExpToolbox(object):
             else:
                 f.write('design <- model.matrix(~0+tmp_group)\n')
                 f.write('y <- estimateDisp(y, design, robust=F)\n')
+                f.write('print("{}_vs_{}")\n'.format(ctrl, test))
+                f.write('print(paste("Dispersion:", y$common.dispersion))\n')
                 f.write('fit <- glmQLFit(y, design, robust=F)\n')
                 f.write('con = makeContrasts(tmp_group{}-tmp_group{}, levels=design)\n'.format(
                     test, ctrl))
@@ -547,21 +549,27 @@ class DiffExpToolbox(object):
                 f.write('colData <- data.frame(row.names=colnames(tmp_counts), group=tmp_group)\n')
                 f.write('dds <- DESeqDataSetFromMatrix(countData=tmp_counts, colData=colData, design= ~group)\n')
             f.write('rlogCounts = rlog(dds, blind=T)\n')
-            f.write('pdf("{}/{}_vs_{}.pca.pdf")\n'.format(output, ctrl, test))
+            if len(ctrl_names + test_names) > 2:
+                f.write('pdf("{}/{}_vs_{}.pca.pdf")\n'.format(output, ctrl, test))
             if self.batch_dict:
-                f.write('plotPCA(rlogCounts, "batch")\n')
-                f.write('plotPCA(rlogCounts, "group")\n')
+                if len(ctrl_names+test_names) > 2:
+                    f.write('plotPCA(rlogCounts, "batch")\n')
+                    f.write('plotPCA(rlogCounts, "group")\n')
             else:
-                f.write('plotPCA(rlogCounts, "group")\n')
-            f.write('dev.off()\n')
+                if len(ctrl_names + test_names) > 2:
+                    f.write('plotPCA(rlogCounts, "group")\n')
+            if len(ctrl_names + test_names) > 2:
+                f.write('dev.off()\n')
             f.write('write.table(assay(rlogCounts), "{}/{}_vs_{}.rlogCounts.matrix", '
                     'quote=F, col.names = NA)\n'.format(output, ctrl, test))
             if self.batch_dict:
                 f.write('assay(rlogCounts) <- limma::removeBatchEffect(assay(rlogCounts), c(colData$batch))\n')
-                f.write('pdf("{}/{}_vs_{}.batchCorrected.pca.pdf")\n'.format(output, ctrl, test))
-                f.write('plotPCA(rlogCounts, "batch")\n')
-                f.write('plotPCA(rlogCounts, "group")\n')
-                f.write('dev.off()\n')
+                if len(ctrl_names + test_names) > 2:
+                    # 校正后再来一次pca分析
+                    f.write('pdf("{}/{}_vs_{}.batchCorrected.pca.pdf")\n'.format(output, ctrl, test))
+                    f.write('plotPCA(rlogCounts, "batch")\n')
+                    f.write('plotPCA(rlogCounts, "group")\n')
+                    f.write('dev.off()\n')
                 f.write('write.table(assay(rlogCounts), "{}/{}_vs_{}.batchCorrected.rlogCounts.matrix", '
                         'quote=F, col.names = NA)\n'.format(output, ctrl, test))
 
@@ -642,7 +650,7 @@ if __name__ == "__main__":
     parser.add_argument('-pvalue', type=float, default=0.05, help='p(q)value cutoff. Default: 0.05')
     parser.add_argument('-fc', type=float, default=2.0, help='fold change cutoff. Default: 2.0')
     parser.add_argument('--count_cutoff', type=float, default=2.5,
-                        help='count number or expression cutoff for filtering before diff analysis. Default: 1.0')
+                        help='count number or expression cutoff for filtering before diff analysis. Default: 2.5')
     parser.add_argument('-filter_by', type=str, default='count', help="filter gene by count or exp")
     parser.add_argument('--passed_number_cutoff', type=int, default=3,
                         help='sample( count > count_cutoff ) number cutoff for filtering before '
