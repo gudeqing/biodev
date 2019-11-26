@@ -483,6 +483,15 @@ class DiffExpToolbox(object):
 
     def DESeq2(self, output=None, sep='\t', padjust_way=None):
         """
+        1. 增加了消除批次效应的功能，这要求分组信息里面有一列命名为'batch'
+        2. 输出rlog后的表达矩阵，即标准化后的表达矩阵，由于没有进行基因长度校正，这种标准化只能进行相同基因的表达差异比较
+        3. 这里最终输出的差异表达结果矩阵中，表达量将采用rlog后的值，而不是输入的TPM值，rlog值据说更适合做聚类分析
+        4. 官方推荐的“一般情况，建议把所有样本放一起处理fitting model后再使用contrast提取感兴趣的比较，
+        但是这里都是先按分组比较信息把count拆分出来再进行差异分析，这是在美吉的时候提出的，主要目的是为了进行平行计算，加快速度，
+        当时确实对比较分析确实也没有太多的经验。另外，当样本之间差异很大时，如果样本都放一起进行模型拟合后再差异分析，
+        肯定也是不好的，这一点官网也做了说明。
+        5. 后来在普恩写了一个DEseq2.r脚本，先进行模型fitting，然后用contrast提取感兴趣的比较，但是目前没有加入进行批次校正的功能。
+        6. rlog的标准化表达量值可用于聚类，PCA分析等。
         :param output: output directory
         :param padjust_way: the method to pvalue correction in R
         :param sep: the separator used in  count table
