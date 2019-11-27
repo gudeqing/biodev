@@ -121,4 +121,4 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
 
 if __name__ == '__main__':
     from xcmds.xcmds import  xcmds
-    xcmds(locals(), include=['enrich'])
+    xcmds(locals(), include=['enrich', 'multipletests'])
