@@ -2,8 +2,8 @@ library(optparse)
 # make options
 opt_list = list(
     make_option(c('-e', '--expr'), help='expr matrix file'),
-    make_option(c('-g', '--group'), help='sample group file'),
-    make_option(c('-c', '--contrast'), help='comparison info file'),
+    make_option(c('-g', '--group'), help='sample group file, 注意：仅仅使用第一列和第二列'),
+    make_option(c('-c', '--contrast'), help='comparison info file，注意：不需要header'),
     make_option(c('-f', '--fold_change'), default=2.0, help='fold change cutoff', type='numeric'),
     make_option(c('-s', '--stat_cutoff'), default=0.05, help='pvalue or adjust pvalue cutoff', type='numeric'),
     make_option(c('-t', '--type'), default='padjust', help='use uncorrected pvalue if set to pvalue'),
@@ -26,12 +26,14 @@ if (is.null(opt$c)){
 
 suppressMessages(library(DESeq2))
 counts <- read.table(opt$e, header=T, row.names=1, sep="\t")
-# counts = floor(counts+0.5)
+counts = floor(counts+0.5)
 group <- read.table(opt$g, header=T, row.names=1, sep='\t')
 counts <- counts[, rownames(group)]
 colnames(group)[1] = 'group'
 ## Calculation for P50O vs P50M
 dds <- DESeqDataSetFromMatrix(countData=counts, colData=group, design= ~group)
+# 过滤掉在所有样本当中都没有表达的基因
+dds <- dds[ rowSums(counts(dds)) > 1, ]
 rlogCounts = rlog(dds, blind=T)
 # pdf(paste(opt$o, "PCA.pdf", sep=''))
 # plotPCA(rlogCounts, 'group')
@@ -58,8 +60,10 @@ for (i in 1:nrow(compare)){
         print(paste('cutoff: |log2fc| >= ', opt$f, " & pvalue", ' <= ', opt$s, sep=''))
     }
     res$regulate = 'up'
-    res[res$log2FoldChange < 0, 'regulate'] = 'down'
-    res[res$log2FoldChange == 0, 'regulate'] = 'stable'
+    # 先把NA的转换为
+    res[is.na(res$log2FoldChange), 'regulate'] = 'stable'
+    res[(res$log2FoldChange < 0) == T, 'regulate'] = 'down'
+    res[(res$log2FoldChange == 0) == T, 'regulate'] = 'stable'
     out_name = paste(opt$o, ctrl, '_vs_', test, ".deseq2.xls", sep='')
     write.table(res, file=out_name, sep="\t", quote=F, row.names=T, col.names=NA)
     ##根据p值筛选
