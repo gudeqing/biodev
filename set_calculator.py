@@ -9,7 +9,7 @@ from upsetplot import plot
 
 
 def run(files:list, exp=None, out_prefix='result', has_header=False,
-        intersect_only=True, intersect_xoy=1, union_only=False,
+        intersect_only=True, intersect_xoy=1, union_only=False, show_venn_percent=False,
         set_names:list=None, venn_list:list=None, venn_names:list=None, graph_format='png'):
     """
     根据文件内容构建集合, 并按指定规则进行运算, 默认计算所有集合的交集
@@ -18,10 +18,11 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     :param exp: 表达式, 字符串的形式, 如's1-s2'表示第一个集合减去第二个集合, 集合顺序与文件提供的顺序一一对应
     :param out_prefix: 指定集合运算结果的文件名前缀
     :param has_header: 指定文件是否包含header, 默认无, 如有header, header不参与计算
-    :param intersect_only: 如提供, 不考虑exp指定的运算, 而是计算所有集合的交集, 即交集结果的所有元素在集合中出现的频数等于集合数
+    :param intersect_only: 默认提供, 不考虑exp指定的运算, 而是计算所有集合的交集, 即交集结果的所有元素在集合中出现的频数等于集合数
     :param intersect_xoy: 如提供, 不考虑exp指定的运算, 而是计算所有集合的交集, 而且输出交集结果的元素
     在所有集合中出现的频数大于或等于该参数指定的阈值.
     :param union_only: 计算各个集合的并集
+    :param show_venn_percent: 如果提供，在venn图中显示百分比
     :param set_names: 用于画venn图, 对各个集合进行命名, 与文件名顺序应一致, 默认对文件名进行'.'分割获取第一个字符串作为集合名
     :param venn_list: 用于画venn图, 如 'A,B,C' 'B,C,D'表示画两个韦恩图, 第一个韦恩图用ABC集合, 而第二个韦恩图用BCD集合,
     默认None, 用所有集合画一个韦恩图; 另外, 可以给该参数输入一个文件, 第一列为集合名, 第二列为分组信息, 后续画图将按照此分组信息分别进行
@@ -83,7 +84,10 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
     # plot venn
     if venn_list is None:
         if 2 <= len(venn_set_dict) <= 6:
-            venn.venn(venn_set_dict, cmap="tab10")
+            if show_venn_percent:
+                venn.venn(venn_set_dict, cmap="tab10", fmt="{size}\n{percentage:.2f}%", fontsize=9)
+            else:
+                venn.venn(venn_set_dict, cmap="tab10")
             plt.savefig(out_prefix+f'.venn.{graph_format}')
     else:
         if len(venn_list) == 1 and ',' not in venn_list[0]:
@@ -108,7 +112,10 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
             groups = group.split(',')
             tmp_dict = {x: y for x, y in venn_set_dict.items() if x in groups}
             if 2 <= len(tmp_dict) <= 6:
-                venn.venn(tmp_dict, cmap="tab10", fmt="{size}\n{percentage:.2f}%", fontsize=9)
+                if show_venn_percent:
+                    venn.venn(tmp_dict, cmap="tab10", fmt="{size}\n{percentage:.2f}%", fontsize=9)
+                else:
+                    venn.venn(tmp_dict, cmap="tab10")
                 out_name = out_prefix + '.{}.venn.{}'.format(name, graph_format)
                 plt.savefig(out_name, dpi=300)
                 plt.close()
