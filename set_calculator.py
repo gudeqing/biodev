@@ -80,7 +80,8 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
         else:
             data = ([x, count_dict[x]] for x in result)
             _ = [f.write(x.strip() + '\t' + str(count_dict[x]) + '\n') for x in result]
-
+    if not exp:
+        return
     # plot venn
     if venn_list is None:
         if 2 <= len(venn_set_dict) <= 6:
