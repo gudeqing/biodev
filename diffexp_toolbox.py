@@ -407,7 +407,7 @@ class DiffExpToolbox(object):
             out_stat = os.path.join(output, 'DEGseq_diff_summary.xls')
             self.__diff_stat(all_stat_dicts, out_stat)
 
-    def edgeR(self, dispersion=0.1, output=None, sep='\t'):
+    def edgeR(self, dispersion=0.16, output=None, sep='\t'):
         if self.count_filtered is None:
             count_table = self.count
         else:
@@ -436,10 +436,11 @@ class DiffExpToolbox(object):
             f = open(script_name, 'w')
             f.write('library(limma)\n')
             f.write('library(edgeR)\n')
-            f.write('counts <- read.table("{}", header=T, row.names=1, sep="{}")\n'.format(
-                count_table, sep))
+            f.write('counts <- read.table("{}", header=T, row.names=1)\n'.format(count_table))
             f.write("## Calculation for {} vs {} \n".format(ctrl, test))
             f.write('tmp_counts <- counts[, c({})]\n'.format(ctrl_ind + ',' + test_ind))
+            f.write('tmp_counts <- tmp_counts[rowSums(tmp_counts)>=3, ]\n')
+            f.write('print(dim(tmp_counts))\n')
             f.write('tmp_group <- c({})\n'.format(','.join(ctrl_names + test_names)))
             f.write('y <- DGEList(counts=tmp_counts, group=tmp_group)\n')
             f.write('y <- calcNormFactors(y)\n')
@@ -473,7 +474,9 @@ class DiffExpToolbox(object):
                                    padjust=multipletests(pvalues, method=self.padjust_way)[1],
                                    log2fc=stat_table['logFC']), index=pvalues.index)
             stat_dict = df.to_dict('index')
-            target_seqs = list(df[self.sig_type].sort_values().index) + self.filtered_seqs
+            # target_seqs = list(df[self.sig_type].sort_values().index) + self.filtered_seqs
+            # 不再添加回被过滤掉的不符合检验条件的基因或低表达的基因
+            target_seqs = list(df[self.sig_type].sort_values().index)
             result_table = each.split('.tmp')[0] + '.xls'
             result_delist = each.split('.tmp')[0] + '.DE.list'
             ctrl, test = os.path.basename(each).split('.edger.tmp')[0].split('_vs_')
@@ -537,6 +540,8 @@ class DiffExpToolbox(object):
             f.write("## Calculation for {} vs {} \n".format(ctrl, test))
             f.write('tmp_counts <- counts[, c({})]\n'.format(ctrl_ind + ',' + test_ind))
             f.write('tmp_counts = floor(tmp_counts+0.5)\n')
+            f.write('tmp_counts <- tmp_counts[rowSums(tmp_counts)>=3, ]\n')
+            f.write('print(dim(tmp_counts))\n')
             f.write('tmp_group <- c({})\n'.format(','.join(ctrl_names + test_names)))
             if self.batch_dict:
                 batch_info = [self.batch_dict[x] for x in (self.group_dict[ctrl] + self.group_dict[test])]
