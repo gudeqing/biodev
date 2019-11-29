@@ -224,10 +224,10 @@ class DiffExpToolbox(object):
             #     exp_header_list.append(test)
             exp_header = tmp_sep.join(exp_header_list) + '_' + 'normalized'
             if self.gene_annot_dict:
-                f.write('seq_id\tgene_symbol\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\t{}\t{}\n'.format(
+                f.write('seq_id\tgene_symbol\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\tgenecards\t{}\t{}\n'.format(
                     count_header, exp_header))
             else:
-                f.write('seq_id\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\t{}\t{}\n'.format(
+                f.write('seq_id\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\tgenecards\t{}\t{}\n'.format(
                     count_header, exp_header))
             cmp_samples = ctrl_samples + test_samples
             for seq_id in target_seqs:
@@ -268,10 +268,14 @@ class DiffExpToolbox(object):
                     line_list.append(reg)
                     # save DEG list
                     if line_list[-2] == 'yes':
-                        f2.write(seq_id.rsplit('.', 1)[0] + '\t' + reg + '\n')
+                        if self.gene_annot_dict:
+                            f2.write(seq_id.rsplit('.', 1)[0] + '\t' + reg + '\t' + annot + '\n')
+                        else:
+                            f2.write(seq_id.rsplit('.', 1)[0] + '\t' + reg + '\n')
                 else:
                     line_list += ['untested', 'untested', 'untested', 'untested', 'untested']
                 # add exp and count
+                line_list.append('https://www.genecards.org/cgi-bin/carddisp.pl?gene={}'.format(seq_id))
                 tmp_count_dict = self.count_dicts[seq_id]
                 line_list += [tmp_count_dict[x] for x in cmp_samples]
                 tmp_exp_dict = self.exp_dicts[seq_id]
@@ -637,7 +641,8 @@ if __name__ == "__main__":
                              " will be used to calculate fpkm or tpm. NOTE: Expression table "
                              "has nothing to do with differential analysis; Only used in report.")
     parser.add_argument('--exp_type', type=str, default="tpm", help='fpkm or tpm. Default: fpkm')
-    parser.add_argument('--gene_annot', type=str, default=None, help='file with two column gene->geneSymbol')
+    parser.add_argument('--gene_annot', type=str, default="/nfs2/database/gencode_v29/geneid2symbol.txt",
+                        help='file with two column gene->geneSymbol')
     parser.add_argument('-group', type=str, required=True,
                         help="path of group info file with at least two columns. First column must"
                              " consist of sample names. Other columns consist of group names."
