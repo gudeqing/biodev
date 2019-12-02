@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from glob import glob
 from statsmodels.stats.multitest import multipletests
 from goatools.obo_parser import GODag
 from goatools.go_enrichment import GOEnrichmentStudy
@@ -9,7 +10,7 @@ __author__ = 'gudeqing'
 
 
 def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:str=None, correct='fdr_bh',
-              alpha=0.05, top=20, goea_out=None, dag_out=None, dpi=300, show_gene_limit=6):
+              alpha=0.05, top=20, goea_out=None, dag_out=None, dpi=300, show_gene_limit=6, only_plot_sig=False):
     """
     Go enrichment based on goatools
     :param gene2go: a file with two columns: gene_id \t go_term_id
@@ -36,6 +37,7 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
     :param dag_out: dag figure file
     :param dpi: resolution of image, no effect for svg
     :param show_gene_limit: the max number of gene in a node to show
+    :param only_plot_sig: only plot dag for significantly enriched terms
     :return: None
     """
     if str(correct) == '3':
@@ -93,10 +95,13 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
 
     # -------------------plot dag------------------------
     for each in ['BP', 'MF', 'CC']:
-        goea_results_sig = table[table['enrichment'] == 'e']
+        if only_plot_sig:
+            goea_results_sig = table[table['enrichment'] == 'e']
+        else:
+            goea_results_sig = table.copy()
         goea_results_sig = goea_results_sig[goea_results_sig['NS'] == each]
         if not goea_results_sig.shape[0]:
-            print("No significant term to plot, and exit now")
+            print(f"No significant term to plot for {each} ")
             return
         if goea_results_sig.shape[0] >= top:
             goea_results_sig = goea_results_sig.iloc[:top]
@@ -119,6 +124,19 @@ def enrich(gene2go:str, study:str, obo:str, population:str=None, geneid2symbol:s
                  )
 
 
+def enrich_batch(study:list, gene2go=None, obo=None, geneid2symbol=None, population=None,
+                 correct='fdr_bh', alpha=0.05, top=20, show_gene_limit=6, only_plot_sig=False):
+    gene2go = gene2go or "/nfs2/database/Human_gene_go_kegg_annot/NewAnnot/hsa.ensembl.gene2go.txt"
+    obo = obo or "/nfs2/database/Human_gene_go_kegg_annot/NewAnnot/go-basic.obo"
+    geneid2symbol = geneid2symbol or "/nfs2/database/Human_gene_go_kegg_annot/NewAnnot/hsa.ensembl.id2symbol.txt"
+    population = population or "/nfs2/database/Human_gene_go_kegg_annot/NewAnnot/hsa.gene.list"
+    for each in study:
+        enrich(gene2go=gene2go, study=each, obo=obo, population=population,
+               geneid2symbol=geneid2symbol, correct=correct,
+               alpha=alpha, top=top, goea_out=None, only_plot_sig=only_plot_sig,
+               dag_out=None, dpi=300, show_gene_limit=show_gene_limit)
+
+
 if __name__ == '__main__':
     from xcmds.xcmds import  xcmds
-    xcmds(locals(), include=['enrich', 'multipletests'])
+    xcmds(locals(), include=['enrich', 'enrich_batch'])
