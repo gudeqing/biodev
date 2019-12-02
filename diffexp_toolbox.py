@@ -443,7 +443,7 @@ class DiffExpToolbox(object):
             f.write('counts <- read.table("{}", header=T, row.names=1)\n'.format(count_table))
             f.write("## Calculation for {} vs {} \n".format(ctrl, test))
             f.write('tmp_counts <- counts[, c({})]\n'.format(ctrl_ind + ',' + test_ind))
-            f.write('tmp_counts <- tmp_counts[rowSums(tmp_counts)>=3, ]\n')
+            f.write('tmp_counts <- tmp_counts[rowSums(tmp_counts)>=5, ]\n')
             f.write('print(dim(tmp_counts))\n')
             f.write('tmp_group <- c({})\n'.format(','.join(ctrl_names + test_names)))
             f.write('y <- DGEList(counts=tmp_counts, group=tmp_group)\n')
@@ -544,7 +544,7 @@ class DiffExpToolbox(object):
             f.write("## Calculation for {} vs {} \n".format(ctrl, test))
             f.write('tmp_counts <- counts[, c({})]\n'.format(ctrl_ind + ',' + test_ind))
             f.write('tmp_counts = floor(tmp_counts+0.5)\n')
-            f.write('tmp_counts <- tmp_counts[rowSums(tmp_counts)>=3, ]\n')
+            f.write('tmp_counts <- tmp_counts[rowSums(tmp_counts)>=5, ]\n')
             f.write('print(dim(tmp_counts))\n')
             f.write('tmp_group <- c({})\n'.format(','.join(ctrl_names + test_names)))
             if self.batch_dict:
