@@ -334,7 +334,8 @@ def hypergeom_test(data, sort_fdr=True):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-deg', required=True, help='file with two columns: gene\tup/down; No header')
+    parser.add_argument('-deg', required=True,
+                        help='支持使用通配符,但需要用引号, 匹配到多个文件, 则做多次分析. file with two columns: gene\tup/down; No header')
     parser.add_argument('-g2k', required=True, help='file with two columns: gene\tgene_Knumber; No header')
     parser.add_argument('-bgn', default=0, type=int,
                         help='int, total background gene number. Not used if only_consider_path_annotated_genes set')
