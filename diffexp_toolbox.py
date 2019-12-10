@@ -67,10 +67,11 @@ class DiffExpToolbox(object):
         self.fc_cutoff = fc_cutoff
         self.stat_cutoff = stat_cutoff
         self.padjust_way = padjust_way
-        self.gene_annot_dict = dict()
         if gene_annot is not None:
-            gene_annot = pd.read_csv(gene_annot, sep=None, engine='python', header=None).fillna('None')
-            self.gene_annot_dict = dict(zip(gene_annot[0], gene_annot[1]))
+            gene_annot = pd.read_csv(gene_annot, header=0, index_col=0, sep=None, engine='python').fillna('None')
+            self.gene_annot_df = gene_annot
+        else:
+            self.gene_annot_df = None
         self.count_filtered = None
         self.filtered_seqs = []
         # group_info -> dict, group_name as key, list of sample names as values. {group:[s1,s2,]}
@@ -130,7 +131,7 @@ class DiffExpToolbox(object):
             self.exp_calculator_with_count(self.count, exp_type=exp_type)
             self.exp = self.count+'.{}.xls'.format(exp_type)
             self.count = str(self.count) + '.count.xls'
-        df = pd.read_csv(self.count, index_col=0, sep=None, engine='python')
+        df = pd.read_csv(self.count, index_col=0, sep=None, engine='python').round(4)
         self.count_dicts = df.to_dict('index')
         df = pd.read_csv(self.exp, index_col=0, sep=None, engine='python')
         self.exp_dicts = df.to_dict('index')
@@ -214,36 +215,38 @@ class DiffExpToolbox(object):
             test_samples = self.group_dict[test]
         else:
             test_samples = [test]
-        with open(out_diff_table, 'w') as f, open(out_deg_list, 'w') as f2:
-            count_header = '_count\t'.join(ctrl_samples+test_samples) + '_count'
-            tmp_sep = '_' + 'normalized' + '\t'
-            exp_header_list = ctrl_samples+test_samples
+        with open(out_diff_table, 'w') as f,\
+                open(out_deg_list, 'w') as f2,\
+                open(out_deg_list[:-7]+'up.list', 'w') as f3,\
+                open(out_deg_list[:-7]+'down.list', 'w') as f4:
+            count_header = [x+'_count' for x in ctrl_samples+test_samples]
+            exp_header = [x+'_normalized' for x in ctrl_samples+test_samples]
             # if len(ctrl_samples) >= 2:
-            #     exp_header_list.append(ctrl)
+            #     exp_header.append(ctrl)
             # if len(test_samples) >= 2:
-            #     exp_header_list.append(test)
-            exp_header = tmp_sep.join(exp_header_list) + '_' + 'normalized'
-            if self.gene_annot_dict:
-                f.write('seq_id\tgene_symbol\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\tgenecards\t{}\t{}\n'.format(
-                    count_header, exp_header))
-            else:
-                f.write('seq_id\tlog2fc\tpvalue\tpadjust\tsignificant\tregulate\tgenecards\t{}\t{}\n'.format(
-                    count_header, exp_header))
+            #     exp_header.append(test)
+            header = ['seq_id']
+            if self.gene_annot_df is not None:
+                header += list(self.gene_annot_df.columns)
+            header += ['log2fc', 'pvalue', 'padjust', 'significant', 'regulate', 'genecards']
+            header += count_header
+            header += exp_header
+            f.write('\t'.join(header)+'\n')
             cmp_samples = ctrl_samples + test_samples
             for seq_id in target_seqs:
                 line_list = [seq_id]
-                if self.gene_annot_dict:
-                    if seq_id in self.gene_annot_dict:
-                        annot = self.gene_annot_dict[seq_id]
+                if self.gene_annot_df is not None:
+                    if seq_id in self.gene_annot_df.index:
+                        annot = list(self.gene_annot_df.loc[seq_id])
                     else:
-                        annot = seq_id
-                    line_list += [annot]
+                        annot = ['None']*self.gene_annot_df.shape[1]
+                    line_list += annot
                 tmp_stat_dict = stat_dict.get(seq_id)
                 if tmp_stat_dict:
                     # get fold change
                     tmp_fc = tmp_stat_dict['log2fc']
                     tmp_fc = 0 if tmp_fc != tmp_fc else tmp_fc
-                    line_list.append(tmp_fc)
+                    line_list.append(round(tmp_fc, 4))
                     # get pvalue
                     tmp_pvalue = tmp_stat_dict['pvalue']
                     tmp_pvalue = 'untested' if tmp_pvalue != tmp_pvalue else tmp_pvalue
@@ -260,7 +263,7 @@ class DiffExpToolbox(object):
                         line_list.append('no')
                     # judge regulate
                     if tmp_fc == 0:
-                        reg = 'no change'
+                        reg = 'stable'
                     elif tmp_fc > 0:
                         reg = 'up'
                     else:
@@ -268,10 +271,20 @@ class DiffExpToolbox(object):
                     line_list.append(reg)
                     # save DEG list
                     if line_list[-2] == 'yes':
-                        if self.gene_annot_dict:
-                            f2.write(seq_id.rsplit('.', 1)[0] + '\t' + reg + '\t' + annot + '\n')
+                        if self.gene_annot_df is not None:
+                            out_line = seq_id.rsplit('.', 1)[0] + '\t' + reg + '\t' + '\t'.join(annot) + '\n'
+                            f2.write(out_line)
+                            if reg == 'up':
+                                f3.write(out_line)
+                            else:
+                                f4.write(out_line)
                         else:
-                            f2.write(seq_id.rsplit('.', 1)[0] + '\t' + reg + '\n')
+                            out_line = seq_id.rsplit('.', 1)[0] + '\t' + reg + '\n'
+                            f2.write(out_line)
+                            if reg == 'up':
+                                f3.write(out_line)
+                            else:
+                                f4.write(out_line)
                 else:
                     line_list += ['untested', 'untested', 'untested', 'untested', 'untested']
                 # add exp and count
@@ -618,9 +631,9 @@ class DiffExpToolbox(object):
                 rlog_count = each.split('deseq2.tmp')[0] + 'rlogCounts.matrix'
             else:
                 rlog_count = each.split('deseq2.tmp')[0] + 'batchCorrected.rlogCounts.matrix'
-            rlog = pd.read_csv(rlog_count, index_col=0, sep=None, engine='python')
+            rlog = pd.read_csv(rlog_count, index_col=0, sep=None, engine='python').round(4)
             rlog.columns = [x[1:] if x.startswith('X') and x[1:] in self.samples else x for x in rlog.columns]
-            rlog.round(4).to_csv(rlog_count, index=True, header=True, sep='\t')
+            rlog.to_csv(rlog_count, index=True, header=True, sep='\t')
             self.exp_dicts = rlog.to_dict('index')
             ctrl, test = os.path.basename(each).split('.deseq2.tmp')[0].split('_vs_')
             all_stat_dicts['{}_vs_{}'.format(ctrl, test)] = df
@@ -641,7 +654,7 @@ if __name__ == "__main__":
                              " will be used to calculate fpkm or tpm. NOTE: Expression table "
                              "has nothing to do with differential analysis; Only used in report.")
     parser.add_argument('--exp_type', type=str, default="tpm", help='fpkm or tpm. Default: fpkm')
-    parser.add_argument('--gene_annot', type=str, default="/nfs2/database/gencode_v29/geneid2symbol.txt",
+    parser.add_argument('--gene_annot', type=str, default="/nfs2/database/gencode_v29/id_symbol_type.txt",
                         help='file with two column gene->geneSymbol')
     parser.add_argument('-group', type=str, required=True,
                         help="path of group info file with at least two columns. First column must"
