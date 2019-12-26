@@ -42,7 +42,7 @@ def get_all_fastq_abs_path(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].
                     os.symlink(each, os.path.join(sample, os.path.basename(each)))
 
 
-def link_fastq(fastq):
+def link_fastq(fastq, no_simple_mode=False):
     fastq_info = dict()
     with open(fastq) as f:
         for line in f:
@@ -64,12 +64,18 @@ def link_fastq(fastq):
         # make link
         # os.mkdir(sample)
         for each in read1:
-            new_name = f'{sample}_S1_L001_R1_001.fastq.gz'
+            if no_simple_mode:
+                new_name = f'{sample}_S1_L001_R1_001.fastq.gz'
+            else:
+                new_name = f'{sample}.R1.fastq.gz'
             # os.symlink(each, os.path.join(sample, os.path.basename(each)))
             os.symlink(each, new_name)
         for each in read2:
             # os.symlink(each, os.path.join(sample, os.path.basename(each)))
-            new_name = f'{sample}_S1_L001_R2_001.fastq.gz'
+            if no_simple_mode:
+                new_name = f'{sample}_S1_L001_R2_001.fastq.gz'
+            else:
+                new_name = f'{sample}.R2.fastq.gz'
             os.symlink(each, new_name)
 
 
