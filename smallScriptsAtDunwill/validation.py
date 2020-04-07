@@ -338,7 +338,7 @@ def trans(raw_mutation, out='result.vcf', gene_strand='/nfs2/database/gencode_v2
 
 def cat_vcf(vcfs:list, out='merged.vcf'):
     """
-    合并vcf并依据1-2-4-5列信息去重
+    合并vcf并依据1-2-4-5列信息去重，且去掉6，7，8列信息
     :param vcfs: vcf 路径，可以是多个，如果是一个，只仅仅是达到了去重的功能
     """
     vcf_info = set()
@@ -371,6 +371,60 @@ def cat_vcf(vcfs:list, out='merged.vcf'):
     for each in sorted(vcf_info, key=lambda x:(x[0],x[1])):
         each = list(each) + ['.', 'PASS', '.']
         vcf.info('\t'.join((str(x) for x in each)))
+
+
+def dedup_vcf(vcf, out='dedup.vcf'):
+    """
+    根据chr+start+ref+alt信息去重，仅保留第一个出现的记录
+    :param vcf:
+    :param out:
+    :return:
+    """
+    with open(vcf) as f, open(out, 'w') as f2:
+        id_set = set()
+        for line in f:
+            if line.startswith('#'):
+                f2.write(line)
+            else:
+                uniq_id = line.strip().split()[:5]
+                uniq_id[2] = '.'
+                uniq_id = ':'.join(uniq_id)
+                if uniq_id in id_set:
+                    print('discard duplicated mutation:', line)
+                    continue
+                else:
+                    id_set.add(uniq_id)
+                    f2.write(line)
+
+
+def hotspot2msk(gene_phgvs, out='msk.list.xls'):
+    """
+    :param gene_phgvs: 文件，两列，无header，第一列时gene，第二列是phgvs
+    :param out:
+    :return:
+    """
+    with open(gene_phgvs) as f:
+        result = dict()
+        for line in f:
+            lst = line.strip().split()
+            if len(lst) < 2:
+                print('Skip line:', line)
+            gene, phgvs = lst
+            result.setdefault(gene, dict())
+            first_aa = re.match('p.[A-z][0-9]+', phgvs).group()
+            result[gene].setdefault(first_aa, list())
+            result[gene][first_aa].append(phgvs)
+
+    with open(out, 'w') as f:
+        for gene, first_aa in result.items():
+            lst = [gene, ','.join(first_aa.keys())]
+            f.write('\t'.join(lst)+'\n')
+
+    with open(out+'.tmp', 'w') as f:
+        for gene, first_aa in result.items():
+            for faa, mutations in first_aa.items():
+                lst =[gene, faa, ','.join(mutations)]
+                f.write('\t'.join(lst)+'\n')
 
 
 def parse_mycancergenome_var(mutation_file, out='mycancergeneome.var.txt'):
@@ -1208,7 +1262,7 @@ def cosmic2vcf(mutation_txt, genome, out='cosmic.vcf', skip_chrom:tuple=('chrMT'
                 alt = ref + alt
             elif alt == '-':
                 if len(ref) != end - start + 1:
-                    raise exception(f'ref长度和坐标暗示的不一致：{line}')
+                    raise Exception(f'ref长度和坐标暗示的不一致：{line}')
                 start = start-1
                 alt = genome.fetch(chr_id, start-1, start)
                 ref = alt+ref
@@ -1373,10 +1427,12 @@ if __name__ == '__main__':
         locals(), 
         include=[
             'trans', 
-            'cat_vcf', 
+            'cat_vcf',
+            'dedup_vcf',
             'translate_to_vcf_5cols',
             'parse_mycancergenome_var', 
             'batch_extract_hotspot',
+            'hotspot2msk',
             'overall_stat',
             'simplify_annovar_vcf',
             'cosmic2vcf',
@@ -1384,7 +1440,7 @@ if __name__ == '__main__':
             'query_variant_db',
             'extract_hotspot_from_avenio_result',
             'del_db',
-            'change_transcript_version'
+            'change_transcript_version',
         ]
     )
 
@@ -1412,47 +1468,3 @@ if __name__ == '__main__':
 # c = pd.concat([c1, c2])
 # g = sns.clustermap(c, z_score=0, cmap='RdBu', yticklabels=False)
 # plt.savefig('clustermap.png', dpi=200, bbox_inches='tight')
-
-def add(a, b):
-    print(a+b)
-
-add(2+3)
-
-sed 's/c.2235_2249delGGAATTAAGAGAAGC/c.2235_2249del/g' known.mutations.xls -i
-sed 's/c.404_405insATGTTTTG/c.397_404dup/g' known.mutations.xls -i
-sed 's/c.33_34delTGinsGT/c.33_34delinsGT/g' known.mutations.xls -i
-sed 's/c.3927_3931delAAAGA/c.3927_3931del/g' known.mutations.xls -i
-
-
-with open('targeted.oncomine.level1.hotspot.vcf') as f:
-    coordinate = dict()
-    for line in f:
-        chr_name, start, var_id, ref, alt, quality,filt, info = line.strip().split()
-        info = info.split('=')[1].split(':')
-        var_id = info[1]+':'+info[3]
-        coordinate[var_id] = [chr_name, start, var_id, ref, alt, quality,filt]
-
-new2old = dict()
-with open('new2old.txt') as f:
-    for line in f:
-        new, old = line.strip().split()[:2]
-        transcript, chgvs = old.split(':')
-        transcript = transcript.split('.')[0]
-        old = transcript + ':' + chgvs 
-        new2old[new] = old
-
-with open('final.hotspots.vcf') as f, open('new.final_hotspots.vcf', 'w') as f2:
-    for line in f:
-        chr_name, start, _, _, _, _, _, info = line.strip().split()
-        new_info = info.split('=')[1].split(':')
-        new_id = new_info[1]+':'+new_info[3]
-        if new_id in new2old:
-            old_id = new2old[new_id]
-            old_7_col = coordinate[old_id]
-            lst = line.strip().split()
-            lst[:7] = old_7_col
-            new_line = '\t'.join(lst) + '\n'
-            f2.write(new_line)
-        else:
-            print('failed:', line)
-
