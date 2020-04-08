@@ -806,7 +806,7 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
                     print(key, f'of {sample} is in low coverage region, and will be excluded')
                 elif key in hots:
                     if key not in result[sample]:
-                        print(f'{sample}' + ':' + hots[key] + ':' + f'AF={af}' + f'DP={depth}')
+                        print(f'{sample}' + ':' + hots[key] + ':' + f'AF={af}' + ':' + f'DP={depth}')
                         result[sample][key] = [hots[key], af, depth]
                     else:
                         print(f'{key} is duplicated!')
@@ -867,10 +867,12 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
                 fw.write(f'{sample}\tNone\tNone\tNone\tyes\n')
             for mutation in set(mutations):
                 if mutation in var_dict:
+                    name = var_dict[mutation][0]
                     af = var_dict[mutation][1]
                 else:
                     af = 0
                 if mutation in var_dict2:
+                    name = var_dict2[mutation][0]
                     af2 = var_dict2[mutation][1]
                 else:
                     af2 = 0
@@ -878,7 +880,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
                     consistent = 'yes'
                 else:
                     consistent = 'no'
-                fw.write(f'{sample}\t{var_dict[mutation][0]}\t{af}\t{af2}\t{consistent}\n')
+                fw.write(f'{sample}\t{name}\t{af}\t{af2}\t{consistent}\n')
     if sample_info:
         sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
         mutation_df = pd.read_csv(out_file, header=0, index_col=0, sep='\t')
