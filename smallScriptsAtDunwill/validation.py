@@ -118,8 +118,8 @@ def translate_to_vcf_5cols(chr_name, start, coding_change, genome, strand='+', m
         s, t, alt = matched.groups()
         if strand == '-' and (not coding_change.startswith('g.')):
             alt = reverse_complement(alt)
-        # if int(t) - int(s) + 1 != len(alt):
-            # raise Exception(f'从{mut_id}获得的替换长度不一致')
+        if int(t) - int(s) + 1 != len(alt):
+            raise Exception(f'从{mut_id}获得的替换长度不一致')
         ref = genome.fetch(chr_name, start-1, start-1+len(alt)).upper()
         return chr_name, start, mut_id, ref, alt
 
@@ -258,7 +258,9 @@ def vcf_header():
 
 def trans(raw_mutation, out='result.vcf', gene_strand='/nfs2/database/gencode_v29/gene_strand.pair', genome='/nfs2/database/1_human_reference/hg19/ucsc.hg19.fasta'):
     """
-    :param raw_mutation: 文件路径，文件需要四列(chr_name\tstart_position\tgene_name\tcoding_change), 第四列的信息可以是g.xxx|c.xxx
+    当初写这个脚本的本意是为了根据chr,start,chgvs的信息反推出ref，alt等信息，形成vcf.
+    如此，当从数据库中下载的突变信息不够完整的时候就可以重新得到vcf进行注释. 当然去mutalyzer转换也是一种选择。
+    :param raw_mutation: 文件路径,文件需要四列(chr_name\tstart_position\tgene_name\tcoding_change),第四列的信息可以是g.xxx|c.xxx
     :param gene_strand: 文件路径，两列(gene\tstrand),记录基因所在链的信息
     :param genome: 基因组fasta路径
     最后生成vcf
@@ -338,7 +340,7 @@ def trans(raw_mutation, out='result.vcf', gene_strand='/nfs2/database/gencode_v2
 
 def cat_vcf(vcfs:list, out='merged.vcf'):
     """
-    合并vcf并依据1-2-4-5列信息去重，且去掉6，7，8列信息
+    合并vcf并依据1-2-4-5列信息去重，且去掉3, 6，7，8列信息, 当初写这个脚本是为了合并trans的结果
     :param vcfs: vcf 路径，可以是多个，如果是一个，只仅仅是达到了去重的功能
     """
     vcf_info = set()
@@ -375,6 +377,7 @@ def cat_vcf(vcfs:list, out='merged.vcf'):
 
 def dedup_vcf(vcf, out='dedup.vcf'):
     """
+    当用bcftools norm完vcf后，会发现起始有重复的突变，这时可以
     根据chr+start+ref+alt信息去重，仅保留第一个出现的记录
     :param vcf:
     :param out:
@@ -399,6 +402,7 @@ def dedup_vcf(vcf, out='dedup.vcf'):
 
 def hotspot2msk(gene_phgvs, out='msk.list.xls'):
     """
+    根据phgvs中ref氨基酸信息作为id进行合并，如p.E454K -> p.E454, p.E454_E457delinsG -> p.E454_E457
     :param gene_phgvs: 文件，两列，无header，第一列时gene，第二列是phgvs
     :param out:
     :return:
@@ -411,7 +415,10 @@ def hotspot2msk(gene_phgvs, out='msk.list.xls'):
                 print('Skip line:', line)
             gene, phgvs = lst
             result.setdefault(gene, dict())
-            first_aa = re.match('p.[A-z][0-9]+', phgvs).group()
+            if '_' not in phgvs:
+                first_aa = re.match('p.[A-Z][0-9]+', phgvs).group()
+            else:
+                first_aa = re.match('p.[A-Z][0-9]+_[A-Z][0-9]+', phgvs).group()
             result[gene].setdefault(first_aa, list())
             result[gene][first_aa].append(phgvs)
 
@@ -420,7 +427,7 @@ def hotspot2msk(gene_phgvs, out='msk.list.xls'):
             lst = [gene, ','.join(first_aa.keys())]
             f.write('\t'.join(lst)+'\n')
 
-    with open(out+'.tmp', 'w') as f:
+    with open(out+'.source.xls', 'w') as f:
         for gene, first_aa in result.items():
             for faa, mutations in first_aa.items():
                 lst =[gene, faa, ','.join(mutations)]
@@ -429,7 +436,7 @@ def hotspot2msk(gene_phgvs, out='msk.list.xls'):
 
 def parse_mycancergenome_var(mutation_file, out='mycancergeneome.var.txt'):
     """
-    处理mycancergenome获得的突变信息，转换成trans需要的四列文件
+    处理从mycancergenome获得的突变信息，转换成trans需要的四列文件
     """
     with open(mutation_file) as f, open(out, 'w') as fw:
         _ = f.readline()
@@ -468,7 +475,7 @@ def parse_hotspot(hotspot):
 
 def rm_dup_hotspot(hotspot, often_used, out='new_hotspot.bed'):
     """
-    废弃
+    应该是再也用不到了，当初是用了对张慧提供的hotspot进行去重
     1. 尽量用坐标和核酸变化作为key，其他值作为value
     2. 如果key对应仅有一个value，则保留，不能使用的是否为常用转录本
     3. 如果key对应有多个values，如果使用的转录本均不是常用转录本，那么仅保留第一个value
@@ -538,6 +545,7 @@ def rm_dup_hotspot(hotspot, often_used, out='new_hotspot.bed'):
 
 def get_hotspot_old(hotspot):
     """
+    应该也是不再需要了，当初编写该脚本是为了处理张慧这边提供的hotspot信息
     构建使用transcript_id和coding_change作为键的字典。
     由于annovar给出的注释是和已有的hotspot不一样的:
     c.7230_7286del:p.2410_2429del -> hotspot中del后面会跟着删除的序列
@@ -578,26 +586,27 @@ def get_hotspot_old(hotspot):
     return result
 
 
-def get_hotspot(hotspot_vcf, var_id_mode='transcript:chgvs'):
+def get_hotspot(vcf, id_mode='transcript:chgvs'):
     """
-    :param hotspot_vcf: annovar注释过的且info列只保留AAChange_refGene信息且仅保留经典转录本的注释。
+    :param vcf: annovar注释过的且info列只保留AAChange_refGene信息且仅保留经典转录本注释的vcf文件。
+    :param id_mode: 指定mutation的唯一id格式, 默认为'transcript:chgvs'.
+        支持的字段有 ['chr', 'start', 'id', 'ref', 'alt', 'gene', 'transcript', 'exon', 'chgvs', 'phgvs']
+    :return: 返回一个字典，以字典的形式存储突变, 方便查询
     """
+    print('你指定的mutaion唯一id格式为:', id_mode)
     result = dict()
-    with open(hotspot_vcf) as f:
+    with open(vcf) as f:
         for line in f:
             if line.startswith('#'):
                 continue
-            hgvs =  line.strip().split()[7].split('=')[1]
-            info = hgvs.split(':')
-            info.append('None')
-            if len(info) < 5:
-                print('skip invalid line', line)
-                continue
-            info_dict = dict(zip(['gene', 'transcript', 'exon', 'chgvs', 'phgvs'], info)) 
-            key = ':'.join(info_dict[x] for x in var_id_mode.split(':'))
+            lst = line.strip().split()
+            hgvs =  lst[7].split('=')[1]
+            info_dict = dict(zip(['gene', 'transcript', 'exon', 'chgvs', 'phgvs'], hgvs.split(':')))
+            info_dict.update(dict(zip(['chr', 'start', 'id', 'ref', 'alt'], lst[:5])))
+            key = ':'.join(info_dict[x] for x in id_mode.split(':'))
             if key in result:
                 # raise Exception(f"在 {hotspot_vcf} 中, 根据当前vard_id={key}作为突变id时，突变不唯一!")
-                print(f"在 {hotspot_vcf} 中, 根据当前vard_id={key}作为突变id时，突变不唯一!")
+                print(f"在 {vcf} 中, 根据{key}作为突变id时，突变不唯一!")
             # result[key] = line
             result[key] = hgvs
     return result
@@ -736,80 +745,107 @@ def simplify_annovar_vcf(vcf, out_prefix, often_trans=None, filter=None):
             print('No thing matched!')
 
 
-def extract_hotspot(vcf, hotspot, exclude_hotspot=None):
+def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transcript:chgvs'):
     """
-    从annovar注释中提取热点突变, 必须要求有'AAChange_refGene'注释
-    :param vcf:
-    :param hotspot: annovar注释过的且info列只保留AAChange_refGene信息且仅保留经典转录本的注释。
-    :param exclude_hotspot:
+    仅适用于hotspot和分析结果都用annovar注释的情况，且只关心有AAChange_refGene注释的突变。
+    目的：hotspot是用annovar注释的vcf，如果分析结果也用annovar注释, 可以根据AAChange_refGene信息比较两个突变是否为同一个突变
+    从而可以从分析结果中抽提出hotspot中的突变，用于后续的性能验证统计。
+    注意：如果要根据start|ref|alt等信息判定突变是否相同，输入的所有vcf应该进行'bcftools norm'标准化
+    :param vcf: 分析结果vcf，如果id_mode中包含['gene', 'transcript', 'exon', 'chgvs', 'phgvs'],则要求info列有AAChange_refGene信息
+    :param hotspot: vcf, annovar注释过的且info列只保留AAChange_refGene信息且仅保留经典转录本的注释。
+    :param exclude_hotspot: 格式同hotspot
     :return:
     """
-    hots = get_hotspot(hotspot)
+    hots = get_hotspot(hotspot, id_mode)
+    print(f'There are {len(hots)} mutation in our hotspot database')
     if exclude_hotspot:
-        exclude_hots = get_hotspot(exclude_hotspot)
+        exclude_hots = get_hotspot(exclude_hotspot, id_mode)
+        print(f'There are {len(exclude_hots)} mutations to be excluded from hotspot')
     else:
         exclude_hots = dict()
-    print('There are {} SNP/Ins/Del/Dup in our hotspot database'.format(len(hots)))
-
-    with VariantFile(vcf) as fr:
-        sample = list(fr.header.samples)[1]
+    id_mode_lst = id_mode.split(':')
+    require_ac = {'gene', 'transcript', 'exon', 'chgvs', 'phgvs'} & set(id_mode_lst)
+    with VariantFile(vcf) as f:
+        sample = list(f.header.samples)[1]
         result = {sample:dict()}
-        for record in fr:
-            if not 'AAChange_refGene' in record.info:
+        for record in f:
+            if not list(record.filter)[0] == 'PASS':
                 continue
-            for each in record.info['AAChange_refGene']:
-                # NOTCH2:NM_024408:exon34:c.6795T>G:p.N2265K
-                if each == '.':
-                    break
-                tmp = each.split(':')
-                if len(tmp) <= 3:
-                    pass
-                else:
-                    sample = list(record.samples)[1]
-                    key = ':'.join((tmp[1], tmp[3]))
+            site_info = [record.chrom, str(record.pos), record.id, record.ref, record.alts[0]]
+            site_dict = dict(zip(['chr', 'start', 'id', 'ref', 'alt'], site_info))
+            af = round(record.samples[sample]['AF'][0], 4)
+            depth = round(record.samples[sample]['DP'], 4)
+            if require_ac:
+                if not 'AAChange_refGene' in record.info or record.info['AAChange_refGene'][0] == '.':
+                    continue
+                for hgvs in record.info['AAChange_refGene']:
+                    # NOTCH2:NM_024408:exon34:c.6795T>G:p.N2265K
+                    # sample = list(record.samples)[1]
+                    hgvs_dict = dict(zip(['gene', 'transcript', 'exon', 'chgvs', 'phgvs'], hgvs.split(':')))
+                    info_dict = dict(site_dict, **hgvs_dict)
+                    key = None
+                    try:
+                        key = ':'.join(info_dict[x] for x in id_mode_lst)
+                    except Exception as e:
+                        print(hgvs)
+                        print(e)
+
                     if key in exclude_hots:
-                        print(each, f'of {sample} is in low coverage region, and will be excluded')
-                    if key in hots and key not in exclude_hots:
-                        af = round(record.samples[sample]['AF'][0], 4)
-                        print(f'{sample}'+':'+each+':'+f'AF={af}')
+                        print(hgvs, f'of {sample} is in low coverage region, and will be excluded')
+
+                    elif key in hots:
                         # fw.write(f'{sample}\t{each}\t{af}\n')
-                        result[sample][each] = af
+                        if key not in result[sample]:
+                            print(f'{sample}' + ':' + hots[key] + ':' + f'AF={af}' + f'DP={depth}')
+                            result[sample][key] = [hots[key], af, depth]
+                        else:
+                            print(f'{key} is duplicated!')
+            else:
+                key = ':'.join(site_dict[x] for x in id_mode_lst)
+                if key in exclude_hots:
+                    print(key, f'of {sample} is in low coverage region, and will be excluded')
+                elif key in hots:
+                    if key not in result[sample]:
+                        print(f'{sample}' + ':' + hots[key] + ':' + f'AF={af}' + f'DP={depth}')
+                        result[sample][key] = [hots[key], af, depth]
+                    else:
+                        print(f'{key} is duplicated!')
     return result
 
 
-def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, exclude_hotspot=None, cmp_vcfs:list=None, prefix="all.detected.hotspot"):
+def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcript:chgvs', exclude_hotspot=None, cmp_vcfs:list=None, prefix="all.detected.hotspot"):
     """
-    输入的vcf必须是经过annovar注释的，必须要求有'AAChange_refGene'注释，
-    这里假设一个突变的唯一性可以由transcript_id和coding_change共同决定。
-    :param vcfs: vcf 路径, 可以提供多个,每个样本对应一个vcf，样本名将从vcf中提取获得
-    :param hotspot: 热点突变文件路径, 使用simplify_annovar_vcf简化的vcf文件，之前的版本格式要求是chr,start,end,chgvs,phgvs,transcript,gene
+    :param vcfs: vcf 路径, 可以提供多个,每个样本对应一个vcf，样本名将从vcf中提取获得.
+        分析结果vcf，如果id_mode中包含['gene', 'transcript', 'exon', 'chgvs', 'phgvs'],则要求info列有AAChange_refGene信息.
+    :param hotspot: 热点突变文件路径, 使用simplify_annovar_vcf简化的vcf文件
     :param sample_info: 样本信息文件，第一列必须是样本id，第一行是header, 即提供样本注释信息, 注释信息列数不限
+    :param id_mode: 指定mutation的唯一id格式, 默认为'transcript:chgvs'.
+        支持的字段有 ['chr', 'start', 'id', 'ref', 'alt', 'gene', 'transcript', 'exon', 'chgvs', 'phgvs']
     :param exclude_hotspot: 要排除的热点突变路径，默认不提供
     :param cmp_vcfs: vcf路径，与vcfs提供的数量应该一致，该参数是为了比较两种分析的结果是否一致而设计的, 他们涉及的样本必须一致。默认不提供。
     :return: 默认生成all.detected.hotspot.xls文件，'sample\tmutation\tAF1\tAF2\tconsistency\n'
     """
     result = dict()
     for vcf in vcfs:
-        result.update(extract_hotspot(vcf, hotspot, exclude_hotspot))
+        result.update(extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot, id_mode))
 
     out_file = prefix + '.xls'
     with open(out_file, 'w') as fw:
-        fw.write('sample\tmutation\tAF\n')
+        fw.write('sample\tmutation\tAF\tDepth\n')
         for sample, var_dict in result.items():
             if not var_dict:
                 print(f'WARN: No hotspot mutation detected in {sample}')
-                fw.write(f'{sample}\tNone\tNone\n')
-            for mutation, af in var_dict.items():
-                fw.write(f'{sample}\t{mutation}\t{af}\n')
+                fw.write(f'{sample}\tNone\t0\t0\n')
+            for m_id, detail in var_dict.items():
+                fw.write(f'{sample}\t{detail[0]}\t{detail[1]}\t{detail[2]}\n')
 
     if cmp_vcfs:
         if len(cmp_vcfs) != len(vcfs):
             raise Exception('两组vcf数量不相等, 如何比较?')
         cmp_result = dict()
         for vcf in cmp_vcfs:
-            cmp_result.update(extract_hotspot(vcf, hotspot, exclude_hotspot))
+            cmp_result.update(extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot, id_mode))
     else:
-
         if sample_info:
             sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
             mutation_df = pd.read_csv(out_file, header=0, index_col=0, sep=None, engine='python')
@@ -831,18 +867,18 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, exclude_hotspot=
                 fw.write(f'{sample}\tNone\tNone\tNone\tyes\n')
             for mutation in set(mutations):
                 if mutation in var_dict:
-                    af = var_dict[mutation]
+                    af = var_dict[mutation][1]
                 else:
                     af = 0
                 if mutation in var_dict2:
-                    af2 = var_dict2[mutation]
+                    af2 = var_dict2[mutation][1]
                 else:
                     af2 = 0
                 if mutation in var_dict and (mutation in var_dict2):
                     consistent = 'yes'
                 else:
                     consistent = 'no'
-                fw.write(f'{sample}\t{mutation}\t{af}\t{af2}\t{consistent}\n')
+                fw.write(f'{sample}\t{var_dict[mutation][0]}\t{af}\t{af2}\t{consistent}\n')
     if sample_info:
         sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
         mutation_df = pd.read_csv(out_file, header=0, index_col=0, sep='\t')
@@ -891,7 +927,7 @@ def extract_hotspot_from_avenio_result(infile, hotspot, out, var_id_mode='gene:c
     #         if var_id in hotdict:
     #             raise Exception(f"在{hotspot}中, 根据当前vard_id={var_id}作为突变id时，突变不唯一!")
     #         hotdict[var_id] = ':'.join([line['gene'], line['transcript'], line['chgvs'], line['phgvs']])
-    hotdict = get_hotspot(hotspot, var_id_mode=var_id_mode)
+    hotdict = get_hotspot(hotspot, id_mode=var_id_mode)
 
     raw_table = pd.read_csv(infile, sep='\t', header=0)
     targets = ['Sample ID', 'Gene', 'Transcript', 'Coding Change', 'Amino Acid Change', 'Allele Fraction']
