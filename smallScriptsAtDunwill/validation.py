@@ -769,8 +769,8 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
         sample = list(f.header.samples)[1]
         result = {sample:dict()}
         for record in f:
-            if not list(record.filter)[0] == 'PASS':
-                continue
+            # if not list(record.filter)[0] == 'PASS':
+            #     continue
             site_info = [record.chrom, str(record.pos), record.id, record.ref, record.alts[0]]
             site_dict = dict(zip(['chr', 'start', 'id', 'ref', 'alt'], site_info))
             af = round(record.samples[sample]['AF'][0], 4)
@@ -813,7 +813,7 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
     return result
 
 
-def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcript:chgvs', exclude_hotspot=None, cmp_vcfs:list=None, prefix="all.detected.hotspot"):
+def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcript:chgvs', exclude_hotspot=None, cmp_vcfs:list=None, col_names:list=None, prefix="all.detected.hotspot"):
     """
     :param vcfs: vcf 路径, 可以提供多个,每个样本对应一个vcf，样本名将从vcf中提取获得.
         分析结果vcf，如果id_mode中包含['gene', 'transcript', 'exon', 'chgvs', 'phgvs'],则要求info列有AAChange_refGene信息.
@@ -823,6 +823,8 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
         支持的字段有 ['chr', 'start', 'id', 'ref', 'alt', 'gene', 'transcript', 'exon', 'chgvs', 'phgvs']
     :param exclude_hotspot: 要排除的热点突变路径，默认不提供
     :param cmp_vcfs: vcf路径，与vcfs提供的数量应该一致，该参数是为了比较两种分析的结果是否一致而设计的, 他们涉及的样本必须一致。默认不提供。
+    :param col_names: 项目名称，体现在分析结果的header中，如果提供cmp_vcfs，则需提供两个名称，空格分开即可
+    :prefix: 输出结果文件的前缀，后续会自动加上.xls
     :return: 默认生成all.detected.hotspot.xls文件，'sample\tmutation\tAF1\tAF2\tconsistency\n'
     """
     result = dict()
@@ -830,15 +832,6 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
         result.update(extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot, id_mode))
 
     out_file = prefix + '.xls'
-    with open(out_file, 'w') as fw:
-        fw.write('sample\tmutation\tAF\tDepth\n')
-        for sample, var_dict in result.items():
-            if not var_dict:
-                print(f'WARN: No hotspot mutation detected in {sample}')
-                fw.write(f'{sample}\tNone\t0\t0\n')
-            for m_id, detail in var_dict.items():
-                fw.write(f'{sample}\t{detail[0]}\t{detail[1]}\t{detail[2]}\n')
-
     if cmp_vcfs:
         if len(cmp_vcfs) != len(vcfs):
             raise Exception('两组vcf数量不相等, 如何比较?')
@@ -846,15 +839,36 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
         for vcf in cmp_vcfs:
             cmp_result.update(extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot, id_mode))
     else:
+        with open(out_file, 'w') as fw:
+            if col_names:
+                name = '_' + col_names[0]
+            else:
+                name = ''
+            fw.write(f'sample\tmutation\tAF{name}\tDepth{name}\n')
+            for sample, var_dict in result.items():
+                if not var_dict:
+                    print(f'WARN: No hotspot mutation detected in {sample}')
+                    fw.write(f'{sample}\tNone\t0\t0\n')
+                for m_id, detail in var_dict.items():
+                    fw.write(f'{sample}\t{detail[0]}\t{detail[1]}\t{detail[2]}\n')
+
         if sample_info:
             sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
             mutation_df = pd.read_csv(out_file, header=0, index_col=0, sep=None, engine='python')
+            mutation_df = mutation_df.round(5)
             final_df = mutation_df.join(sample_info_df)
+            final_df.index.name = 'sample'
             final_df.to_excel(out_file[:-3]+'xlsx')
+            final_df.to_csv(out_file, sep='\t')
         return
 
+    if col_names:
+        name, name2 = '_' + col_names[0], '_' + col_names[1]
+        out_file = prefix+f'.{col_names[0]}_vs_{col_names[1]}' + '.xls'
+    else:
+        name, name2 = '1', '2'
     with open(out_file, 'w') as fw:
-        fw.write('sample\tmutation\tAF1\tAF2\tconsistent\n')
+        fw.write(f'sample\tmutation\tAF{name}\tAF{name2}\tconsistent\tDepth{name}\tDepth{name2}\n')
         for sample, var_dict in result.items():
             mutations = list(var_dict.keys())
             if sample in cmp_result:
@@ -869,23 +883,30 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
                 if mutation in var_dict:
                     name = var_dict[mutation][0]
                     af = var_dict[mutation][1]
+                    dp = var_dict[mutation][2]
                 else:
                     af = 0
+                    dp = 'None'
                 if mutation in var_dict2:
                     name = var_dict2[mutation][0]
                     af2 = var_dict2[mutation][1]
+                    dp2 = var_dict2[mutation][2]
                 else:
                     af2 = 0
+                    dp2 = 'None'
                 if mutation in var_dict and (mutation in var_dict2):
                     consistent = 'yes'
                 else:
                     consistent = 'no'
-                fw.write(f'{sample}\t{name}\t{af}\t{af2}\t{consistent}\n')
+                fw.write(f'{sample}\t{name}\t{af}\t{af2}\t{consistent}\t{dp}\t{dp2}\n')
     if sample_info:
         sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
         mutation_df = pd.read_csv(out_file, header=0, index_col=0, sep='\t')
+        mutation_df = mutation_df.round(5)
         final_df = mutation_df.join(sample_info_df)
+        final_df.index.name = 'sample'
         final_df.to_excel(out_file[:-3]+'xlsx')
+        final_df.to_csv(out_file, sep='\t')
 
 
 def model_statistic(true_positive, false_positive, false_negative, true_negative, confint=False):
