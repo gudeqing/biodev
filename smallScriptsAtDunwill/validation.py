@@ -1035,7 +1035,7 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
                 tmp = dict(zip(['gene', 'transcript', 'exon', 'chgvs', 'phgvs'], [gene, transcript, exon, chgvs, phgvs]))
                 var_id = ':'.join(tmp[x] for x in var_id_mode.split(':'))
                 dec_dict.setdefault(sample, dict())
-                lst[1] = ':'.join([gene, chgvs, phgvs]) 
+                lst[1] = ':'.join([gene, transcript, chgvs, phgvs])
                 if af >= af_cutoff:
                     dec_dict[sample][var_id] = (lst[1], f'{af:.2%}')
                 full_dec_dict.setdefault(sample, dict())
@@ -1046,8 +1046,8 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
     return dec_dict, full_dec_dict
 
 
-def overall_stat(detected, known, var_num:int, sample_info, replicate_design=None,
-    lod_group:list=None, detected_af_cutoff=0.0001, known_af_cutoff=0.02, prefix='final_stat', 
+def overall_stat(detected, known, var_num:int, sample_info, replicate_design=None, group_sample=None,
+    lod_group:list=None, detected_af_cutoff=0.0001, known_af_cutoff=0.02, lod_cutoff=0.0, prefix='final_stat',
     var_id_mode='transcript:chgvs', include_lod_group_for_accuracy=False):
     """
     :param detected: 格式举例, 由batch_extract_hotspot产生
@@ -1058,13 +1058,15 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
         group_01     CASP8:NM_001228:exon9:c.904G>C:p.D302H  0.07
         group_02     None(表示阴性样本)                       0
     :param var_num: 背景总数，用于计算真阴性
-    :param sample_info: 文件路径. 两列, 第一例是样本组名，和已知突变known文件里的样本id相对应, 即属于相同组的样本具有相同的已知突变。
-        第二列为样本id，和detected文件里的样本id一致； 其他列可有可无，需要header
-        group_id\tsample_id\tother_info
-        group_01\tEPS19F1X1L7\tother_info
-        group_02\tsample_02\tother_info
+    :param sample_info: 文件路径. 需要header. 必须参数
+        第一列为样本id，和detected文件里的样本id一致; 其他列可有可无，
+        第二列可以是样本组名，和已知突变known文件里的样本id相对应,
+            用于指示属于相同组的样本具有相同的已知突变，这个信息也可以通过sample_group参数提供
+    :param group_sample: 文件路径. 需要header. 默认无. 用于指示哪些样本共享相同的已知突变
+        第一列是样本组名，和已知突变known文件里的样本id相对应, 如果一组有多个样本，采用多行表示
+        第二列为样本id，和detected文件里的样本id一致;
     :param replicate_design: 文件路径, 两列, 第一列是组名; 第二列是样本id, 可以用';'分割的多个样本, 也可以采用多行表示分组信息。
-        增加该参数的目的是以防一个样本同时参与LOD和input等复杂设计。 如果不提供该参数，则以sample_info的前两列作为替代。需要header
+        增加该参数的目的是以防一个样本同时参与LOD和input等复杂设计。 如果不提供该参数，则用样本分组信息替代。需要header
         group       sample_id
         group_lod   EPS19F1X1L7
         group_lod   EPS19F1X1L8
@@ -1072,6 +1074,7 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
     :param lod_group: 组名,指定哪一组是LOD设计样本, 可以赋予多个值, 空格隔开即可，组名必须是relicate_design或sample_info中的
     :param detected_af_cutoff: 实际检测到的突变的af阈值, 用于准确性, 敏感度统计所需，该值不影响LOD分析，默认0.0001
     :param known_af_cutoff: 已知突变的af阈值，当af阈值>=设定的值时才认为是有效已知突变，默认0.02
+    :param lod_cutoff: 对于lod的分组样本，对突变进行>=lod_cutoff过滤
     :param prefix: 准确性统计表的前缀
     :param include_load_sample_for_accuracy: 为True时, 统计准确性时需要把LOD设计样本包含进来，默认为False，即统计时排除lod设计的样本
     """
@@ -1081,9 +1084,19 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
     known_dict, full_known_dict = parse_formated_mutation(known, known_af_cutoff, var_id_mode=var_id_mode)
 
     # 根据样本信息，对已知突变信息进行拓展，使其中的键表示样本而不再是group
-    mutation_group = pd.read_csv(sample_info, sep=None, header=0, engine='python').iloc[:, [0, 1]]
-    mutation_group.columns = ['mgroup', 'sample']
-    mutation_group = mutation_group.groupby('mgroup')['sample'].apply(list).to_dict()
+    if group_sample:
+        mutation_group = dict()
+        with open(group_sample, 'r') as f:
+            for line in f:
+                share, samples = line.strip().split()[:2]
+                sample_lst = samples.split(';')
+                for sample in sample_lst:
+                    mutation_group.setdefault(share, list())
+                    mutation_group[share].append(sample)
+    else:
+        col2 = pd.read_csv(sample_info, sep=None, header=0, engine='python').iloc[:, [1, 0]]
+        col2.columns = ['mgroup', 'sample']
+        mutation_group = col2.groupby('mgroup')['sample'].apply(list).to_dict()
 
     new_known_dict = dict()
     for g, d in known_dict.items():
@@ -1139,16 +1152,17 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
     
     # 解析重复设计信息
     if replicate_design is None:
-        replicate_design = sample_info
-    with open(replicate_design, 'r') as f:
-        replicate_dict = dict()
-        for line in f:
-            share, samples = line.strip().split()[:2]
-            sample_lst = samples.split(';')
-            for sample in sample_lst:
-                replicate_dict.setdefault(share, list())
-                replicate_dict[share].append(sample)
-        replicate_dict = {x:y for x, y in replicate_dict.items() if len(y) > 1}
+        replicate_dict = mutation_group
+    else:
+        with open(replicate_design, 'r') as f:
+            replicate_dict = dict()
+            for line in f:
+                share, samples = line.strip().split()[:2]
+                sample_lst = samples.split(';')
+                for sample in sample_lst:
+                    replicate_dict.setdefault(share, list())
+                    replicate_dict[share].append(sample)
+    replicate_dict = {x:y for x, y in replicate_dict.items() if len(y) > 1}
     
     lod_samples = []
     for lod_group in lod_groups:
@@ -1216,23 +1230,33 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
     percent_confs = [f'{x}%'+'(['+f'{y[0]:.2%}'+','+f'{y[1]:.2%}'+'])' for x,y in zip(percent, confs)]
     result.loc['Total'] = [true_positive, false_positive, true_negative, false_negative] + percent_confs + ['[]']*6
     # 添加样本信息
-    sample_df = pd.read_csv(sample_info, sep=None, header=0, engine='python')
-    sample_df.set_index(sample_df.columns[1], inplace=True)
+    sample_df = pd.read_csv(sample_info, sep=None, header=0, index_col=0, engine='python')
+    sample_df.index.name = 'sample'
     result = sample_df.join(result, how='right')
     # 输出结果
     result.to_csv(out, sep='\t')
     result.to_excel(out[:-3]+'xlsx')
-   
+
+    lod_detect_dict = dict()
+    for sample, detail in full_dec_dict.items():
+        lod_detect_dict[sample] = {x:y for x, y in detail.items() if float(y[1][:-1])*0.01 >= lod_cutoff}
+
+    lod_known_dict = dict()
+    for sample, detail in full_known_dict.items():
+        lod_known_dict[sample] = {x: y for x, y in detail.items() if float(y[1][:-1])*0.01 >= lod_cutoff}
+
     # replicate_stat
-    replicate_stat(replicate_dict, dec_dict, known_dict, full_dec_dict, lod_group=lod_group, outdir=os.path.dirname(out))
+    replicate_stat(replicate_dict, dec_dict, known_dict, lod_detect_dict, lod_known_dict, lod_group=lod_group, outdir=os.path.dirname(out))
 
 
-def replicate_stat(replicate_dict, filtered_detected_dict, known_dict, raw_detected_dict=None, lod_group=('EPS19F1X3'), outdir=None):
+def replicate_stat(replicate_dict, filtered_detected_dict, filtered_known_dict, lod_detect_dict=None, lod_known_dict=None,
+                   lod_group=('EPS19F1X3'), outdir=None):
     """
     :param replicate_dict:样本分组字典，组名为key，样本列表为values，即重复样本
-    :param detected_dict:通过AF阈值的检测到的突变字典，{sample:{vard_id: [mutation_detail, AF]}，...}
-    :param known_dict: 已知突变字典，{sample:{vard_id: [mutation_detail, AF]}，...}
-    :param raw_detected_dict: 所有检测到突变字典，即未经过af过滤的突变。
+    :param filtered_detected_dict:通过AF阈值的检测到的突变字典，{sample:{vard_id: [mutation_detail, AF]}，...}
+    :param filtered_known_dict: 已知突变字典，{sample:{vard_id: [mutation_detail, AF]}，...}
+    :param lod_detect_dict:
+    :param lod_known_dict:
     :param lod_group: lod设计的样本组名，为replicate_dict中key的一个。
     """
     outdir = os.getcwd() if not outdir else outdir
@@ -1241,12 +1265,11 @@ def replicate_stat(replicate_dict, filtered_detected_dict, known_dict, raw_detec
 
     for group, samples in replicate_dict.items():
         if group in lod_group:
-            if raw_detected_dict:
-                detected_dict = raw_detected_dict
-            else:
-                detected_dict = filtered_detected_dict
+            detected_dict = lod_detect_dict
+            known_dict = lod_known_dict
         else:
             detected_dict = filtered_detected_dict
+            known_dict = filtered_known_dict
 
         sample_num = len(samples)
         result = []
