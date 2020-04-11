@@ -1047,8 +1047,8 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
 
 
 def overall_stat(detected, known, var_num:int, sample_info, replicate_design=None, group_sample=None,
-    lod_group:list=None, detected_af_cutoff=0.0001, known_af_cutoff=0.02, lod_cutoff=0.0, prefix='final_stat',
-    var_id_mode='transcript:chgvs', include_lod_group_for_accuracy=False):
+    lod_group:list=None, detected_af_cutoff=0.0001, known_af_cutoff=0.02, lod_cutoff=0.0, lod_deviation=0.0,
+    prefix='final_stat', var_id_mode='transcript:chgvs', include_lod_group_for_accuracy=False):
     """
     :param detected: 格式举例, 由batch_extract_hotspot产生
         sample  mutation        AF
@@ -1075,6 +1075,7 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
     :param detected_af_cutoff: 实际检测到的突变的af阈值, 用于准确性, 敏感度统计所需，该值不影响LOD分析，默认0.0001
     :param known_af_cutoff: 已知突变的af阈值，当af阈值>=设定的值时才认为是有效已知突变，默认0.02
     :param lod_cutoff: 对于lod的分组样本，对突变进行>=lod_cutoff过滤
+    :param lod_deviation: 百分比，配合lod_cutoff使用，对于lod的分组样本，对检测到的突变进行>=lod_cutoff*(1- lod_deviation)过滤
     :param prefix: 准确性统计表的前缀
     :param include_load_sample_for_accuracy: 为True时, 统计准确性时需要把LOD设计样本包含进来，默认为False，即统计时排除lod设计的样本
     """
@@ -1127,13 +1128,14 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
         for var_id, detail in var_dict.items():
             if var_id not in known_dict[sample] and (var_id in full_known_dict[sample]):
                 print(sample, detail, '因为低频被从已知突变中过滤，因此即使检测出也将忽略掉')
-                possible_LOD.append([sample, detail[0], detail[1], full_known_dict[sample][1]])
+                possible_LOD.append([sample, detail[0], detail[1], full_known_dict[sample][var_id][1]])
             else:
                 new_dec_dict[sample][var_id] = detail
     dec_dict = new_dec_dict
     if possible_LOD:
         with open(os.path.join(outdir, 'Low_expected_AF_but_detected.xls'), 'w') as f:
-            possible_LOD.sort(lambda x:x[3])
+            possible_LOD.sort(key=lambda x:x[3])
+            f.write('sample\tmutation\tdetected\texpected\n')
             for sample, mut, af, af2 in possible_LOD:
                 f.write(f'{sample}\t{mut}\t{af}\t{af2}\n')
 
@@ -1239,7 +1241,7 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
 
     lod_detect_dict = dict()
     for sample, detail in full_dec_dict.items():
-        lod_detect_dict[sample] = {x:y for x, y in detail.items() if float(y[1][:-1])*0.01 >= lod_cutoff}
+        lod_detect_dict[sample] = {x:y for x, y in detail.items() if float(y[1][:-1])*0.01 >= lod_cutoff*(1-lod_deviation)}
 
     lod_known_dict = dict()
     for sample, detail in full_known_dict.items():
