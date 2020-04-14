@@ -1250,6 +1250,15 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
     # replicate_stat
     replicate_stat(replicate_dict, dec_dict, known_dict, lod_detect_dict, lod_known_dict, lod_group=lod_group, outdir=os.path.dirname(out))
 
+    # new_lod_stat
+    for group, samples in replicate_dict.items():
+        out = os.path.join(outdir, group+'.LOD.xls')
+        new_lod_stat(samples, lod_detect_dict, lod_known_dict, out=out, gradient=(0.01, 0.02, 0.03, 0.04, 0.05))
+
+    samples = tuple(full_known_dict.keys())
+    out = os.path.join(outdir, 'Overall.LOD.xls')
+    new_lod_stat(samples, full_dec_dict, full_known_dict, out=out, gradient=(0.01, 0.02, 0.03, 0.04, 0.05))
+
 
 def replicate_stat(replicate_dict, filtered_detected_dict, filtered_known_dict, lod_detect_dict=None, lod_known_dict=None,
                    lod_group=('EPS19F1X3'), outdir=None):
@@ -1282,7 +1291,7 @@ def replicate_stat(replicate_dict, filtered_detected_dict, filtered_known_dict, 
             mutation_name = known_dict[samples[0]][mutation][0]
             for sample in samples:
                 if sample not in detected_dict:
-                    print(sample, 'not in deteced_dict')
+                    print(sample, 'not in detected_dict')
                     continue
                 if mutation in detected_dict[sample]:
                     positive += 1
@@ -1312,7 +1321,65 @@ def replicate_stat(replicate_dict, filtered_detected_dict, filtered_known_dict, 
         out_name = os.path.join(outdir, f'{group}.replicate.stat.xls')
         pd.DataFrame(result, columns=header).to_csv(out_name, sep='\t', index=False)
         pd.DataFrame(result, columns=header).to_excel(out_name+'x')
- 
+
+
+def new_lod_stat(samples, detected_dict, known_dict, out=None, gradient=(0.01, 0.02, 0.03, 0.04, 0.05)):
+    # 对突变按照理论频率进行梯度分组如>1,2,3,4,5
+    grad_dict = dict()
+    gradient = [f'{x:.2%}' for x in gradient]
+    for sample, var_dict in known_dict.items():
+        if sample in samples:
+            for k, v in var_dict.items():
+                if v[1] in gradient:
+                    grad_dict.setdefault(v[1], list())
+                    grad_dict[v[1]].append([sample, k])
+    # 根据gradient排序
+    grad_dict = {x:grad_dict[x] for x in gradient if x in grad_dict}
+
+    result = []
+    for grad, mutations in grad_dict.items():
+        expected_num = len(mutations)
+        positive = 0
+        mutation_names = list()
+        af_lst = []
+        for sample, mutation in mutations:
+            if sample not in detected_dict:
+                print(sample, 'not in detected_dict')
+                continue
+            if mutation in detected_dict[sample]:
+                positive += 1
+                mutation_name = detected_dict[sample][mutation][0]
+                mutation_names.append(mutation_name)
+                af_lst.append(detected_dict[sample][mutation][1])
+
+        if not af_lst:
+            af_lst.append('0')
+        af_lst = [float(x.strip('%')) * 0.01 if x.endswith('%') else float(x) for x in af_lst]
+        af_lst = [round(x, 5) for x in af_lst]
+        # af_range = str(min(af_lst)) + '-' + str(max(af_lst))
+        af_range = f'{min(af_lst):.2%}' + '-' + f'{max(af_lst):.2%}'
+        af_mean = statistics.mean(af_lst)
+        af_median = statistics.median(af_lst)
+        af_std = statistics.pstdev(af_lst)
+        af_cv = af_std / af_mean if af_mean else 0
+        ratio = f'{positive}|{expected_num}'
+        confint = pconf(positive, expected_num, method='wilson')
+        rate = positive / expected_num
+        call = f'{rate:.2%}([{confint[0]:.2%}, {confint[1]:.2%}])'
+        result.append([
+            str(grad), ';'.join(set(mutation_names)), af_range,
+            f'{af_mean:.2%}', f'{af_median:.2%}', f'{af_std:.2%}', f'{af_cv:.2%}',
+            ratio, call])
+
+    # summary
+    header = [
+        'ExpectedAF', 'Mutations', 'MAF_Range',
+        'MAF_Mean', 'MAF_median',
+        'MAF(SD)', 'MAF(%CV)', 'Positive_Calls', 'Positive_Calls_Rate'
+    ]
+    pd.DataFrame(result, columns=header).to_csv(out, sep='\t', index=False)
+    pd.DataFrame(result, columns=header).to_excel(out + 'x')
+
 
 def cosmic2vcf(mutation_txt, genome, out='cosmic.vcf', skip_chrom:tuple=('chrMT')):
     genome = pysam.FastaFile(genome)
