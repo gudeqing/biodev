@@ -1345,7 +1345,7 @@ def replicate_stat(samples, group, detected_dict, known_dict):
         af_range = f'{min(af_lst):.2%}' + '-' + f'{max(af_lst):.2%}'
         af_mean = statistics.mean(af_lst)
         af_median = statistics.median(af_lst)
-        af_std = statistics.pstdev(af_lst)
+        af_std = statistics.stdev(af_lst)
         af_cv = af_std / af_mean if af_mean else 0
         ratio = f'{positive}|{sample_num}'
         confint = pconf(positive, sample_num, method='wilson')
@@ -1398,7 +1398,7 @@ def new_lod_stat(samples, detected_dict, known_dict, out=None, gradient=(0.01, 0
         af_range = f'{min(af_lst):.2%}' + '-' + f'{max(af_lst):.2%}'
         af_mean = statistics.mean(af_lst)
         af_median = statistics.median(af_lst)
-        af_std = statistics.pstdev(af_lst)
+        af_std = statistics.stdev(af_lst)
         af_cv = af_std / af_mean if af_mean else 0
         ratio = f'{positive}|{expected_num}'
         confint = pconf(positive, expected_num, method='wilson')
