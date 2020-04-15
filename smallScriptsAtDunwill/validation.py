@@ -1046,9 +1046,10 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
     return dec_dict, full_dec_dict
 
 
-def overall_stat(detected, known, var_num:int, sample_info, replicate_design=None, group_sample=None,
-    lod_group:list=None, detected_af_cutoff=0.0001, known_af_cutoff=0.02, lod_cutoff=0.0, lod_deviation=0.0,
-    prefix='final_stat', var_id_mode='transcript:chgvs', include_lod_group_for_accuracy=False):
+def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成时间', operator_col='PCR1操作者',
+                 replicate_design=None, group_sample=None, lod_group:list=None,
+                 detected_af_cutoff=0.0001, known_af_cutoff=0.02, lod_cutoff=0.0, lod_deviation=0.0,
+                 prefix='final_stat', var_id_mode='transcript:chgvs', include_lod_group_for_accuracy=False):
     """
     :param detected: 格式举例, 由batch_extract_hotspot产生
         sample  mutation        AF
@@ -1173,154 +1174,191 @@ def overall_stat(detected, known, var_num:int, sample_info, replicate_design=Non
         else:
             raise Exception(f'{lod_group} 不在重复设计信息当中')
 
-    # print('replicate:', replicate_dict)
-    out = prefix + '.xls'
-    with open(out, 'w') as f:
-        header = [
-            '样本',
-            '真阳性','假阳性', '真阴性','假阴性',
-            '总符合率','阳性符合率','阴性符合率',
-            '敏感性','特异性',
-            '真阳性位点','真阳性频率',
-            '假阳性位点','假阳性频率',
-            '假阴性位点假','阴性频率'
+    summary = list()
+    concordance = list()
+    accuracy = list()
+    summary_header = [
+        'Sample',
+        '真阳性', '假阳性', '真阴性', '假阴性',
+        '总符合率', '阳性符合率', '阴性符合率',
+        '敏感性', '特异性',
+        '真阳性位点', '真阳性频率',
+        '假阳性位点', '假阳性频率',
+        '假阴性位点假', '阴性频率'
+    ]
+    concordance_header = ['Sample',	'Mutation', 'Expected AF(%)', 'Detected AF(%)', 'Concordance']
+    accuracy_header = ['Sample', 'TP', 'FP', 'TN', 'FN']
+
+    for sample, var_dict in dec_dict.items():
+        if not include_lod_group_for_accuracy and (sample in lod_samples):
+            print(f"LOD设计样本{sample}不参与准确性灵敏度等统计")
+            continue
+        for mid in (set(var_dict.keys()) | set(known_dict[sample].keys())):
+            mutation = known_dict[sample][mid][0] if mid in known_dict[sample] else var_dict[mid][0]
+            expected_af = known_dict[sample][mid][1] if mid in known_dict[sample] else 'Unexpected'
+            detected_af = var_dict[mid][1] if mid in var_dict else 'Not detected'
+            consistent = 'Yes' if (mid in var_dict) and (mid in known_dict[sample]) else 'No'
+            concordance.append([sample, mutation, expected_af, detected_af, consistent])
+
+        tp_ids = set(var_dict.keys()) & set(known_dict[sample].keys())
+        true_positive = len(tp_ids)
+        fp_ids = set(var_dict.keys()) - set(known_dict[sample].keys())
+        false_positive = len(fp_ids)
+        fn_ids = set(known_dict[sample].keys()) - tp_ids
+        false_negative = len(fn_ids)
+        true_negative = var_num - len(known_dict[sample]) - false_positive
+        overall_accuracy, positive_accuracy, negative_accuracy, sensitive, specificity = model_statistic(
+            true_positive, false_positive, false_negative, true_negative)
+        tp_mutations = [var_dict[x][0] for x in tp_ids]
+        tp_mutations_af = [var_dict[x][1] for x in tp_ids]
+        fp_mutations = [var_dict[x][0] for x in fp_ids]
+        fp_mutations_af = [var_dict[x][1] for x in fp_ids]
+        fn_mutations = [known_dict[sample][x][0] for x in fn_ids]
+        fn_mutations_af = []
+        for mid in fn_ids:
+            if mid in full_dec_dict[sample]:
+                fn_mutations_af.append(full_dec_dict[sample][mid][1])
+            else:
+                fn_mutations_af.append(0)
+        # fn_mutations_af = [known_dict[sample][x][1] for x in fn_ids]
+        lst = [
+            sample,
+            true_positive, false_positive, true_negative, false_negative,
+            overall_accuracy, positive_accuracy, negative_accuracy,
+            sensitive, specificity,
+            tp_mutations, tp_mutations_af,
+            fp_mutations, fp_mutations_af,
+            fn_mutations, fn_mutations_af
         ]
-        f.write('\t'.join(header)+'\n')
+        summary.append(lst)
+        accuracy.append([sample, true_positive, false_positive, true_negative, false_negative])
 
-        for sample, var_dict in dec_dict.items():
-            if not include_lod_group_for_accuracy and (sample in lod_samples):
-                print(f"LOD设计样本{sample}不参与准确性灵敏度等统计")
-                continue
-            tp_ids = set(var_dict.keys()) & set(known_dict[sample].keys())
-            true_positive = len(tp_ids)
-            fp_ids = set(var_dict.keys()) - set(known_dict[sample].keys())
-            false_positive = len(fp_ids)
-            fn_ids = set(known_dict[sample].keys()) - tp_ids
-            false_negative = len(fn_ids)
-            true_negative = var_num - len(known_dict[sample]) - false_positive
-            overall_accuracy, positive_accuracy, negative_accuracy, sensitive, specificity = model_statistic(
-                true_positive, false_positive, false_negative, true_negative)
-            tp_mutations = [var_dict[x][0] for x in tp_ids]
-            tp_mutations_af = [var_dict[x][1] for x in tp_ids]
-            fp_mutations = [var_dict[x][0] for x in fp_ids]
-            fp_mutations_af = [var_dict[x][1] for x in fp_ids]
-            fn_mutations = [known_dict[sample][x][0] for x in fn_ids]
-            fn_mutations_af = []
-            for mid in fn_ids:
-                if mid in full_dec_dict[sample]:
-                    fn_mutations_af.append(full_dec_dict[sample][mid][1])
-                else:
-                    fn_mutations_af.append(0)
-            # fn_mutations_af = [known_dict[sample][x][1] for x in fn_ids]
-            lst = [
-                sample, 
-                true_positive, false_positive, true_negative, false_negative, 
-                overall_accuracy, positive_accuracy, negative_accuracy,
-                sensitive, specificity, 
-                tp_mutations, tp_mutations_af,
-                fp_mutations, fp_mutations_af,
-                fn_mutations, fn_mutations_af
-            ]
-            f.write('\t'.join([str(x) for x in lst])+'\n')
-    # 汇总最后一行信息
-    result = pd.read_csv(out, header=0, index_col=0, sep='\t')
-    true_positive = result['真阳性'].sum()
-    false_positive = result['假阳性'].sum()
-    true_negative = result['真阴性'].sum()
-    false_negative = result['假阴性'].sum()
-    percent, confs = model_statistic(true_positive, false_positive, false_negative, true_negative, confint=True)
-    percent_confs = [f'{x}%'+'(['+f'{y[0]:.2%}'+','+f'{y[1]:.2%}'+'])' for x,y in zip(percent, confs)]
-    result.loc['Total'] = [true_positive, false_positive, true_negative, false_negative] + percent_confs + ['[]']*6
-    # 添加样本信息
-    sample_df = pd.read_csv(sample_info, sep=None, header=0, index_col=0, engine='python')
-    sample_df.index.name = 'sample'
-    result = sample_df.join(result, how='right')
-    # 输出结果
-    result.to_csv(out, sep='\t')
-    result.to_excel(out[:-3]+'xlsx')
+    out = prefix + '.xls'
+    with pd.ExcelWriter(out[:-3]+'xlsx') as writer:
+        result = pd.DataFrame(summary, columns=summary_header)
+        result = result.set_index('Sample')
+        true_positive = result['真阳性'].sum()
+        false_positive = result['假阳性'].sum()
+        true_negative = result['真阴性'].sum()
+        false_negative = result['假阴性'].sum()
+        percent, confs = model_statistic(true_positive, false_positive, false_negative, true_negative, confint=True)
+        percent_confs = [f'{x}%'+'(['+f'{y[0]:.2%}'+','+f'{y[1]:.2%}'+'])' for x,y in zip(percent, confs)]
+        result.loc['Total'] = [true_positive, false_positive, true_negative, false_negative] + percent_confs + ['[]']*6
+        # 添加样本信息
+        sample_df = pd.read_csv(sample_info, sep=None, header=0, index_col=0, engine='python')
+        sample_df.index.name = 'sample'
+        result = sample_df.join(result, how='right')
+        # 输出结果
+        result.to_csv(out, sep='\t')
+        result.to_excel(writer, sheet_name='Summary')
 
-    lod_detect_dict = dict()
-    for sample, detail in full_dec_dict.items():
-        lod_detect_dict[sample] = {x:y for x, y in detail.items() if float(y[1][:-1])*0.01 >= lod_cutoff*(1-lod_deviation)}
+        concordance_df = pd.DataFrame(concordance, columns=concordance_header)
+        concordance_df = concordance_df.set_index(['Sample', 'Mutation'])
+        concordance_df.to_excel(writer, sheet_name='Concordance')
 
-    lod_known_dict = dict()
-    for sample, detail in full_known_dict.items():
-        lod_known_dict[sample] = {x: y for x, y in detail.items() if float(y[1][:-1])*0.01 >= lod_cutoff}
+        accuracy_df = pd.DataFrame(accuracy, columns=accuracy_header)
+        accuracy_df.set_index('Sample', inplace=True)
+        accuracy_df.loc['total'] = accuracy_df.sum()
+        accuracy_df.to_excel(writer, sheet_name='Accuracy')
 
-    # replicate_stat
-    replicate_stat(replicate_dict, dec_dict, known_dict, lod_detect_dict, lod_known_dict, lod_group=lod_group, outdir=os.path.dirname(out))
+        lod_detect_dict = dict()
+        for sample, detail in full_dec_dict.items():
+            lod_detect_dict[sample] = {
+                x:y for x, y in detail.items() if float(y[1][:-1])*0.01 >= lod_cutoff*(1-lod_deviation)
+            }
+
+        lod_known_dict = dict()
+        for sample, detail in full_known_dict.items():
+            lod_known_dict[sample] = {
+                x: y for x, y in detail.items() if float(y[1][:-1])*0.01 >= lod_cutoff
+            }
+
+        # replicate_stat
+        for group, samples in replicate_dict.items():
+            if group not in lod_groups:
+                summary_df, concordance_df = replicate_stat(samples, group, dec_dict, known_dict)
+                day_operator_df = sample_df.loc[:, [date_col, operator_col]]
+                day_operator_df.columns = ['Day', 'Operator']
+                concordance_df = concordance_df.set_index('Sample').join(day_operator_df)
+                concordance_df.index.name = 'Sample'
+                concordance_df.reset_index(inplace=True)
+                concordance_df.sort_values(by=['Mutation', 'Expected AF(%)', 'Day', 'Operator', 'Sample'], inplace=True)
+                concordance_df.set_index(['Mutation', 'Expected AF(%)', 'Day', 'Operator', 'Sample'], inplace=True)
+                concordance_df.to_csv(os.path.join(outdir, f'{group}.replicate.xls'), sep='\t')
+                summary_df.to_csv(os.path.join(outdir, f'{group}.replicate.summary.xls'), sep='\t', index=False)
+                concordance_df.to_excel(writer, sheet_name=f'{group}.Replicates')
+                summary_df.to_excel(writer, sheet_name=f'{group}.ReplicateSummary', index=False)
+            else:
+                summary_df, concordance_df = replicate_stat(samples, group, lod_detect_dict, lod_known_dict)
+                order = ['Mutation', 'Expected AF(%)', 'Sample', 'Detected AF(%)', 'Concordance']
+                concordance_df = concordance_df.loc[:, order]
+                concordance_df.sort_values(by=['Mutation', 'Expected AF(%)', 'Sample'], inplace=True)
+                concordance_df.set_index(['Mutation', 'Expected AF(%)', 'Sample'], inplace=True)
+                concordance_df.to_csv(os.path.join(outdir, f'{group}.LOD.xls'), sep='\t', index=False)
+                summary_df.to_csv(os.path.join(outdir, f'{group}.LOD.summary.xls'), sep='\t', index=False)
+                concordance_df.to_excel(writer, sheet_name=f'{group}.LOD')
+                summary_df.to_excel(writer, sheet_name=f'{group}.LODSummary', index=False)
 
     # new_lod_stat
     for group, samples in replicate_dict.items():
-        out = os.path.join(outdir, group+'.LOD.xls')
-        new_lod_stat(samples, lod_detect_dict, lod_known_dict, out=out, gradient=(0.01, 0.02, 0.03, 0.04, 0.05))
+        if group in lod_groups:
+            out = os.path.join(outdir, group+'.Gradient.LOD.xls')
+            new_lod_stat(samples, lod_detect_dict, lod_known_dict, out=out, gradient=(0.01, 0.02, 0.03, 0.04, 0.05))
 
     samples = tuple(full_known_dict.keys())
-    out = os.path.join(outdir, 'Overall.LOD.xls')
+    out = os.path.join(outdir, 'Overall.Gradient.LOD.xls')
     new_lod_stat(samples, full_dec_dict, full_known_dict, out=out, gradient=(0.01, 0.02, 0.03, 0.04, 0.05))
 
 
-def replicate_stat(replicate_dict, filtered_detected_dict, filtered_known_dict, lod_detect_dict=None, lod_known_dict=None,
-                   lod_group=('EPS19F1X3'), outdir=None):
-    """
-    :param replicate_dict:样本分组字典，组名为key，样本列表为values，即重复样本
-    :param filtered_detected_dict:通过AF阈值的检测到的突变字典，{sample:{vard_id: [mutation_detail, AF]}，...}
-    :param filtered_known_dict: 已知突变字典，{sample:{vard_id: [mutation_detail, AF]}，...}
-    :param lod_detect_dict:
-    :param lod_known_dict:
-    :param lod_group: lod设计的样本组名，为replicate_dict中key的一个。
-    """
-    outdir = os.getcwd() if not outdir else outdir
-    if lod_group is None:
-        lod_group = []
+def replicate_stat(samples, group, detected_dict, known_dict):
+    sample_num = len(samples)
+    summary = []
+    summary_header = [
+        'Sample', 'Mutation', 'MAF_Range', 'MAF_Mean', 'MAF_median',
+        'MAF(SD)', 'MAF(%CV)', 'Positive_Calls', 'Positive_Calls_Rate'
+    ]
+    concordance = []
+    concordance_header = ['Sample',	'Mutation', 'Expected AF(%)', 'Detected AF(%)', 'Concordance']
+    # 假设这里的samples都具有相同的已知突变
+    for mid in known_dict[samples[0]]:
+        positive = 0
+        af_lst = []
+        mutation = known_dict[samples[0]][mid][0]
+        for sample in samples:
+            if sample not in detected_dict:
+                print(sample, 'not in detected_dict')
+                continue
+            if mid in detected_dict[sample]:
+                positive += 1
+                af_lst.append(detected_dict[sample][mid][1])
 
-    for group, samples in replicate_dict.items():
-        if group in lod_group:
-            detected_dict = lod_detect_dict
-            known_dict = lod_known_dict
-        else:
-            detected_dict = filtered_detected_dict
-            known_dict = filtered_known_dict
+            expected_af = known_dict[sample][mid][1]
+            detected_af = detected_dict[sample][mid][1] if mid in detected_dict[sample] else 'Not detected'
+            consistent = 'Yes' if (mid in detected_dict[sample]) else 'No'
+            concordance.append([sample, mutation, expected_af, detected_af, consistent])
 
-        sample_num = len(samples)
-        result = []
+        if not af_lst:
+            af_lst.append('0')
+        af_lst = [float(x.strip('%')) * 0.01 if x.endswith('%') else float(x) for x in af_lst]
+        af_lst = [round(x, 5) for x in af_lst]
+        # af_range = str(min(af_lst)) + '-' + str(max(af_lst))
+        af_range = f'{min(af_lst):.2%}' + '-' + f'{max(af_lst):.2%}'
+        af_mean = statistics.mean(af_lst)
+        af_median = statistics.median(af_lst)
+        af_std = statistics.pstdev(af_lst)
+        af_cv = af_std / af_mean if af_mean else 0
+        ratio = f'{positive}|{sample_num}'
+        confint = pconf(positive, sample_num, method='wilson')
+        rate = positive / sample_num
+        call = f'{rate:.2%}([{confint[0]:.2%}, {confint[1]:.2%}])'
+        summary.append([
+            group, mutation, af_range, f'{af_mean:.2%}', f'{af_median:.2%}',
+            f'{af_std:.2%}', f'{af_cv:.2%}', ratio, call
+        ])
 
-        for mutation in known_dict[samples[0]]:
-            positive = 0
-            af_lst = []
-            mutation_name = known_dict[samples[0]][mutation][0]
-            for sample in samples:
-                if sample not in detected_dict:
-                    print(sample, 'not in detected_dict')
-                    continue
-                if mutation in detected_dict[sample]:
-                    positive += 1
-                    mutation_name = detected_dict[sample][mutation][0]
-                    af_lst.append(detected_dict[sample][mutation][1])
-            if not af_lst:
-                af_lst.append('0')
-            af_lst = [float(x.strip('%'))*0.01 if x.endswith('%') else float(x) for x in af_lst]
-            af_lst = [round(x, 5) for x in af_lst]
-            # af_range = str(min(af_lst)) + '-' + str(max(af_lst))
-            af_range = f'{min(af_lst):.2%}' + '-' + f'{max(af_lst):.2%}'
-            af_mean = statistics.mean(af_lst)
-            af_median = statistics.median(af_lst)
-            af_std = statistics.pstdev(af_lst)
-            af_cv = af_std/af_mean if af_mean else 0
-            ratio = f'{positive}|{sample_num}'
-            confint = pconf(positive, sample_num, method='wilson')
-            rate = positive/sample_num
-            call = f'{rate:.2%}([{confint[0]:.2%}, {confint[1]:.2%}])'
-            # result.append([group, mutation_name, af_range, round(af_mean, 3), round(af_median, 3), round(af_std, 3), round(af_cv*100, 2), ratio, call])
-            result.append([group, mutation_name, af_range, f'{af_mean:.2%}', f'{af_median:.2%}', f'{af_std:.2%}', f'{af_cv:.2%}', ratio, call])
-
-        header = [
-            'Sample', 'Mutation', 'MAF_Range', 'MAF_Mean', 'MAF_median',
-            'MAF(SD)', 'MAF(%CV)', 'Positive_Calls', 'Positive_Calls_Rate'
-        ]
-        out_name = os.path.join(outdir, f'{group}.replicate.stat.xls')
-        pd.DataFrame(result, columns=header).to_csv(out_name, sep='\t', index=False)
-        pd.DataFrame(result, columns=header).to_excel(out_name+'x')
+    summary_df = pd.DataFrame(summary, columns=summary_header)
+    concordance_df = pd.DataFrame(concordance, columns=concordance_header)
+    return summary_df, concordance_df
 
 
 def new_lod_stat(samples, detected_dict, known_dict, out=None, gradient=(0.01, 0.02, 0.03, 0.04, 0.05)):
