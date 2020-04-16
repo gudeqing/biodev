@@ -756,11 +756,11 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
     :param exclude_hotspot: 格式同hotspot
     :return:
     """
-    hots = get_hotspot(hotspot, id_mode)
-    print(f'There are {len(hots)} mutation in our hotspot database')
+    hots = get_hotspot(hotspot, id_mode) if type(hotspot) != dict else hotspot
+    # print(f'There are {len(hots)} mutation in our hotspot database')
     if exclude_hotspot:
-        exclude_hots = get_hotspot(exclude_hotspot, id_mode)
-        print(f'There are {len(exclude_hots)} mutations to be excluded from hotspot')
+        exclude_hots = get_hotspot(exclude_hotspot, id_mode) if type(exclude_hotspot) != dict else exclude_hotspot
+        # print(f'There are {len(exclude_hots)} mutations to be excluded from hotspot')
     else:
         exclude_hots = dict()
     id_mode_lst = id_mode.split(':')
@@ -827,9 +827,17 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
     :prefix: 输出结果文件的前缀，后续会自动加上.xls
     :return: 默认生成all.detected.hotspot.xls文件，'sample\tmutation\tAF1\tAF2\tconsistency\n'
     """
+    hots = get_hotspot(hotspot, id_mode)
+    print(f'There are {len(hots)} mutation in our hotspot database')
+    if exclude_hotspot:
+        exclude_hots = get_hotspot(exclude_hotspot, id_mode)
+        print(f'There are {len(exclude_hots)} mutations to be excluded from hotspot')
+    else:
+        exclude_hots = dict()
+
     result = dict()
     for vcf in vcfs:
-        result.update(extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot, id_mode))
+        result.update(extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode))
 
     out_file = prefix + '.xls'
     if cmp_vcfs:
