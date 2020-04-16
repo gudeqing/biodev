@@ -1261,7 +1261,11 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
         result.to_excel(writer, sheet_name='Summary')
 
         concordance_df = pd.DataFrame(concordance, columns=concordance_header)
-        concordance_df = concordance_df.set_index(['Sample', 'Mutation'])
+        mut_cols = concordance_df['Mutation'].str.split(':', expand=True)
+        mut_cols.columns = ['Gene', 'Transcript', 'cHgvs', 'pHgvs']
+        mut_cols = concordance_df.loc[:, ['Sample']].join(mut_cols)
+        concordance_df = mut_cols.join(concordance_df.iloc[:, 2:])
+        concordance_df = concordance_df.set_index(['Sample', 'Gene', 'Transcript', 'cHgvs', 'pHgvs'])
         concordance_df.to_excel(writer, sheet_name='Concordance')
 
         accuracy_df = pd.DataFrame(accuracy, columns=accuracy_header)
@@ -1294,7 +1298,23 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
                 concordance_df.set_index(['Mutation', 'Expected AF(%)', 'Day', 'Operator', 'Sample'], inplace=True)
                 concordance_df.to_csv(os.path.join(outdir, f'{group}.replicate.xls'), sep='\t')
                 summary_df.to_csv(os.path.join(outdir, f'{group}.replicate.summary.xls'), sep='\t', index=False)
+                # to sheet
+                concordance_df.reset_index(inplace=True)
+                mut_cols = concordance_df['Mutation'].str.split(':', expand=True)
+                mut_cols.columns = ['Gene', 'Transcript', 'cHgvs', 'pHgvs']
+                concordance_df = mut_cols.join(concordance_df.iloc[:, 1:])
+                concordance_df.set_index(
+                    ['Gene', 'Transcript', 'cHgvs', 'pHgvs', 'Expected AF(%)', 'Day', 'Operator', 'Sample'],
+                    inplace=True
+                )
+
                 concordance_df.to_excel(writer, sheet_name=f'{group}.Replicates')
+
+                mut_cols = summary_df['Mutation'].str.split(':', expand=True)
+                mut_cols.columns = ['Gene', 'Transcript', 'cHgvs', 'pHgvs']
+                mut_cols = summary_df.loc[:, ['Sample']].join(mut_cols)
+                summary_df = mut_cols.join(summary_df.iloc[:, 1:])
+
                 summary_df.to_excel(writer, sheet_name=f'{group}.ReplicateSummary', index=False)
             else:
                 summary_df, concordance_df = replicate_stat(samples, group, lod_detect_dict, lod_known_dict)
@@ -1304,7 +1324,22 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
                 concordance_df.set_index(['Mutation', 'Expected AF(%)', 'Sample'], inplace=True)
                 concordance_df.to_csv(os.path.join(outdir, f'{group}.LOD.xls'), sep='\t', index=False)
                 summary_df.to_csv(os.path.join(outdir, f'{group}.LOD.summary.xls'), sep='\t', index=False)
+                # to sheet
+                concordance_df.reset_index(inplace=True)
+                mut_cols = concordance_df['Mutation'].str.split(':', expand=True)
+                mut_cols.columns = ['Gene', 'Transcript', 'cHgvs', 'pHgvs']
+                concordance_df = mut_cols.join(concordance_df.iloc[:, 1:])
+                concordance_df.set_index(
+                    ['Gene', 'Transcript', 'cHgvs', 'pHgvs', 'Expected AF(%)', 'Sample'],
+                    inplace=True
+                )
+
                 concordance_df.to_excel(writer, sheet_name=f'{group}.LOD')
+
+                mut_cols = summary_df['Mutation'].str.split(':', expand=True)
+                mut_cols.columns = ['Gene', 'Transcript', 'cHgvs', 'pHgvs']
+                mut_cols = summary_df.loc[:, ['Sample']].join(mut_cols)
+                summary_df = mut_cols.join(summary_df.iloc[:, 1:])
                 summary_df.to_excel(writer, sheet_name=f'{group}.LODSummary', index=False)
 
     # new_lod_stat
