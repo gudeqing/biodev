@@ -807,7 +807,7 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
                 elif key in hots:
                     if key not in result[sample]:
                         print(f'{sample}' + ':' + hots[key] + ':' + f'AF={af}' + ':' + f'DP={depth}')
-                        result[sample][key] = [hots[key], af, depth]
+                        result[sample][key] = [hots[key], af, depth, site_dict['id']]
                     else:
                         print(f'{key} is duplicated!')
     return result
@@ -852,13 +852,13 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
                 name = '_' + col_names[0]
             else:
                 name = ''
-            fw.write(f'sample\tmutation\tAF{name}\tDepth{name}\n')
+            fw.write(f'sample\tmutation\tAF{name}\tDepth{name}\tID\n')
             for sample, var_dict in result.items():
                 if not var_dict:
                     print(f'WARN: No hotspot mutation detected in {sample}')
                     fw.write(f'{sample}\tNone\t0\t0\n')
                 for m_id, detail in var_dict.items():
-                    fw.write(f'{sample}\t{detail[0]}\t{detail[1]}\t{detail[2]}\n')
+                    fw.write(f'{sample}\t{detail[0]}\t{detail[1]}\t{detail[2]}\t{detail[3]}\n')
 
         if sample_info:
             sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
