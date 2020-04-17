@@ -745,7 +745,8 @@ def simplify_annovar_vcf(vcf, out_prefix, often_trans=None, filter=None):
             print('No thing matched!')
 
 
-def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transcript:chgvs'):
+def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transcript:chgvs', sample_index=1,
+                             af_in_info=False, dp_in_info=False):
     """
     仅适用于hotspot和分析结果都用annovar注释的情况，且只关心有AAChange_refGene注释的突变。
     目的：hotspot是用annovar注释的vcf，如果分析结果也用annovar注释, 可以根据AAChange_refGene信息比较两个突变是否为同一个突变
@@ -766,15 +767,28 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
     id_mode_lst = id_mode.split(':')
     require_ac = {'gene', 'transcript', 'exon', 'chgvs', 'phgvs'} & set(id_mode_lst)
     with VariantFile(vcf) as f:
-        sample = list(f.header.samples)[1]
+        sample = list(f.header.samples)[sample_index]
         result = {sample:dict()}
         for record in f:
             # if not list(record.filter)[0] == 'PASS':
             #     continue
             site_info = [record.chrom, str(record.pos), record.id, record.ref, record.alts[0]]
+            if 'COSMIC_ID' in record.info:
+                if site_info[2]:
+                    site_info[2] += ',' + ','.join(record.info['COSMIC_ID'])
+                else:
+                    site_info[2] = ','.join(record.info['COSMIC_ID'])
             site_dict = dict(zip(['chr', 'start', 'id', 'ref', 'alt'], site_info))
-            af = round(record.samples[sample]['AF'][0], 4)
-            depth = round(record.samples[sample]['DP'], 4)
+            if af_in_info:
+                af = round(record.info['AF'][0], 4)
+            else:
+                af = round(record.samples[sample]['AF'][0], 4)
+
+            if dp_in_info:
+                depth = record.info['DP']
+            else:
+                depth = round(record.samples[sample]['DP'], 4)
+
             if require_ac:
                 if not 'AAChange_refGene' in record.info or record.info['AAChange_refGene'][0] == '.':
                     continue
@@ -797,7 +811,7 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
                         # fw.write(f'{sample}\t{each}\t{af}\n')
                         if key not in result[sample]:
                             print(f'{sample}' + ':' + hots[key] + ':' + f'AF={af}' + f'DP={depth}')
-                            result[sample][key] = [hots[key], af, depth]
+                            result[sample][key] = [hots[key], af, depth, site_dict['id'], ':'.join(site_info[:2])]
                         else:
                             print(f'{key} is duplicated!')
             else:
@@ -807,13 +821,15 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
                 elif key in hots:
                     if key not in result[sample]:
                         print(f'{sample}' + ':' + hots[key] + ':' + f'AF={af}' + ':' + f'DP={depth}')
-                        result[sample][key] = [hots[key], af, depth, site_dict['id']]
+                        result[sample][key] = [hots[key], af, depth, site_dict['id'], ':'.join(site_info[:2])]
                     else:
                         print(f'{key} is duplicated!')
     return result
 
 
-def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcript:chgvs', exclude_hotspot=None, cmp_vcfs:list=None, col_names:list=None, prefix="all.detected.hotspot"):
+def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcript:chgvs',
+                          exclude_hotspot=None, cmp_vcfs:list=None, col_names:list=None,
+                          prefix="all.detected.hotspot", sample_index=1, af_in_info=False, dp_in_info=False):
     """
     :param vcfs: vcf 路径, 可以提供多个,每个样本对应一个vcf，样本名将从vcf中提取获得.
         分析结果vcf，如果id_mode中包含['gene', 'transcript', 'exon', 'chgvs', 'phgvs'],则要求info列有AAChange_refGene信息.
@@ -837,7 +853,15 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
 
     result = dict()
     for vcf in vcfs:
-        result.update(extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode))
+        if os.path.getsize(vcf) <= 2:
+            print('Empty', vcf)
+            continue
+        var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index, af_in_info, dp_in_info)
+        sample = list(var_dict.keys())[0]
+        if sample in result:
+            result[sample].update(var_dict[sample])
+        else:
+            result.update(var_dict)
 
     out_file = prefix + '.xls'
     if cmp_vcfs:
@@ -845,20 +869,28 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
             raise Exception('两组vcf数量不相等, 如何比较?')
         cmp_result = dict()
         for vcf in cmp_vcfs:
-            cmp_result.update(extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot, id_mode))
+            if os.path.getsize(vcf) <= 2:
+                print('Empty', vcf)
+                continue
+            var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index, af_in_info, dp_in_info)
+            sample = list(var_dict.keys())[0]
+            if sample in result:
+                result[sample].update(var_dict[sample])
+            else:
+                result.update(var_dict)
     else:
         with open(out_file, 'w') as fw:
             if col_names:
                 name = '_' + col_names[0]
             else:
                 name = ''
-            fw.write(f'sample\tmutation\tAF{name}\tDepth{name}\tID\n')
+            fw.write(f'sample\tmutation\tAF{name}\tDepth{name}\tID\tsite\n')
             for sample, var_dict in result.items():
                 if not var_dict:
                     print(f'WARN: No hotspot mutation detected in {sample}')
-                    fw.write(f'{sample}\tNone\t0\t0\n')
+                    fw.write(f'{sample}\tNone\t0\t0\tNone\tNone\n')
                 for m_id, detail in var_dict.items():
-                    fw.write(f'{sample}\t{detail[0]}\t{detail[1]}\t{detail[2]}\t{detail[3]}\n')
+                    fw.write(f'{sample}\t{detail[0]}\t{detail[1]}\t{detail[2]}\t{detail[3]}\t{detail[4]}\n')
 
         if sample_info:
             sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
