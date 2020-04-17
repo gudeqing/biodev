@@ -1087,7 +1087,7 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
 
 
 def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成时间', operator_col='PCR1操作者',
-                 replicate_design=None, group_sample=None, lod_group:list=None,
+                 replicate_design=None, group_sample=None, lod_group:list=None, report_false_positive=False,
                  detected_af_cutoff=0.0001, known_af_cutoff=0.02, lod_cutoff=0.0, lod_deviation=0.0,
                  prefix='final_stat', var_id_mode='transcript:chgvs', include_lod_group_for_accuracy=False):
     """
@@ -1104,7 +1104,7 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
         第二列可以是样本组名，和已知突变known文件里的样本id相对应,
             用于指示属于相同组的样本具有相同的已知突变，这个信息也可以通过sample_group参数提供
     :param group_sample: 文件路径. 需要header. 默认无. 用于指示哪些样本共享相同的已知突变
-        第一列是样本组名，和已知突变known文件里的样本id相对应, 如果一组有多个样本，采用多行表示
+        第一列是样本组名，和已知突变known文件里的样本id相对应, 如果一组有多个样本，可以用';'分割, 也可以采用多行表示分组信息
         第二列为样本id，和detected文件里的样本id一致;
     :param replicate_design: 文件路径, 两列, 第一列是组名; 第二列是样本id, 可以用';'分割的多个样本, 也可以采用多行表示分组信息。
         增加该参数的目的是以防一个样本同时参与LOD和input等复杂设计。 如果不提供该参数，则用样本分组信息替代。需要header
@@ -1113,11 +1113,13 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
         group_lod   EPS19F1X1L8
         group_lod   EPS19F1X1L9
     :param lod_group: 组名,指定哪一组是LOD设计样本, 可以赋予多个值, 空格隔开即可，组名必须是relicate_design或sample_info中的
+    :param report_false_positive: 如果设置该参数，那么在重复性/LOD统计时，也会对不在已知突变列表的突变进行统计。
     :param detected_af_cutoff: 实际检测到的突变的af阈值, 用于准确性, 敏感度统计所需，该值不影响LOD分析，默认0.0001
     :param known_af_cutoff: 已知突变的af阈值，当af阈值>=设定的值时才认为是有效已知突变，默认0.02
     :param lod_cutoff: 对于lod的分组样本，对突变进行>=lod_cutoff过滤
     :param lod_deviation: 百分比，配合lod_cutoff使用，对于lod的分组样本，对检测到的突变进行>=lod_cutoff*(1- lod_deviation)过滤
     :param prefix: 准确性统计表的前缀
+    :param var_id_mode :指定mutation的唯一id格式, 默认为'transcript:chgvs'.
     :param include_load_sample_for_accuracy: 为True时, 统计准确性时需要把LOD设计样本包含进来，默认为False，即统计时排除lod设计的样本
     """
     outdir = os.path.dirname(prefix)
@@ -1320,7 +1322,7 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
         # replicate_stat
         for group, samples in replicate_dict.items():
             if group not in lod_groups:
-                summary_df, concordance_df = replicate_stat(samples, group, dec_dict, known_dict)
+                summary_df, concordance_df = replicate_stat(samples, group, dec_dict, known_dict, report_false_positive)
                 day_operator_df = sample_df.loc[:, [date_col, operator_col]]
                 day_operator_df.columns = ['Day', 'Operator']
                 concordance_df = concordance_df.set_index('Sample').join(day_operator_df)
@@ -1349,12 +1351,14 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
 
                 summary_df.to_excel(writer, sheet_name=f'{group}.ReplicateSummary', index=False)
             else:
-                summary_df, concordance_df = replicate_stat(samples, group, lod_detect_dict, lod_known_dict)
+                summary_df, concordance_df = replicate_stat(
+                    samples, group, lod_detect_dict, lod_known_dict, report_false_positive
+                )
                 order = ['Mutation', 'Expected AF(%)', 'Sample', 'Detected AF(%)', 'Concordance']
                 concordance_df = concordance_df.loc[:, order]
                 concordance_df.sort_values(by=['Mutation', 'Expected AF(%)', 'Sample'], inplace=True)
                 concordance_df.set_index(['Mutation', 'Expected AF(%)', 'Sample'], inplace=True)
-                concordance_df.to_csv(os.path.join(outdir, f'{group}.LOD.xls'), sep='\t', index=False)
+                concordance_df.to_csv(os.path.join(outdir, f'{group}.LOD.xls'), sep='\t')
                 summary_df.to_csv(os.path.join(outdir, f'{group}.LOD.summary.xls'), sep='\t', index=False)
                 # to sheet
                 concordance_df.reset_index(inplace=True)
@@ -1385,35 +1389,57 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
     new_lod_stat(samples, full_dec_dict, full_known_dict, out=out, gradient=(0.01, 0.02, 0.03, 0.04, 0.05))
 
 
-def replicate_stat(samples, group, detected_dict, known_dict):
+def replicate_stat(samples, group_name, detected_dict, known_dict, report_false_positive=False):
+    """
+    以 突变为单位的 一致性/检出率 统计
+    根据report_false_positive参数决定是考察已知突变还是考察所有检测到的突变
+    假设这里的samples都具有相同的已知突变
+    """
+    if report_false_positive:
+        detected_mid = set(x for s, d in detected_dict.items() for x in d if s in samples)
+        known_mid = set(known_dict[samples[0]].keys())
+        false_positive_mid = detected_mid - known_mid
+        target_mutations = detected_mid | known_mid
+    else:
+        target_mutations = known_dict[samples[0]].keys()
+        false_positive_mid = set()
+
+    concordance = []
+    concordance_header = ['Sample',	'Mutation', 'Expected AF(%)', 'Detected AF(%)', 'Concordance']
+
     sample_num = len(samples)
     summary = []
     summary_header = [
         'Sample', 'Mutation', 'MAF_Range', 'MAF_Mean', 'MAF_median',
         'MAF(SD)', 'MAF(%CV)', 'Positive_Calls', 'Positive_Calls_Rate'
     ]
-    concordance = []
-    concordance_header = ['Sample',	'Mutation', 'Expected AF(%)', 'Detected AF(%)', 'Concordance']
-    # 假设这里的samples都具有相同的已知突变
-    for mid in known_dict[samples[0]]:
+
+    for mid in target_mutations:
         positive = 0
         af_lst = []
-        mutation = known_dict[samples[0]][mid][0]
+        mutation = None
         for sample in samples:
             if sample not in detected_dict:
                 print(sample, 'not in detected_dict')
                 continue
+            if (mid not in detected_dict[sample]) and (mid not in known_dict[sample]):
+                continue
+            # concordance
+            mutation = known_dict[sample][mid][0] if mid in known_dict[sample] else detected_dict[sample][mid][0]
+            expected_af = known_dict[sample][mid][1] if mid in known_dict[sample] else 'Unexpected'
+            detected_af = detected_dict[sample][mid][1] if mid in detected_dict[sample] else 'Not detected'
+            consistent = 'Yes' if (mid in detected_dict[sample]) and (mid in known_dict[sample]) else 'No'
+            concordance.append([sample, mutation, expected_af, detected_af, consistent])
+            # positive_stat
             if mid in detected_dict[sample]:
                 positive += 1
                 af_lst.append(detected_dict[sample][mid][1])
 
-            expected_af = known_dict[sample][mid][1]
-            detected_af = detected_dict[sample][mid][1] if mid in detected_dict[sample] else 'Not detected'
-            consistent = 'Yes' if (mid in detected_dict[sample]) else 'No'
-            concordance.append([sample, mutation, expected_af, detected_af, consistent])
-
         if not af_lst:
-            af_lst.append('0')
+            af_lst = [0, 0]
+        if len(af_lst) == 1:
+            # 一个数据无法计算标准差
+            af_lst.append(af_lst[0])
         af_lst = [float(x.strip('%')) * 0.01 if x.endswith('%') else float(x) for x in af_lst]
         af_lst = [round(x, 5) for x in af_lst]
         # af_range = str(min(af_lst)) + '-' + str(max(af_lst))
@@ -1426,6 +1452,7 @@ def replicate_stat(samples, group, detected_dict, known_dict):
         confint = pconf(positive, sample_num, method='wilson')
         rate = positive / sample_num
         call = f'{rate:.2%}([{confint[0]:.2%}, {confint[1]:.2%}])'
+        group = group_name +'|Unexpected' if mid in false_positive_mid else group_name
         summary.append([
             group, mutation, af_range, f'{af_mean:.2%}', f'{af_median:.2%}',
             f'{af_std:.2%}', f'{af_cv:.2%}', ratio, call
