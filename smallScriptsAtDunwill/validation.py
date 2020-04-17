@@ -415,12 +415,17 @@ def hotspot2msk(gene_phgvs, out='msk.list.xls'):
                 print('Skip line:', line)
             gene, phgvs = lst
             result.setdefault(gene, dict())
-            if '_' not in phgvs:
-                first_aa = re.match('p.[A-Z][0-9]+', phgvs).group()
-            else:
-                first_aa = re.match('p.[A-Z][0-9]+_[A-Z][0-9]+', phgvs).group()
-            result[gene].setdefault(first_aa, list())
-            result[gene][first_aa].append(phgvs)
+            try:
+                if '_' not in phgvs:
+                    first_aa = re.match('p.[A-Z][0-9]+', phgvs).group()
+                else:
+                    first_aa = re.match('p.[A-Z][0-9]+_[A-Z][0-9]+', phgvs).group()
+                result[gene].setdefault(first_aa, list())
+                result[gene][first_aa].append(phgvs)
+            except Exception as e:
+                print(line)
+                print(e)
+
 
     with open(out, 'w') as f:
         for gene, first_aa in result.items():
@@ -1436,7 +1441,7 @@ def replicate_stat(samples, group_name, detected_dict, known_dict, report_false_
                 af_lst.append(detected_dict[sample][mid][1])
 
         if not af_lst:
-            af_lst = [0, 0]
+            af_lst = ['0', '0']
         if len(af_lst) == 1:
             # 一个数据无法计算标准差
             af_lst.append(af_lst[0])
