@@ -1347,14 +1347,14 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
                     inplace=True
                 )
 
-                concordance_df.to_excel(writer, sheet_name=f'{group}.Replicates')
+                concordance_df.to_excel(writer, sheet_name=f'{group}.Rep')
 
                 mut_cols = summary_df['Mutation'].str.split(':', expand=True)
                 mut_cols.columns = ['Gene', 'Transcript', 'cHgvs', 'pHgvs']
                 mut_cols = summary_df.loc[:, ['Sample']].join(mut_cols)
                 summary_df = mut_cols.join(summary_df.iloc[:, 1:])
 
-                summary_df.to_excel(writer, sheet_name=f'{group}.ReplicateSummary', index=False)
+                summary_df.to_excel(writer, sheet_name=f'{group}.RepSum', index=False)
             else:
                 summary_df, concordance_df = replicate_stat(
                     samples, group, lod_detect_dict, lod_known_dict, report_false_positive
@@ -1381,7 +1381,7 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
                 mut_cols.columns = ['Gene', 'Transcript', 'cHgvs', 'pHgvs']
                 mut_cols = summary_df.loc[:, ['Sample']].join(mut_cols)
                 summary_df = mut_cols.join(summary_df.iloc[:, 1:])
-                summary_df.to_excel(writer, sheet_name=f'{group}.LODSummary', index=False)
+                summary_df.to_excel(writer, sheet_name=f'{group}.LODSum', index=False)
 
     # new_lod_stat
     for group, samples in replicate_dict.items():
