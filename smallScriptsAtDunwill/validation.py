@@ -879,7 +879,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
                 continue
             var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index, af_in_info, dp_in_info)
             sample = list(var_dict.keys())[0]
-            if sample in result:
+            if sample in cmp_result:
                 cmp_result[sample].update(var_dict[sample])
             else:
                 cmp_result.update(var_dict)
