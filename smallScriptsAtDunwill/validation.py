@@ -880,9 +880,9 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
             var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index, af_in_info, dp_in_info)
             sample = list(var_dict.keys())[0]
             if sample in result:
-                result[sample].update(var_dict[sample])
+                cmp_result[sample].update(var_dict[sample])
             else:
-                result.update(var_dict)
+                cmp_result.update(var_dict)
     else:
         with open(out_file, 'w') as fw:
             if col_names:
@@ -920,7 +920,8 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
                 mutations += list(cmp_result[sample].keys())
                 var_dict2 = cmp_result[sample]
             else:
-                raise Exception(f'{sample} 只在一组vcf中出现')
+                print(list(cmp_result.keys()))
+                raise Exception(f'{sample} 不在cmp_vcfs中出现, 请核查')
             if not var_dict and (not var_dict2):
                 print(f'WARN: No hotspot mutation detected in {sample}')
                 fw.write(f'{sample}\tNone\tNone\tNone\tyes\n')
