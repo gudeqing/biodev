@@ -845,7 +845,10 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
     :param exclude_hotspot: 要排除的热点突变路径，默认不提供
     :param cmp_vcfs: vcf路径，与vcfs提供的数量应该一致，该参数是为了比较两种分析的结果是否一致而设计的, 他们涉及的样本必须一致。默认不提供。
     :param col_names: 项目名称，体现在分析结果的header中，如果提供cmp_vcfs，则需提供两个名称，空格分开即可
-    :prefix: 输出结果文件的前缀，后续会自动加上.xls
+    :param prefix: 输出结果文件的前缀，后续会自动加上.xls
+    :param sample_index: 指示vcf中第几个样本是肿瘤样本，即目标样本
+    :param af_in_info: 指示af信息是否在INFO列，如果提供该参数，则从INFO列中AF提取信息, 该参数的设置是发现罗氏的vcf出现这种情况
+    :param dp_in_info: 指示dp信息是否在INFO列，如果提供该参数，则从INFO列中AF提取信息, 该参数的设置是发现罗氏的vcf出现这种情况
     :return: 默认生成all.detected.hotspot.xls文件，'sample\tmutation\tAF1\tAF2\tconsistency\n'
     """
     hots = get_hotspot(hotspot, id_mode)
@@ -905,7 +908,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
             final_df.index.name = 'sample'
             final_df.to_excel(out_file[:-3]+'xlsx')
             final_df.to_csv(out_file, sep='\t')
-        return
+        return result
 
     if col_names:
         name, name2 = '_' + col_names[0], '_' + col_names[1]
@@ -1094,7 +1097,7 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
 
 def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成时间', operator_col='PCR1操作者',
                  replicate_design=None, group_sample=None, lod_group:list=None, report_false_positive=False,
-                 detected_af_cutoff=0.0001, known_af_cutoff=0.02, lod_cutoff=0.0, lod_deviation=0.0,
+                 detected_af_cutoff=0.0, known_af_cutoff=0.0, lod_cutoff=0.0, lod_deviation=0.0,
                  prefix='final_stat', var_id_mode='transcript:chgvs', include_lod_group_for_accuracy=False):
     """
     :param detected: 格式举例, 由batch_extract_hotspot产生
