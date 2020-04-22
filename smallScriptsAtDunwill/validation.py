@@ -892,13 +892,13 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
                 name = '_' + col_names[0]
             else:
                 name = ''
-            fw.write(f'sample\tmutation\tAF{name}\tDepth{name}\tID\tsite\n')
+            fw.write(f'sample\tmutation\tAF{name}(%)\tDepth{name}\tID\tsite\n')
             for sample, var_dict in result.items():
                 if not var_dict:
                     print(f'WARN: No hotspot mutation detected in {sample}')
                     fw.write(f'{sample}\tNone\t0\t0\tNone\tNone\n')
                 for m_id, detail in var_dict.items():
-                    fw.write(f'{sample}\t{detail[0]}\t{detail[1]}\t{detail[2]}\t{detail[3]}\t{detail[4]}\n')
+                    fw.write(f'{sample}\t{detail[0]}\t{detail[1]:.2%}\t{detail[2]}\t{detail[3]}\t{detail[4]}\n')
 
         if sample_info:
             sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
@@ -916,7 +916,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
     else:
         name, name2 = '1', '2'
     with open(out_file, 'w') as fw:
-        fw.write(f'sample\tmutation\tAF{name}\tAF{name2}\tconsistent\tDepth{name}\tDepth{name2}\n')
+        fw.write(f'sample\tmutation\tAF{name}(%)\tAF{name2}(%)\tconsistent\tDepth{name}\tDepth{name2}\n')
         for sample, var_dict in result.items():
             mutations = list(var_dict.keys())
             if sample in cmp_result:
@@ -947,7 +947,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
                     consistent = 'yes'
                 else:
                     consistent = 'no'
-                fw.write(f'{sample}\t{name}\t{af}\t{af2}\t{consistent}\t{dp}\t{dp2}\n')
+                fw.write(f'{sample}\t{name}\t{af:.2%}\t{af2:.2%}\t{consistent}\t{dp}\t{dp2}\n')
     if sample_info:
         sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
         mutation_df = pd.read_csv(out_file, header=0, index_col=0, sep='\t')
