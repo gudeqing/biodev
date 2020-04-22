@@ -1071,7 +1071,7 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
         dec_dict = dict()
         full_dec_dict = dict()
         for line in f:
-            lst = line.strip().split('\t')
+            lst = line.strip().split('\t')[:3]
             sample, af = lst[0], lst[2]
             if af_is_percent:
                 af = float(af)/100
@@ -1081,12 +1081,18 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
             if lst[1] != 'None':
                 gene, transcript, exon, chgvs, phgvs = lst[1].split(':')
                 transcript = transcript.split('.')[0]
-                tmp = dict(zip(['gene', 'transcript', 'exon', 'chgvs', 'phgvs'], [gene, transcript, exon, chgvs, phgvs]))
+                tmp = dict(zip(
+                    ['gene', 'transcript', 'exon', 'chgvs', 'phgvs'],
+                    [gene, transcript, exon, chgvs, phgvs]
+                ))
                 var_id = ':'.join(tmp[x] for x in var_id_mode.split(':'))
                 dec_dict.setdefault(sample, dict())
                 lst[1] = ':'.join([gene, transcript, chgvs, phgvs])
                 if af >= af_cutoff:
                     dec_dict[sample][var_id] = (lst[1], f'{af:.2%}')
+                if var_id in dec_dict[sample] and af < af_cutoff:
+                    print(f'最后一个突变信息{var_id}覆盖掉前面的突变信息')
+                    dec_dict[sample].pop(var_id)
                 full_dec_dict.setdefault(sample, dict())
                 full_dec_dict[sample][var_id] = (lst[1], f'{af:.2%}')
             else:
@@ -1098,7 +1104,7 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
 def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成时间', operator_col='PCR1操作者',
                  replicate_design=None, group_sample=None, lod_group:list=None, report_false_positive=False,
                  detected_af_cutoff=0.0, known_af_cutoff=0.0, lod_cutoff=0.0, lod_deviation=0.0,
-                 prefix='final_stat', var_id_mode='transcript:chgvs', include_lod_group_for_accuracy=False):
+                 prefix='final_stat', var_id_mode='transcript:chgvs', include_lod_for_accuracy=False):
     """
     :param detected: 格式举例, 由batch_extract_hotspot产生
         sample  mutation        AF
@@ -1112,6 +1118,8 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
         第一列为样本id，和detected文件里的样本id一致; 其他列可有可无，
         第二列可以是样本组名，和已知突变known文件里的样本id相对应,
             用于指示属于相同组的样本具有相同的已知突变，这个信息也可以通过sample_group参数提供
+    :param date_col: 指定sample_info中哪一列记录时pcr完成时间信息，用于重复性统计
+    :param operator_col: 指定sample_info中哪一列记录操作人员信息，用于重复性 统计
     :param group_sample: 文件路径. 需要header. 默认无. 用于指示哪些样本共享相同的已知突变
         第一列是样本组名，和已知突变known文件里的样本id相对应, 如果一组有多个样本，可以用';'分割, 也可以采用多行表示分组信息
         第二列为样本id，和detected文件里的样本id一致;
@@ -1129,7 +1137,7 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
     :param lod_deviation: 百分比，配合lod_cutoff使用，对于lod的分组样本，对检测到的突变进行>=lod_cutoff*(1- lod_deviation)过滤
     :param prefix: 准确性统计表的前缀
     :param var_id_mode :指定mutation的唯一id格式, 默认为'transcript:chgvs'.
-    :param include_load_sample_for_accuracy: 为True时, 统计准确性时需要把LOD设计样本包含进来，默认为False，即统计时排除lod设计的样本
+    :param include_lod_for_accuracy: 为True时, 统计准确性时需要把LOD设计样本包含进来，默认为False，即统计时排除lod设计的样本
     """
     outdir = os.path.dirname(prefix)
     lod_groups = lod_group if lod_group is not None else []
@@ -1241,7 +1249,7 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
     accuracy_header = ['Sample', 'TP', 'FP', 'TN', 'FN']
 
     for sample, var_dict in dec_dict.items():
-        if not include_lod_group_for_accuracy and (sample in lod_samples):
+        if not include_lod_for_accuracy and (sample in lod_samples):
             print(f"LOD设计样本{sample}不参与准确性灵敏度等统计")
             continue
         for mid in (set(var_dict.keys()) | set(known_dict[sample].keys())):
@@ -1502,7 +1510,10 @@ def new_lod_stat(samples, detected_dict, known_dict, out=None, gradient=(0.01, 0
                 af_lst.append(detected_dict[sample][mutation][1])
 
         if not af_lst:
-            af_lst.append('0')
+            af_lst = ['0', '0']
+        if len(af_lst) == 1:
+            # 一个数据无法计算标准差
+            af_lst.append(af_lst[0])
         af_lst = [float(x.strip('%')) * 0.01 if x.endswith('%') else float(x) for x in af_lst]
         af_lst = [round(x, 5) for x in af_lst]
         # af_range = str(min(af_lst)) + '-' + str(max(af_lst))
