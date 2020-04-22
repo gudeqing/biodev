@@ -1109,7 +1109,7 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
                  detected_af_cutoff=0.0, known_af_cutoff=0.0, lod_cutoff=0.0, lod_deviation=0.0,
                  prefix='final_stat', var_id_mode='transcript:chgvs', include_lod_for_accuracy=False):
     """
-    :param detected: 格式举例, 由batch_extract_hotspot产生
+    :param detected: 格式举例, 该文件可由batch_extract_hotspot产生的文件的前3列得到
         sample  mutation        AF
         EPS19F1X1L7     CASP8:NM_001228:exon9:c.904G>C:p.D302H  0.07
     :param known: 格式举例, 格式要求必须和detected一样, 必须包含所有需要分析的样本:
@@ -1136,9 +1136,10 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
     :param report_false_positive: 如果设置该参数，那么在重复性/LOD统计时，也会对不在已知突变列表的突变进行统计。
     :param detected_af_cutoff: 实际检测到的突变的af阈值, 用于准确性, 敏感度统计所需，该值不影响LOD分析，默认0.0001
     :param known_af_cutoff: 已知突变的af阈值，当af阈值>=设定的值时才认为是有效已知突变，默认0.02
-    :param lod_cutoff: 对于lod的分组样本，对突变进行>=lod_cutoff过滤
-    :param lod_deviation: 百分比，配合lod_cutoff使用，对于lod的分组样本，对检测到的突变进行>=lod_cutoff*(1- lod_deviation)过滤
-    :param prefix: 准确性统计表的前缀
+    :param lod_cutoff: 对于lod的分组样本，对已知突变进行>=lod_cutoff过滤
+    :param lod_deviation: 百分比，配合lod_cutoff使用，对于lod的分组样本，对检测到的突变进行>=lod_cutoff*(1- lod_deviation)过滤.
+        如果设置为1，则相当于不对检测结果进行过滤
+    :param prefix: 准确性统计表的前缀，输出结果会在文件名后面加xls
     :param var_id_mode :指定mutation的唯一id格式, 默认为'transcript:chgvs'.
     :param include_lod_for_accuracy: 为True时, 统计准确性时需要把LOD设计样本包含进来，默认为False，即统计时排除lod设计的样本
     """
