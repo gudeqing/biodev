@@ -1141,7 +1141,8 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
         如果设置为1，则相当于不对检测结果进行过滤
     :param prefix: 准确性统计表的前缀，输出结果会在文件名后面加xls
     :param var_id_mode :指定mutation的唯一id格式, 默认为'transcript:chgvs'.
-    :param include_lod_for_accuracy: 为True时, 统计准确性时需要把LOD设计样本包含进来，默认为False，即统计时排除lod设计的样本
+    :param include_lod_for_accuracy: 如果提供该参数, 统计准确性时需要把LOD设计样本包含进来，默认为False，即统计时排除lod设计的样本
+    :param return: 输出多个文件，其中{prefix}.xlsx文件为最主要的结果，其中包含多个sheet，几乎囊括所有分析结果.
     """
     outdir = os.path.dirname(prefix)
     lod_groups = lod_group if lod_group is not None else []
@@ -1368,7 +1369,7 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
                 mut_cols = summary_df['Mutation'].str.split(':', expand=True)
                 mut_cols.columns = ['Gene', 'Transcript', 'cHgvs', 'pHgvs']
                 mut_cols = summary_df.loc[:, ['Sample']].join(mut_cols)
-                summary_df = mut_cols.join(summary_df.iloc[:, 1:])
+                summary_df = mut_cols.join(summary_df.iloc[:, 2:])
 
                 summary_df.to_excel(writer, sheet_name=f'{group}.RepSum', index=False)
             else:
@@ -1396,7 +1397,7 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
                 mut_cols = summary_df['Mutation'].str.split(':', expand=True)
                 mut_cols.columns = ['Gene', 'Transcript', 'cHgvs', 'pHgvs']
                 mut_cols = summary_df.loc[:, ['Sample']].join(mut_cols)
-                summary_df = mut_cols.join(summary_df.iloc[:, 1:])
+                summary_df = mut_cols.join(summary_df.iloc[:, 2:])
                 summary_df.to_excel(writer, sheet_name=f'{group}.LODSum', index=False)
 
     # new_lod_stat
