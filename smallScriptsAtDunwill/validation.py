@@ -1073,10 +1073,13 @@ def parse_formated_mutation(detected, af_cutoff, var_id_mode='transcript:chgvs')
         for line in f:
             lst = line.strip().split('\t')[:3]
             sample, af = lst[0], lst[2]
-            if af_is_percent:
-                af = float(af)/100
+            if af.endswith('%'):
+                af = float(af[:-1])/100
             else:
-                af = float(af)
+                if af_is_percent:
+                    af = float(af)/100
+                else:
+                    af = float(af)
             af = round(af, 5)
             if lst[1] != 'None':
                 gene, transcript, exon, chgvs, phgvs = lst[1].split(':')
