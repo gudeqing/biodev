@@ -1119,11 +1119,11 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
     :param var_num: 背景总数，用于计算真阴性
     :param sample_info: 文件路径. 需要header. 必须参数
         第一列为样本id，和detected文件里的样本id一致; 其他列可有可无，
-        第二列可以是样本组名，和已知突变known文件里的样本id相对应,
-            用于指示属于相同组的样本具有相同的已知突变，这个信息也可以通过sample_group参数提供
+        第二列可以是样本组名，和已知突变known文件里的样本id相对应, 用于指示属于相同组的样本具有相同的已知突变.
+        这个信息也可以通过group_sample参数提供,而且group_sample优先.
     :param date_col: 指定sample_info中哪一列记录时pcr完成时间信息，用于重复性统计
     :param operator_col: 指定sample_info中哪一列记录操作人员信息，用于重复性 统计
-    :param group_sample: 文件路径. 需要header. 默认无. 用于指示哪些样本共享相同的已知突变
+    :param group_sample: 文件路径. 默认无. 该文件用于指示哪些样本共享相同的已知突变
         第一列是样本组名，和已知突变known文件里的样本id相对应, 如果一组有多个样本，可以用';'分割, 也可以采用多行表示分组信息
         第二列为样本id，和detected文件里的样本id一致;
     :param replicate_design: 文件路径, 两列, 第一列是组名; 第二列是样本id, 可以用';'分割的多个样本, 也可以采用多行表示分组信息。
