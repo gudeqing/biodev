@@ -1142,7 +1142,7 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
     :param prefix: 准确性统计表的前缀，输出结果会在文件名后面加xls
     :param var_id_mode :指定mutation的唯一id格式, 默认为'transcript:chgvs'.
     :param include_lod_for_accuracy: 如果提供该参数, 统计准确性时需要把LOD设计样本包含进来，默认为False，即统计时排除lod设计的样本
-    :param return: 输出多个文件，其中{prefix}.xlsx文件为最主要的结果，其中包含多个sheet，几乎囊括所有分析结果.
+    :return: 输出多个文件，其中{prefix}.xlsx文件为最主要的结果，其中包含多个sheet，几乎囊括所有分析结果.
     """
     outdir = os.path.dirname(prefix)
     lod_groups = lod_group if lod_group is not None else []
