@@ -124,7 +124,6 @@ def restore_files(path_file, bucket='epionengs'):
         print('Restored data will be deleted after two days!')
 
 
-
 def restore_data(target_path, threads=0):
     """
     对指定的路径中的所有文件进行还原提取
