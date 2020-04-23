@@ -119,9 +119,9 @@ def restore_files(path_file, bucket='epionengs'):
         cmd += """--restore-request '{"Days":2,"GlacierJobParameters":{"Tier":"Standard"}}' """
         print(cmd)
         subprocess.check_call(cmd, shell=True)
-        print('please wait about 12 hours and then download your target file by using other command')
-        print('such as: aws s3 sync s3://epionengs/80011024_CRISPR/190/ 190/')
-        print('Restored data will be deleted after two days!')
+    print('please wait about 12 hours and then download your target file by using other command')
+    print('such as: aws s3 sync s3://epionengs/80011024_CRISPR/190/ 190/')
+    print('Restored data will be deleted after two days!')
 
 
 def restore_data(target_path, threads=0):
