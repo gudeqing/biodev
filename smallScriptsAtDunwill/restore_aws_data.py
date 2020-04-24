@@ -158,6 +158,8 @@ def restore_data(target_path, threads=0):
 
 
 def download(files, outdir=os.getcwd(), bucket='epionengs', threads=3):
+    if type(files) == str:
+        files = [x.strip() for x in open(files)]
     cmds = list()
     for each in files:
         cmd = 'aws s3 cp s3://{bucket}/{each} {outdir}'.format(
