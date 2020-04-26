@@ -825,7 +825,7 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
                     print(key, f'of {sample} is in low coverage region, and will be excluded')
                 elif key in hots:
                     if key not in result[sample]:
-                        print(f'{sample}' + ':' + hots[key] + ':' + f'AF={af}' + ':' + f'DP={depth}')
+                        # print(f'{sample}' + ':' + hots[key] + ':' + f'AF={af}' + ':' + f'DP={depth}')
                         result[sample][key] = [hots[key], af, depth, site_dict['id'], ':'.join(site_info[:2])]
                     else:
                         print(f'{key} is duplicated!')
@@ -834,7 +834,8 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
 
 def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcript:chgvs',
                           exclude_hotspot=None, cmp_vcfs:list=None, col_names:list=None,
-                          prefix="all.detected.hotspot", sample_index=1, af_in_info=False, dp_in_info=False):
+                          prefix="all.detected.hotspot", sample_index=1, cmp_pair=None,
+                          af_in_info=False, dp_in_info=False):
     """
     :param vcfs: vcf 路径, 可以提供多个,每个样本对应一个vcf，样本名将从vcf中提取获得.
         分析结果vcf，如果id_mode中包含['gene', 'transcript', 'exon', 'chgvs', 'phgvs'],则要求info列有AAChange_refGene信息.
@@ -849,6 +850,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
     :param sample_index: 指示vcf中第几个样本是肿瘤样本，即目标样本
     :param af_in_info: 指示af信息是否在INFO列，如果提供该参数，则从INFO列中AF提取信息, 该参数的设置是发现罗氏的vcf出现这种情况
     :param dp_in_info: 指示dp信息是否在INFO列，如果提供该参数，则从INFO列中AF提取信息, 该参数的设置是发现罗氏的vcf出现这种情况
+    :param cmp_pair: 比较信息，即第一组vcf与第二组vcf的配对信息，第一列为第一组vcf中的样本名，第二列为第二组vcf中的样本名
     :return: 默认生成all.detected.hotspot.xls文件，'sample\tmutation\tAF1\tAF2\tconsistency\n'
     """
     hots = get_hotspot(hotspot, id_mode)
@@ -872,21 +874,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
             result.update(var_dict)
 
     out_file = prefix + '.xls'
-    if cmp_vcfs:
-        if len(cmp_vcfs) != len(vcfs):
-            raise Exception('两组vcf数量不相等, 如何比较?')
-        cmp_result = dict()
-        for vcf in cmp_vcfs:
-            if os.path.getsize(vcf) <= 2:
-                print('Empty', vcf)
-                continue
-            var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index, af_in_info, dp_in_info)
-            sample = list(var_dict.keys())[0]
-            if sample in cmp_result:
-                cmp_result[sample].update(var_dict[sample])
-            else:
-                cmp_result.update(var_dict)
-    else:
+    if not cmp_vcfs:
         with open(out_file, 'w') as fw:
             if col_names:
                 name = '_' + col_names[0]
@@ -910,24 +898,54 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
             final_df.to_csv(out_file, sep='\t')
         return result
 
+    else:
+        cmp_result = dict()
+        for vcf in cmp_vcfs:
+            if os.path.getsize(vcf) <= 2:
+                print('Empty', vcf)
+                continue
+            var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index, af_in_info, dp_in_info)
+            sample = list(var_dict.keys())[0]
+            if sample in cmp_result:
+                cmp_result[sample].update(var_dict[sample])
+            else:
+                cmp_result.update(var_dict)
+        # 形成比较信息
+        if cmp_pair is None:
+            intersection = result.keys() & cmp_result.keys()
+            if not intersection:
+                raise Exception('两组vcf没有共同的样本，你也没有提供cmp_pair信息，无法开展比较！')
+            else:
+                print(f'共有{len(intersection)}个交集样本, 将对这些样本进行比较!')
+                pair_dict = dict(zip(intersection, intersection))
+        else:
+            pair_dict = dict(x.strip().split()[:2] for x in open(cmp_pair))
+
     if col_names:
         name, name2 = '_' + col_names[0], '_' + col_names[1]
         out_file = prefix+f'.{col_names[0]}_vs_{col_names[1]}' + '.xls'
     else:
         name, name2 = '1', '2'
     with open(out_file, 'w') as fw:
-        fw.write(f'sample\tmutation\tAF{name}(%)\tAF{name2}(%)\tconsistent\tDepth{name}\tDepth{name2}\n')
-        for sample, var_dict in result.items():
+        if cmp_pair:
+            fw.write(f'ID{name}\tID{name2}\tmutation\tAF{name}(%)\tAF{name2}(%)\tconsistent\tDepth{name}\tDepth{name2}\n')
+        else:
+            fw.write(f'ID\tmutation\tAF{name}(%)\tAF{name2}(%)\tconsistent\tDepth{name}\tDepth{name2}\n')
+        for sample in pair_dict:
+            var_dict = result[sample]
             mutations = list(var_dict.keys())
-            if sample in cmp_result:
-                mutations += list(cmp_result[sample].keys())
-                var_dict2 = cmp_result[sample]
+            if pair_dict[sample] in cmp_result:
+                mutations += list(cmp_result[pair_dict[sample]].keys())
+                var_dict2 = cmp_result[pair_dict[sample]]
             else:
                 print(list(cmp_result.keys()))
-                raise Exception(f'{sample} 不在cmp_vcfs中出现, 请核查')
+                raise Exception(f'{pair_dict[sample]} 不在cmp_vcfs中出现, 请核查')
             if not var_dict and (not var_dict2):
-                print(f'WARN: No hotspot mutation detected in {sample}')
-                fw.write(f'{sample}\tNone\tNone\tNone\tyes\n')
+                print(f'WARN: No hotspot mutation detected in {sample} and {pair_dict[sample]}')
+                if cmp_pair:
+                    fw.write(f'{sample}\t{pair_dict[sample]}\tNone\tNone\tNone\tyes\n')
+                else:
+                    fw.write(f'{sample}\tNone\tNone\tNone\tyes\n')
             for mutation in set(mutations):
                 if mutation in var_dict:
                     name = var_dict[mutation][0]
@@ -947,11 +965,14 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
                     consistent = 'yes'
                 else:
                     consistent = 'no'
-                fw.write(f'{sample}\t{name}\t{af:.2%}\t{af2:.2%}\t{consistent}\t{dp}\t{dp2}\n')
+                if not cmp_pair:
+                    fw.write(f'{sample}\t{name}\t{af:.2%}\t{af2:.2%}\t{consistent}\t{dp}\t{dp2}\n')
+                else:
+                    fw.write(f'{sample}\t{pair_dict[sample]}\t{name}\t{af:.2%}\t{af2:.2%}\t{consistent}\t{dp}\t{dp2}\n')
     if sample_info:
         sample_info_df = pd.read_csv(sample_info, header=0, index_col=0, sep=None, engine='python')
         mutation_df = pd.read_csv(out_file, header=0, index_col=0, sep='\t')
-        mutation_df = mutation_df.round(5)
+        # mutation_df = mutation_df.round(5)
         final_df = mutation_df.join(sample_info_df)
         final_df.index.name = 'sample'
         final_df.to_excel(out_file[:-3]+'xlsx')
