@@ -896,7 +896,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
             for sample, var_dict in result.items():
                 if not var_dict:
                     print(f'WARN: No hotspot mutation detected in {sample}')
-                    fw.write(f'{sample}\tNone\t0\t0\tNone\tNone\n')
+                    fw.write(f'{sample}\tNone\t0.00%\t0\tNone\tNone\n')
                 for m_id, detail in var_dict.items():
                     fw.write(f'{sample}\t{detail[0]}\t{detail[1]:.2%}\t{detail[2]}\t{detail[3]}\t{detail[4]}\n')
 
