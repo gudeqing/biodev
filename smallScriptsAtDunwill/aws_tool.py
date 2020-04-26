@@ -18,12 +18,11 @@ _help = '''
 ```
 $ python restore_aws_data.py 
 The tool has the following sub-commands: 
-Pool
-run_cmd
 get_target_file_path（*本次用到）
 tagging_files（对目标文件打标签，便于进行生命周期策略管理）
 restore_files（*本次用到，基于提供的目标文件路径逐一还原）
 restore_data （对目标目录的所有文件进行还原）
+find_restore_download (匹配目标文件->还原文件->下载文件）
 ```
 
 4. 获得子命令使用说明示例：
@@ -49,7 +48,10 @@ optional arguments:
 
 6. 下载已经还原的数据，注意，还原数据是比较慢的，通常隔天才能完成，除非你愿意加钱。
 （1）举例：aws s3 sync --only-show-errors s3://epionengs/80028_sc_RNA local_path > download.log &  
- (2) 如果有多个文件需要下载，可以写shell循环完成，暂未提供批量下载的脚本
+ (2) 如果有多个文件需要下载，可以写shell循环完成
+
+7. 一键化 搜索-还原-下载：
+python restore_aws_data.py find_restore_download -h
 
 '''
 
@@ -162,7 +164,7 @@ def download(files, outdir=os.getcwd(), bucket='epionengs', threads=3):
         files = [x.strip() for x in open(files)]
     cmds = list()
     for each in files:
-        cmd = 'aws s3 cp s3://{bucket}/{each} {outdir}'.format(
+        cmd = 'aws s3 cp --only-show-errors s3://{bucket}/{each} {outdir}'.format(
             bucket=bucket, each=each, outdir=outdir
         )
         cmds.append(cmd)
@@ -172,7 +174,6 @@ def download(files, outdir=os.getcwd(), bucket='epionengs', threads=3):
 
 def find_restore_download(target_dir, outdir, match='.*\.fastq.gz', restore=False, threads=3, do_not_download=False):
     """
-
     :param target_dir: example "s3://epionengs/80011001_HCC_Metastase/Methylation/"
     :param outdir: 下载结果的输出路径
     :param match: 匹配文件的表达式
@@ -201,6 +202,4 @@ def find_restore_download(target_dir, outdir, match='.*\.fastq.gz', restore=Fals
 
 if __name__ == '__main__':
     from xcmds import xcmds
-    xcmds.xcmds(locals())
-
-
+    xcmds.xcmds(locals(), exclude=['pool', 'run_cmd'])
