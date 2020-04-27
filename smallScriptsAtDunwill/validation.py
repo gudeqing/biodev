@@ -1279,7 +1279,8 @@ def overall_stat(detected, known, var_num:int, sample_info, date_col='PCR1完成
             print(f"LOD设计样本{sample}不参与准确性灵敏度等统计")
             continue
         for mid in (set(var_dict.keys()) | set(known_dict[sample].keys())):
-            mutation = known_dict[sample][mid][0] if mid in known_dict[sample] else var_dict[mid][0]
+            # mutation = known_dict[sample][mid][0] if mid in known_dict[sample] else var_dict[mid][0]
+            mutation = var_dict[mid][0] if mid in var_dict else known_dict[sample][mid][0]
             expected_af = known_dict[sample][mid][1] if mid in known_dict[sample] else 'Unexpected'
             detected_af = var_dict[mid][1] if mid in var_dict else 'Not detected'
             consistent = 'Yes' if (mid in var_dict) and (mid in known_dict[sample]) else 'No'
@@ -1468,7 +1469,8 @@ def replicate_stat(samples, group_name, detected_dict, known_dict, report_false_
             if (mid not in detected_dict[sample]) and (mid not in known_dict[sample]):
                 continue
             # concordance
-            mutation = known_dict[sample][mid][0] if mid in known_dict[sample] else detected_dict[sample][mid][0]
+            # mutation = known_dict[sample][mid][0] if mid in known_dict[sample] else detected_dict[sample][mid][0]
+            mutation = detected_dict[sample][mid][0] if mid in detected_dict[sample] else known_dict[sample][mid][0]
             expected_af = known_dict[sample][mid][1] if mid in known_dict[sample] else 'Unexpected'
             detected_af = detected_dict[sample][mid][1] if mid in detected_dict[sample] else 'Not detected'
             consistent = 'Yes' if (mid in detected_dict[sample]) and (mid in known_dict[sample]) else 'No'
