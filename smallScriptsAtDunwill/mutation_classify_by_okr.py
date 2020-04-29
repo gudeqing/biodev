@@ -155,8 +155,33 @@ def relation_graph(infile, outfile='relation.svg', rankdir='LR', class_condition
     graph.draw(path=outfile, format=img_fmt, prog='dot')
 
 
-def mimic_okr(hot_table, class_condition, out='okr_mutation.xls'):
+def max_distance_to_root(tree, leaf):
+    path = []
+
+    def find_root(tree, leaf):
+        """"
+        tree = dict(a='b', b=['c', 'f'], c=['d', 'g'], d=['e', 'r'])
+                  f   e
+                 /   /
+        a - b - c - d
+                 \   \
+                  g   r
+        """
+        nonlocal path
+        root = leaf
+        if root in tree:
+            for root in tree[root]:
+                path.append(root)
+                yield from find_root(tree, root)
+        else:
+            # 除了已经返回过的节点，每次返回是最深的节点，即距离当前leaf最远的节点
+            yield root, len(path), path
+    return next(find_root(tree, leaf))[1]
+
+
+def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
     class2mut, mut2class = parse_class_conidition(class_condition)
+    print(f'有{len(mut2class)}具体突变被分为{len(class2mut)}类')
     exon2class = parse_class_exon(class_condition)
     protein2class = parse_class_half_known(class_condition)
     deleterious_genes = parse_class_deleterious(class_condition)
@@ -172,14 +197,15 @@ def mimic_okr(hot_table, class_condition, out='okr_mutation.xls'):
     half = re.compile(r'p.([A-Z][0-9]+[*]?).*')
     result = list()
     for ind, (gene, exon, phgvs, tp, onco, func, exonic_func, clnrevstat, clnsig) in target_df.iterrows():
-        result.append(set())
+        result.append([set(), ''])
         go_on = True
 
         if go_on:
             # 搜索是否在具体的分类里
             key = gene + ':' + phgvs
             if key in mut2class:
-                result[-1].update(mut2class[key])
+                result[-1][0].update(mut2class[key])
+                result[-1][1] = '来自OKR具体分类'
                 go_on = False
             else:
                 go_on = True
@@ -204,7 +230,8 @@ def mimic_okr(hot_table, class_condition, out='okr_mutation.xls'):
                     if set(candidates) & cls_set:
                         for each in candidates:
                             if each in cls_set:
-                                result[-1].add(each)
+                                result[-1][0].add(each)
+                                result[-1][1] = '根据半已知突变和数据库注释共同推断分类'
                                 break
                     else:
                         print(f'{ind} {gene} {phgvs} not in range of {cls_set}')
@@ -221,14 +248,24 @@ def mimic_okr(hot_table, class_condition, out='okr_mutation.xls'):
                 candidates = []
                 if tp.lower() in ['deletion', 'insertion']:
                     candidates.append(f'{gene} exon {exon} {tp.lower()}')
-                if onco.lower() in ['Likely_Oncogenic', 'Oncogenic']:
+
+                match = onco.lower() in ['Likely_Oncogenic', 'Oncogenic']
+                match2 = clnrevstat.lower() in ['reviewed_by_expert_panel'] and ('pathogenic' in clnsig.lower())
+                match3 = gene in oncokb_genes
+                match4 = 'splicing' in func.lower()
+                consider = ['frameshift deletion', 'frameshift insertion',
+                            'frameshift substitution', 'stopgain', 'stoploss']
+                match5 = exonic_func.strip().lower() in consider
+                if match or match2 or (match3 and (match4 or match5)):
                     candidates.append(f'{gene} exon {exon} activating mutation')
+
                 candidates.append(f'{gene} exon {exon} mutation')
                 candidates.append(f'{gene} {half.groups()[0]} mutation')
                 if set(candidates) & cls_set:
                     for each in candidates:
                         if each in cls_set:
-                            result[-1].add(each)
+                            result[-1][0].add(each)
+                            result[-1][1] = '根据外显子号和突变类型和数据库注释共同推断分类'
                             break
                 else:
                     print(f'{ind} {gene} {phgvs} not in range of {cls_set}')
@@ -243,9 +280,11 @@ def mimic_okr(hot_table, class_condition, out='okr_mutation.xls'):
             match2 = clnrevstat.lower() in ['reviewed_by_expert_panel'] and ('pathogenic' in clnsig.lower())
             if match or match2:
                 if gene in deleterious_genes:
-                    result[-1].add(f'{gene} deleterious mutation')
+                    result[-1][0].add(f'{gene} deleterious mutation')
+                    result[-1][1] = '根据oncogenic和clinvar判断是否致病'
                 elif gene in activating_genes:
-                    result[-1].add(f'{gene} activating mutation')
+                    result[-1][0].add(f'{gene} activating mutation')
+                    result[-1][1] = '根据oncogenic和clinvar判断是否致病'
                 else:
                     go_on = True
             else:
@@ -260,9 +299,11 @@ def mimic_okr(hot_table, class_condition, out='okr_mutation.xls'):
             match3 = exonic_func.strip().lower() in consider
             if match and (match2 or match3):
                 if gene in deleterious_genes:
-                    result[-1].add(f'{gene} deleterious mutation')
+                    result[-1][0].add(f'{gene} deleterious mutation')
+                    result[-1][1] = '根据oncokb判断是否致病'
                 elif gene in activating_genes:
-                    result[-1].add(f'{gene} activating mutation')
+                    result[-1][0].add(f'{gene} activating mutation')
+                    result[-1][1] = '根据oncokb判断是否致病'
                 else:
                     go_on = True
             else:
@@ -272,12 +313,36 @@ def mimic_okr(hot_table, class_condition, out='okr_mutation.xls'):
             # splicing 判断
             go_on = False
             if 'splicing' in func.lower() and (gene in splice_genes):
-                result[-1].add(f'{gene} splice site mutation')
+                result[-1][0].add(f'{gene} splice site mutation')
+                result[-1][1] = '根据func注释是否包含splice推断分类'
             else:
                 go_on = True
 
-    target_df['OKR_Name'] = [";".join(x) for x in result]
-    target_df.to_csv(out, sep='\t')
+    # 对于多个分类的情况，根据parent信息筛选出层级最低的那个
+    tree = parse_class_parent(parent_info)
+    all_cls = {x.strip().split('\t')[1] for x in open(parent_info)}
+    cls_lst = []
+    reason_lst = []
+    for cls_set, reason in result:
+        if len(cls_set) > 1:
+            cls_depth = map(max_distance_to_root, [tree for x in range(len(cls_set))], list(cls_set))
+            selected = sorted(zip(list(cls_set), cls_depth), key=lambda x:x[1])[-1][0]
+
+            print(selected, 'vs ', cls_set)
+            cls_lst.append(selected)
+        else:
+            if cls_set:
+                for each in cls_set:
+                    if each not in all_cls:
+                        raise Exception(f'分类名{each}不在已知分类里!')
+                    cls_lst.append(each)
+            else:
+                cls_lst.append('')
+        reason_lst.append(reason)
+
+    target_df['OKR_Name'] = cls_lst
+    target_df['myReason'] = reason_lst
+    target_df.to_excel(out, merge_cells=False)
 
 
 if __name__ == '__main__':
