@@ -383,15 +383,17 @@ def dedup_vcf(vcf, out='dedup.vcf'):
     :param out:
     :return:
     """
-    with open(vcf) as f, open(out, 'w') as f2:
+    with open(vcf) as f, open(out, 'w') as f2, open('old2new.pair', 'w') as f3:
         id_set = set()
         for line in f:
             if line.startswith('#'):
                 f2.write(line)
             else:
                 uniq_id = line.strip().split()[:5]
+                old_id = uniq_id[2]
                 uniq_id[2] = '.'
                 uniq_id = ':'.join(uniq_id)
+                f3.write(f'{old_id}\t{uniq_id}\n')
                 if uniq_id in id_set:
                     print('discard duplicated mutation:', line)
                     continue
