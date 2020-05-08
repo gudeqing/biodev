@@ -105,6 +105,29 @@ def parse_class_activating(infile):
     return genes
 
 
+def parse_class_mutation(infile):
+    table = pd.read_csv(infile, header=0, index_col=0, sep=None, engine='python')
+    pattern = re.compile(r'([A-Z0-9]+) mutation$')
+    genes = set()
+    for each in table['variant_class']:
+        match = pattern.match(each)
+        if match:
+            genes.add(match.groups()[0])
+    return genes
+
+
+def parse_class_aberration(infile):
+    table = pd.read_csv(infile, header=0, index_col=0, sep=None, engine='python')
+    pattern = re.compile(r'([A-Z0-9]+) aberration$')
+    genes = set()
+    for each in table['variant_class']:
+        match = pattern.match(each)
+        if match:
+            genes.add(match.groups()[0])
+    return genes
+
+
+
 def parse_class_splice(infile):
     table = pd.read_csv(infile, header=0, index_col=0, sep=None, engine='python')
     pattern = re.compile(r'([A-Z0-9]+) splice site mutation')
@@ -188,6 +211,10 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
     activating_genes = parse_class_activating(class_condition)
     oncokb_genes = oncokb_truncating_genes()
     splice_genes = parse_class_splice(class_condition)
+    mutation_genes = parse_class_mutation(class_condition)
+    aberration_genes = parse_class_aberration(class_condition)
+    print('deleterious_genes:{}, activating_genes:{}, splice_genes:{}, mutation_genes:{}, aberration_genes:{}'.format(
+        len(deleterious_genes), len(activating_genes), len(splice_genes), len(mutation_genes), len(aberration_genes)))
 
     table = pd.read_csv(hot_table, header=0, sep=None, engine='python').fillna('.')
     table = table.set_index(['#CHROM', 'POS', 'REF', 'ALT'])
@@ -315,6 +342,24 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
             if 'splicing' in func.lower() and (gene in splice_genes):
                 result[-1][0].add(f'{gene} splice site mutation')
                 result[-1][1] = '根据func注释是否包含splice推断分类'
+            else:
+                go_on = True
+
+        if go_on:
+            # 归为mutation
+            go_on = False
+            if gene in mutation_genes:
+                result[-1][0].add(f'{gene} mutation')
+                result[-1][1] = '根据OKR mutation'
+            else:
+                go_on = True
+
+        if go_on:
+            # 归为mutation
+            go_on = False
+            if gene in aberration_genes:
+                result[-1][0].add(f'{gene} aberration')
+                result[-1][1] = '根据OKR aberration'
             else:
                 go_on = True
 
