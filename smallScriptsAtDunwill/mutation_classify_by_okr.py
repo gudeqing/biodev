@@ -355,7 +355,7 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
                 go_on = True
 
         if go_on:
-            # 归为mutation
+            # 归为aberration
             go_on = False
             if gene in aberration_genes:
                 result[-1][0].add(f'{gene} aberration')
@@ -372,7 +372,6 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
         if len(cls_set) > 1:
             cls_depth = map(max_distance_to_root, [tree for x in range(len(cls_set))], list(cls_set))
             selected = sorted(zip(list(cls_set), cls_depth), key=lambda x:x[1])[-1][0]
-
             print(selected, 'vs ', cls_set)
             cls_lst.append(selected)
         else:
