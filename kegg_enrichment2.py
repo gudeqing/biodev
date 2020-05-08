@@ -422,7 +422,7 @@ if __name__ == '__main__':
                                       only_consider_path_annotated_genes=args.only_consider_path_annotated_genes,
                                       geneid2symbol=args.geneid2symbol)
         result = hypergeom_test(data, sort_fdr=FDR)
-        result_file = os.path.join(args.o, os.path.basename(deg_file)+'.kegg_enrichment.xls')
+        result_file = os.path.join(args.o, os.path.basename(deg_file)+'.kegg.xls')
         f = open(result_file, 'w')
         f.write(
             '#Term\tDatabase\tID\tRatio_in_study\tRatio_in_pop\tP-Value\tCorrected P-Value\tGenes\tHyperlink\ttypeII\ttypeI\n')
