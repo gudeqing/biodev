@@ -428,10 +428,14 @@ def hotspot2msk(gene_phgvs, out='msk.list.xls'):
                 print(line)
                 print(e)
 
-
     with open(out, 'w') as f:
         for gene, first_aa in result.items():
-            lst = [gene, ','.join(first_aa.keys())]
+            tmp_list = list(first_aa.keys())
+            tmp_list = [(x, re.match('p.([A-Z])([0-9]+)', x).groups()) for x in tmp_list]
+            # 按位置和氨基酸简写排序
+            tmp_list = sorted(tmp_list, key=lambda x:(int(x[1][1]), x[1][0]))
+            print(tmp_list)
+            lst = [gene, ','.join(x[0] for x in tmp_list)]
             f.write('\t'.join(lst)+'\n')
 
     with open(out+'.source.xls', 'w') as f:
