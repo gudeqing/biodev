@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="2fc8cfeb-87f5-4e5a-b56a-e7d8624f98f8" name="dunwill (project level)" url="http://10.60.2.132">
+        <fileTransfer host="10.60.2.132" port="22" rootFolder="/data/users/dqgu" accessType="SFTP">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

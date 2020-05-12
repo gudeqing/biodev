@@ -1,6 +1,8 @@
 import itertools
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as  EC
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
@@ -17,12 +19,11 @@ profile.set_preference('browser.download.dir', 'd:\\')
 profile.set_preference('browser.download.folderList', 2)
 profile.set_preference('browser.download.manager.showWhenStarting', False)
 # 下面的类型根据https://www.w3school.com.cn/media/media_mimeref.asp查询
-profile.set_preference('browser.helperApps.neverAsk.saveToDisk', 'text/plain, application/pdf, application/octet-stream, text/plain;charset=UTF-8, text/css')
-
+profile.set_preference('browser.helperApps.neverAsk.saveToDisk', 'application/pdf')
 # 打开浏览器
 options = Options()
 options.add_argument('-headless')  # 无头参数
-executable_path = 'D:\\firefoxdriver\\geckodriver.exe'
+executable_path = 'D:\geckodriver-v0.26.0-win64\geckodriver.exe'
 browser = webdriver.Firefox(executable_path=executable_path, firefox_profile=profile)
 # wait = WebDriverWait(browser, 10)
 # browser.implicitly_wait(10)
@@ -36,121 +37,6 @@ browser.find_element_by_id('password').send_keys('dunwill1220')
 browser.find_element_by_id('submit').click()
 time.sleep(2)
 
-
-def get_report():
-    mutation_index = range(1058)
-    cancer_index = range(67)
-    filter_index = range(6)
-    number = 0 
-    for m_idx, c_idx, f_idx in itertools.product(mutation_index, cancer_index, filter_index):
-        number += 1
-        if number > 3:
-            break
-
-        # 切换到目标页面
-        browsite = 'http://10.62.2.16:8088/#/browse'
-        browser.get(browsite)
-        time.sleep(3)
-
-        for mu_id in [m_idx, m_idx+3]:
-            # 找到下面这个元素并点击，触发下拉框
-            classes = browser.find_element_by_id('classes')
-            classes.click()
-            time.sleep(2)
-            # 触发下拉框后，可以定位所有下拉框的选项，他们存储在<ul>中
-            ul = classes.find_element_by_class_name('select2-result-single')
-            mutation_lst = ul.find_elements_by_tag_name('li')
-            print('Mutation number is', len(mutation_lst))
-            mutation = mutation_lst[m_idx]
-            mutation_txt = mutation.text
-            mutation.click()
-            time.sleep(1)
-
-        # 找到下面这个元素并点击，触发下拉框
-        indication = browser.find_element_by_id('indication')
-        new_class_name = 'ui-select-container select2 select2-container ng-invalid ng-invalid-required ng-touched select2-container-active select2-dropdown-open open direction-up'
-        browser.execute_script("arguments[0].setAttribute(arguments[1],arguments[2])", indication, 'class', new_class_name)
-        indication.click()
-        time.sleep(1)
-        
-        # 触发下拉框后，可以定位所有下拉框的选项，他们存储在<ul>中
-        class_name = '.select2-result-single select2-result-sub'.replace(' ', '.')
-        uls = indication.find_elements_by_css_selector(class_name)
-        cancer_lst = []
-        for ul in uls:
-            cancer_lst += ul.find_elements_by_tag_name('li')
-        print([x.text.encode() for x in cancer_lst])
-        with open('cancer_type.txt', 'wb') as f:
-            for each in cancer_lst:
-                f.write(each.text.encode(encoding='UTF-8')+b'\n')
-
-        print('Cancer type number is', len(cancer_lst))
-        cancer = cancer_lst[c_idx]
-        cancer_txt = cancer.text
-        cancer.click()
-        time.sleep(2)
-
-        # 找到下面这个元素并点击，触发下拉框
-        preset = browser.find_element_by_id('filterPreset')
-        preset.click()
-        time.sleep(1)
-        # 触发下拉框后，可以定位所有下拉框的选项，他们存储在<ul>中
-        ul = preset.find_element_by_class_name('select2-result-single')
-        filter_lst = ul.find_elements_by_tag_name('li')
-        print('Filter number', len(filter_lst))
-        print([x.text for x in filter_lst])
-        filt = filter_lst[f_idx]
-        filt_txt = filt.text
-        filt.click()
-        time.sleep(2)
-
-        # 提交选项
-        browser.find_element_by_css_selector('.btn.btn-primary').click()
-        time.sleep(3)
-
-        # 进入报告页面并点击‘generate report’
-        browser.find_element_by_css_selector('.btn.btn-primary').click()
-        time.sleep(4)
-
-        # 选择模板
-        # select report template
-        temp = browser.find_element_by_id('reportTemplate')
-        new_class_name = 'ui-select-container select2 select2-container ng-invalid ng-invalid-required ng-touched select2-container-active select2-dropdown-open open'
-        # 修改temp的class才能触发下拉框
-        browser.execute_script("arguments[0].setAttribute(arguments[1],arguments[2])", temp, 'class', new_class_name)
-        temp.click()
-        time.sleep(2)
-        ul = temp.find_element_by_class_name('select2-result-single')
-        lis = ul.find_elements_by_tag_name('li')
-        print('report template number is', len(lis))
-        print([x.text for x in lis])
-        lis[2].click()
-        time.sleep(1)
-
-        # 设置报告名称
-        my_report_name = '('+mutation_txt+')'+'('+cancer_txt+')'+'('+filt_txt+')'
-        report_name_obj = browser.find_element_by_name('reportFilename')
-        report_name_obj.clear()
-        report_name_obj.send_keys(my_report_name)
-        time.sleep(1)
-
-        # format selection
-        txt_button = browser.find_element_by_xpath("//input[@value='PDF']")
-        new_class_name = 'ng-valid ng-valid-required ng-dirty ng-touched ng-valid-parse'
-        # 修改txt_button才能勾选Txt选项
-        browser.execute_script("arguments[0].setAttribute(arguments[1],arguments[2])", txt_button, 'class', new_class_name)
-        txt_button.click()
-        time.sleep(1)
-
-        # download report
-        browser.find_element_by_css_selector('.btn.btn-primary').click()
-        time.sleep(3)
-        # 切换到目标页面
-        browsite = 'http://10.62.2.16:8088/#/browse'
-        browser.get(browsite)
-        time.sleep(3)
-
-# browser.quit()
 
 def get_gene_description():
     browser.get('http://10.62.2.16:8088/#/narrative')
@@ -192,23 +78,184 @@ def get_gene_description():
         time.sleep(1)
 
     desc_file.close()
-        
-
-get_gene_description()
 
 
-with open('known.mutations.xls') as f, open('final.hotspots.vcf') as f2:
-    query = dict()
-    for line in f2:
-        hgvs = line.strip().split('=', 1)[1]
-        key = hgvs.split(':')[0] + ':' + hgvs.split(':')[3]
-        query[key] = hgvs
-    with open('new.known.mutations.xls', 'w') as f3:
-        f3.write(f.readline())
-        for line in f:
-            sample, hgvs, af = line.strip().split()
-            key = hgvs.split(':')[0] + ':' + hgvs.split(':')[3]
-            if key in query:
-                f3.write(f'{sample}\t{query[key]}\t{af}\n')
-            else:
-                print('failed:', line)
+def get_report(mutations, cancer, filter_preset, template, report_name='report'):
+    # 切换到目标页面
+    browsite = 'http://10.62.2.16:8088/#/browse'
+    browser.get(browsite)
+    time.sleep(3)
+    mut_txts = []
+    for mut in mutations:
+        print('selecting', mut)
+        # 找到下面这个元素并点击，触发下拉框
+        classes = browser.find_element_by_id('classes')
+        # classes.click()
+        # time.sleep(2)
+        # 限定选择范围
+        choices = classes.find_element_by_class_name('select2-search-field').find_element_by_tag_name('input')
+        choices.send_keys(mut)
+        time.sleep(1)
+        # 触发下拉框后，可以定位所有下拉框的选项，他们存储在<ul>中
+        ul = classes.find_element_by_class_name('select2-result-single')
+        mutation_lst = ul.find_elements_by_tag_name('li')
+        if len(mutation_lst) <= 0:
+            raise Exception('可选突变列表为空了！')
+        else:
+            print('Mutation number is', len(mutation_lst))
+        for x in mutation_lst:
+            if x.text == mut:
+                x.click()
+                mut_txts.append(mut)
+                break
+        time.sleep(1)
+
+    # 找到下面这个元素并点击，触发下拉框
+    indication = browser.find_element_by_id('indication')
+    new_class_name = 'ui-select-container select2 select2-container ng-invalid ng-invalid-required ng-touched select2-container-active select2-dropdown-open open direction-up'
+    browser.execute_script("arguments[0].setAttribute(arguments[1],arguments[2])", indication, 'class',
+                           new_class_name)
+    indication.click()
+    time.sleep(1)
+
+    # 触发下拉框后，可以定位所有下拉框的选项，他们存储在<ul>中
+    class_name = '.select2-result-single select2-result-sub'.replace(' ', '.')
+    uls = indication.find_elements_by_css_selector(class_name)
+    cancer_lst = []
+    for ul in uls:
+        cancer_lst += ul.find_elements_by_tag_name('li')
+
+    # print([x.text.encode() for x in cancer_lst])
+    # with open('cancer_type.txt', 'wb') as f:
+    #     for each in cancer_lst:
+    #         f.write(each.text.encode(encoding='UTF-8') + b'\n')
+    # print('Cancer type number is', len(cancer_lst))
+
+    if type(cancer) == int:
+        cancer = cancer_lst[cancer]
+        cancer_txt = cancer.text
+        cancer.click()
+    else:
+        for x in cancer_lst:
+            if x.text == cancer:
+                x.click()
+                cancer_txt = cancer
+                break
+    time.sleep(2)
+
+    # 找到下面这个元素并点击，触发下拉框
+    preset = browser.find_element_by_id('filterPreset')
+    preset.click()
+    time.sleep(1)
+    # 触发下拉框后，可以定位所有下拉框的选项，他们存储在<ul>中
+    ul = preset.find_element_by_class_name('select2-result-single')
+    filter_lst = ul.find_elements_by_tag_name('li')
+    # print('Filter number', len(filter_lst))
+    # print([x.text for x in filter_lst])
+
+    if type(filter_preset) == int:
+        filt = filter_lst[filter_preset]
+        filt_txt = filt.text
+        filt.click()
+    else:
+        for x in filter_lst:
+            if x.text == filter_preset:
+                x.click()
+                filt_txt = filter_preset
+                break
+    time.sleep(2)
+
+    # 提交选项
+    browser.find_element_by_css_selector('.btn.btn-primary').click()
+    time.sleep(3)
+
+    # 进入报告页面并点击‘generate report’
+    browser.find_element_by_css_selector('.btn.btn-primary').click()
+    time.sleep(4)
+
+    # 选择模板
+    temp = browser.find_element_by_id('reportTemplate')
+    new_class_name = 'ui-select-container select2 select2-container ng-invalid ng-invalid-required ng-touched select2-container-active select2-dropdown-open open'
+    # 修改temp的class才能触发下拉框
+    browser.execute_script("arguments[0].setAttribute(arguments[1],arguments[2])", temp, 'class', new_class_name)
+    temp.click()
+    time.sleep(2)
+    ul = temp.find_element_by_class_name('select2-result-single')
+    tmp_list = ul.find_elements_by_tag_name('li')
+    # print('report template number is', len(lis))
+    # print([x.text for x in lis])
+    if type(template) == int:
+        tmp = tmp_list[template]
+        tmp_txt = tmp.text
+        tmp.click()
+    else:
+        for x in tmp_list:
+            if x.text == template:
+                tmp_txt = template
+                x.click()
+                break
+    time.sleep(1)
+
+    # summary
+    print('query:', mut_txts)
+    print('cancer:', cancer_txt)
+    print('filterPreset:', filt_txt)
+    print('reportTemplate:', tmp_txt)
+    print('report_name:', report_name)
+
+    # 设置报告名称
+    report_name_obj = browser.find_element_by_name('reportFilename')
+    report_name_obj.clear()
+    report_name_obj.send_keys(report_name)
+    time.sleep(1)
+
+    # --------- download pdf -----------
+    txt_button = browser.find_element_by_xpath("//input[@value='{}']".format('PDF'))
+    new_class_name = 'ng-valid ng-valid-required ng-dirty ng-touched ng-valid-parse'
+    # 修改txt_button才能勾选Txt选项
+    browser.execute_script("arguments[0].setAttribute(arguments[1],arguments[2])", txt_button, 'class',
+                           new_class_name)
+    txt_button.click()
+    time.sleep(1)
+
+    # download report
+    download_button = browser.find_element_by_css_selector('.btn.btn-primary')
+    download_button.click()
+    time.sleep(3)
+    #
+    import mouse
+    # print(mouse.get_position())
+    time.sleep(2)
+    mouse.move(718, 459)
+    mouse.click('left')
+    time.sleep(2)
+
+    # ----------download TXT---------
+    txt_button = browser.find_element_by_xpath("//input[@value='{}']".format('TXT'))
+    new_class_name = 'ng-valid ng-valid-required ng-dirty ng-touched ng-valid-parse'
+    # 修改txt_button才能勾选Txt选项
+    browser.execute_script("arguments[0].setAttribute(arguments[1],arguments[2])", txt_button, 'class',
+                           new_class_name)
+    txt_button.click()
+    time.sleep(1)
+
+    # download report
+    download_button = browser.find_element_by_css_selector('.btn.btn-primary')
+    download_button.click()
+    time.sleep(3)
+    #
+    import mouse
+    # print(mouse.get_position())
+    time.sleep(2)
+    mouse.move(718, 459)
+    mouse.click('left')
+    time.sleep(1)
+
+
+if __name__ == '__main__':
+    get_report(
+        ['BRAF activating mutation', 'BARD1 mutation', 'BCOR deleterious mutation',  'MTOR mutation',  'BARD1 deletion'],
+        cancer='Non-Small Cell Lung Cancer',
+        filter_preset='Epi800_Test',
+        template='CL_800_Panel',
+    )
