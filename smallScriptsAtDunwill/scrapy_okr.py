@@ -221,7 +221,7 @@ def get_report(mutations, cancer, filter_preset, template, report_name='report')
     # download report
     download_button = browser.find_element_by_css_selector('.btn.btn-primary')
     download_button.click()
-    time.sleep(3)
+    time.sleep(5)
     #
     import mouse
     # print(mouse.get_position())
@@ -253,9 +253,15 @@ def get_report(mutations, cancer, filter_preset, template, report_name='report')
 
 
 if __name__ == '__main__':
+    mutations = ['FBXW7 deleterious mutation', 'KRAS G12 mutation', 'ERBB3 mutation', 'TP53 mutation']
+    mutations.append('Tumor Mutational Burden'),
+    # mutations += ['Microsatellite stable']
+    mutations += ['Microsatellite instability-High']
+    # mutations += ['Microsatellite instability-Low']
     get_report(
-        ['BRAF activating mutation', 'BARD1 mutation', 'BCOR deleterious mutation',  'MTOR mutation',  'BARD1 deletion'],
-        cancer='Non-Small Cell Lung Cancer',
+        mutations,
+        # cancer='Non-Small Cell Lung Cancer',
+        cancer='Rectal Cancer',
         filter_preset='Epi800_Test',
         template='CL_800_Panel',
     )
