@@ -570,7 +570,7 @@ class DiffExpToolbox(object):
             else:
                 f.write('colData <- data.frame(row.names=colnames(tmp_counts), group=tmp_group)\n')
                 f.write('dds <- DESeqDataSetFromMatrix(countData=tmp_counts, colData=colData, design= ~group)\n')
-            f.write('rlogCounts = rlog(dds, blind=T)\n')
+            f.write('rlogCounts = rlog(dds, blind=F)\n')
             if len(ctrl_names + test_names) > 2:
                 f.write('pdf("{}/{}_vs_{}.pca.pdf")\n'.format(output, ctrl, test))
             if self.batch_dict:
