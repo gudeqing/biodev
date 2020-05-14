@@ -1,7 +1,7 @@
 import os
 from subprocess import check_call
 import pandas as pd
-from pysam import VariantFile
+from pysam import VariantFile, FastaFile
 
 
 def filter_vcf(vcf, out, af=0.02, tumour=1):
@@ -27,9 +27,21 @@ def annovar_annotation(vcf):
     return f'{vcf}.hg19_multianno.vcf'
 
 
-def process_annovar_txt(infile, comm_trans, hots=None, af=0.02):
+def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, bp_num=25):
     raw = pd.read_csv(infile, header=0, sep=None, engine='python')
     raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[2].astype(float)
+    up_streams = []
+    down_streams = []
+    if genome:
+        genome = FastaFile(genome)
+        for chr_name, start in zip(raw['Chr'], raw['Start']):
+            up_pos = start - bp_num if start >= bp_num else 0
+            up = genome.fetch(chr_name, up_pos, start+1)
+            down = genome.fetch(chr_name, start-1, start+bp_num)
+            up_streams.append(up)
+            down_streams.append(down)
+        raw['up_start'] = up_streams
+        raw['down_start'] = down_streams
     # 提取常用转录本hgvs注释信息
     cts = dict(x.strip().split()[:2] for x in open(comm_trans))
     hgvs_header = ['Transcript', 'NT_Change', 'AA_Change']
@@ -50,6 +62,9 @@ def process_annovar_txt(infile, comm_trans, hots=None, af=0.02):
     hgvs_df = pd.DataFrame(hgvs_list, columns=hgvs_header, index=raw.index)
     raw = raw.join(hgvs_df, rsuffix='_new')
     start_cols = 'Chr,Start,End,Ref,Alt,Func_refGene,GeneDetail_refGene,Gene_refGene,ExonicFunc_refGene,Transcript,NT_Change,AA_Change,AF'.split(',')
+    if 'up_start' in raw.columns:
+        start_cols.append('up_start')
+        start_cols.append('down_start')
     order = start_cols + [x for x in raw.columns if x not in start_cols]
     new = raw.loc[:, order]
     new.to_csv(infile[:-3]+'xls', sep='\t', index=False)
@@ -129,7 +144,7 @@ def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspo
     return target
 
 
-def pipeline(vcf, hots, comm_trans, af=0.02, tumour=1):
+def pipeline(vcf, hots, comm_trans, genome=None, af=0.02, tumour=1):
     """
     通过爬虫的方式注释进行okr注释和爬取报告
     :return:
@@ -143,7 +158,7 @@ def pipeline(vcf, hots, comm_trans, af=0.02, tumour=1):
     basename = os.path.basename(annovar_vcf)
     out = os.path.join(dirname, 'filtered.'+basename)
     filtered = filter_vcf(annovar_vcf, out, af=af, tumour=tumour)
-    detected = process_annovar_txt(annovar_vcf[:-3]+'txt', comm_trans, hots=hots, af=af)
+    detected = process_annovar_txt(annovar_vcf[:-3]+'txt', comm_trans, genome=genome, hots=hots, af=af)
     if os.path.exists(detected):
         detected = pd.read_excel(detected)
         okr_names = detected['OKR_Name']
