@@ -223,8 +223,10 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
     target_df = table.loc[:, targets]
     half = re.compile(r'p.([A-Z][0-9]+[*]?).*')
     result = list()
+    other_reportable = list()
     for ind, (gene, exon, phgvs, tp, onco, func, exonic_func, clnrevstat, clnsig) in target_df.iterrows():
         result.append([set(), ''])
+        other_reportable.append('')
         go_on = True
 
         if go_on:
@@ -309,10 +311,13 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
                 if gene in deleterious_genes:
                     result[-1][0].add(f'{gene} deleterious mutation')
                     result[-1][1] = '根据oncogenic和clinvar判断是否致病'
+                    other_reportable[-1] = ''
                 elif gene in activating_genes:
                     result[-1][0].add(f'{gene} activating mutation')
                     result[-1][1] = '根据oncogenic和clinvar判断是否致病'
+                    other_reportable[-1] = ''
                 else:
+                    other_reportable[-1] = f'{gene} mutation'
                     go_on = True
             else:
                 go_on = True
@@ -328,10 +333,13 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
                 if gene in deleterious_genes:
                     result[-1][0].add(f'{gene} deleterious mutation')
                     result[-1][1] = '根据oncokb判断是否致病'
+                    other_reportable[-1] = ''
                 elif gene in activating_genes:
                     result[-1][0].add(f'{gene} activating mutation')
                     result[-1][1] = '根据oncokb判断是否致病'
+                    other_reportable[-1] = ''
                 else:
+                    other_reportable[-1] = f'{gene} mutation'
                     go_on = True
             else:
                 go_on = True
@@ -342,6 +350,7 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
             if 'splicing' in func.lower() and (gene in splice_genes):
                 result[-1][0].add(f'{gene} splice site mutation')
                 result[-1][1] = '根据func注释是否包含splice推断分类'
+                other_reportable[-1] = ''
             else:
                 go_on = True
 
@@ -351,6 +360,7 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
             if gene in mutation_genes:
                 result[-1][0].add(f'{gene} mutation')
                 result[-1][1] = '根据OKR mutation'
+                other_reportable[-1] = ''
             else:
                 go_on = True
 
@@ -360,6 +370,7 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
             if gene in aberration_genes:
                 result[-1][0].add(f'{gene} aberration')
                 result[-1][1] = '根据OKR aberration'
+                other_reportable[-1] = ''
             else:
                 go_on = True
 
@@ -386,6 +397,7 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
 
     target_df['OKR_Name'] = cls_lst
     target_df['myReason'] = reason_lst
+    target_df['other_reportable'] = other_reportable
     target_df.to_excel(out, merge_cells=False)
 
 
