@@ -840,7 +840,7 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
 
 def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcript:chgvs',
                           exclude_hotspot=None, cmp_vcfs:list=None, col_names:list=None,
-                          prefix="all.detected.hotspot", sample_index=1, cmp_pair=None,
+                          prefix="all.detected.hotspot", sample_index:list=(1,), cmp_pair=None,
                           af_in_info=False, dp_in_info=False):
     """
     :param vcfs: vcf 路径, 可以提供多个,每个样本对应一个vcf，样本名将从vcf中提取获得.
@@ -859,6 +859,8 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
     :param cmp_pair: 比较信息，即第一组vcf与第二组vcf的配对信息，第一列为第一组vcf中的样本名，第二列为第二组vcf中的样本名
     :return: 默认生成all.detected.hotspot.xls文件，'sample\tmutation\tAF1\tAF2\tconsistency\n'
     """
+    if len(sample_index) == 1:
+        sample_index = sample_index*2
     hots = get_hotspot(hotspot, id_mode)
     print(f'There are {len(hots)} mutation in our hotspot database')
     if exclude_hotspot:
@@ -872,7 +874,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
         if os.path.getsize(vcf) <= 2:
             print('Empty', vcf)
             continue
-        var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index, af_in_info, dp_in_info)
+        var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index[0], af_in_info, dp_in_info)
         sample = list(var_dict.keys())[0]
         if sample in result:
             result[sample].update(var_dict[sample])
@@ -910,7 +912,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
             if os.path.getsize(vcf) <= 2:
                 print('Empty', vcf)
                 continue
-            var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index, af_in_info, dp_in_info)
+            var_dict = extract_hotspot_from_vcf(vcf, hots, exclude_hots, id_mode, sample_index[1], af_in_info, dp_in_info)
             sample = list(var_dict.keys())[0]
             if sample in cmp_result:
                 cmp_result[sample].update(var_dict[sample])
