@@ -793,7 +793,13 @@ def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transc
             if af_in_info:
                 af = round(record.info['AF'][0], 4)
             else:
-                af = round(record.samples[sample]['AF'][0], 4)
+                if 'AF' not in record.samples[sample]:
+                    if record.samples[sample]['DP'] <= 0:
+                        af = '?'
+                    else:
+                        af = round(record.samples[sample]['AD'][1]/record.samples[sample]['DP'], 4)
+                else:
+                    af = round(record.samples[sample]['AF'][0], 4)
 
             if dp_in_info:
                 depth = record.info['DP']
