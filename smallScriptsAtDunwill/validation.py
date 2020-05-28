@@ -679,7 +679,7 @@ def simplify_annovar_vcf(vcf, out_prefix, often_trans=None, filter=None):
         # 仅保留INFO中AAChange_refGene信息
         with VariantFile(out_prefix+'.vcf', 'w', header=fr.header) as fw:
             for record in fr:
-                if record.info['AAChange_refGene'][0] != '.':
+                if record.info['AAChange_refGene'][0] not in ['.', 'UNKNOWN']:
                     # for key in record.info.keys():
                     #     if key != 'AAChange_refGene':
                     #         record.info.pop(key)
