@@ -46,7 +46,7 @@ def run(files:list, exp=None, out_prefix='result', has_header=False,
         set_number = table.shape[1]
         set_names = table.columns if set_names is None else set_names
         for i in range(table.shape[1]):
-            exec('s{}=set(table.iloc[:, {}])'.format(i+1, i))
+            exec('s{}=set(table.iloc[:, {}].dropna())'.format(i+1, i))
             exec('venn_set_dict["{}"] = s{}'.format(set_names[i], i + 1))
 
     result = list()
