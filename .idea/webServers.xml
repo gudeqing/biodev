@@ -9,6 +9,13 @@
           </advancedOptions>
         </fileTransfer>
       </webServer>
+      <webServer id="29529af1-a2f1-4798-8b77-2e70fc9c7a15" name="dunwill133">
+        <fileTransfer rootFolder="/data/users/dqgu" accessType="SFTP" host="10.60.2.133" port="22" sshConfigId="491cd626-7fd8-4a38-9397-87d998957e26" sshConfig="dqgu@10.60.2.133:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
     </option>
   </component>
 </project>
