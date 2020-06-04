@@ -14,6 +14,9 @@ def pca(table, row_sum_cutoff=1, exp_cutoff=0.5, cv_cutoff=0.01, pass_exp_cutoff
     if target_row:
         targets = [x.strip().split()[0] for x in open(target_row)]
         data = data.loc[targets].copy()
+    if group_file is not None:
+        group_info = pd.read_csv(group_file, sep=None, index_col=0, header=0, engine='python')
+        data = data[group_info.index].copy()
     data = data.loc[data.sum(axis=1) >= row_sum_cutoff]
     pass_state = data.apply(lambda x: sum(x > exp_cutoff), axis=1)
     if pass_exp_cutoff_num is None:
@@ -24,9 +27,9 @@ def pca(table, row_sum_cutoff=1, exp_cutoff=0.5, cv_cutoff=0.01, pass_exp_cutoff
     data.round(4).to_csv('{}.filtered.data.txt'.format(prefix), header=True, index=True, sep='\t')
     if not no_log_transform:
         data = np.log(data + log_additive)
+    data = data.transpose()
     if not no_pre_scale:
         data = data.apply(preprocessing.scale, axis=0)
-    data = data.transpose()
     pca = decomposition.PCA()
     pca.fit(data)
     _ratio = list(enumerate(pca.explained_variance_ratio_, start=1))
@@ -52,7 +55,7 @@ def pca(table, row_sum_cutoff=1, exp_cutoff=0.5, cv_cutoff=0.01, pass_exp_cutoff
     plt_data = result.iloc[:, [x-1, y-1]]
     if group_file is not None:
         group_info = pd.read_csv(group_file, sep=None, index_col=0, header=0, engine='python')
-        plt_data = plt_data.join(group_info)
+        plt_data = plt_data.join(group_info.astype(str))
     pca_scatter(plt_data, out_file='{}.html'.format(prefix), annotate=annotate,
                 text_size=text_size, marker_size=marker_size, stretch=stretch)
     return result
