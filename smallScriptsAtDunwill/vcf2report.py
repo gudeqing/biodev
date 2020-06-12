@@ -1,4 +1,6 @@
 import os
+import math
+from glob import glob
 from subprocess import check_call
 import pandas as pd
 from pysam import VariantFile, FastaFile
@@ -37,7 +39,10 @@ from pysam import VariantFile, FastaFile
 """
 
 
-def filter_vcf(vcf, out, af=0.02, tumour=1):
+def filter_vcf_by_af(vcf, af=0.02, tumour=1):
+    dirname = os.path.dirname(vcf)
+    basename = os.path.basename(vcf)
+    out = os.path.join(dirname, 'filtered.' + basename)
     cmd = 'bcftools filter '
     cmd += f'-i "FORMAT/AF[{tumour}:0]>={af}" '
     cmd += f'-o {out} '
@@ -52,16 +57,47 @@ def annovar_annotation(vcf):
     调用annovar注释vcf而已
     :return:
     """
-    script_path = os.path.abspath(__file__)
-    if os.path.islink(script_path):
-        script_path = os.readlink(script_path)
-    dirname = os.path.dirname(script_path)
-    check_call(f'sh {dirname}/annovar.sh {vcf} > log.txt', shell=True)
-    return f'{vcf}.hg19_multianno.vcf'
+    if os.path.exists(f'{vcf}.hg19_multianno.vcf'):
+        print('annotated result already exists, skip now!')
+        return f'{vcf}.hg19_multianno.vcf', f'{vcf}.hg19_multianno.txt'
+    annovar = "/nfs2/software/annovar/ANNOVAR_2019.10.24/table_annovar.pl"
+    annovardb = "/nfs2/database/annovar/humandb/"
+    cmd = f"{annovar} {vcf} {annovardb} -buildver hg19 -out {vcf} -remove "
+    protocols =','.join([
+        'refGeneWithVer', 'cytoBand', 'avsnp150', 'snp138NonFlagged',
+        'AVENIO', 'EpioneHS',
+        'cosmic90', 'Oncomine', 'CGI', 'CBMDB', 'CIVIC', 'DOCM', 'CHASMplus',
+        'IntOGen', 'TCGA_PCDM', 'TCGA', 'icgc21', 'CancerHotspots', 'nci60', 'clinvar_20200316',
+        'esp6500siv2_all', '1000g2015aug_all', 'exac03', 'gnomad_exome', 'gme', 'cg69', 'hrcr1',
+        'intervar_20180118', 'dbnsfp33a'
+    ])
+    operations = 'g,r,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f'
+    args = '-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,' \
+           '-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs,-hgvs'
+    cmd += f'-protocol {protocols} '
+    cmd += f'-operation {operations} '
+    cmd += f"--argument '{args}' "
+    cmd += "-nastring . -vcfinput --dot2underline --thread 12 --maxgenethread 20 "
+    check_call(cmd, shell=True)
+    return f'{vcf}.hg19_multianno.vcf', f'{vcf}.hg19_multianno.txt'
 
 
-def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, bp_num=25):
-    raw = pd.read_csv(infile, header=0, sep=None, engine='python')
+def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not_hot_af=0.05, bp_num=25):
+    """
+    某些突变有可能不在常用转录本内，而且有多个转录本的注释，这个时候chgvs信息将为空
+    :param infile:
+    :param comm_trans:
+    :param genome:
+    :param hots:
+    :param af:
+    :param not_hot_af:
+    :param bp_num:
+    :return:
+    """
+    if type(infile) != str:
+        raw = infile
+    else:
+        raw = pd.read_csv(infile, header=0, sep=None, engine='python')
     raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[2].astype(float)
     up_streams = []
     down_streams = []
@@ -79,7 +115,8 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, bp_
     cts = dict(x.strip().split()[:2] for x in open(comm_trans))
     hgvs_header = ['Transcript', 'NT_Change', 'AA_Change']
     hgvs_list = []
-    for each in raw['AAChange_refGene']:
+    aa_changes = raw['AAChange_refGene'] if 'AAChange_refGene' in raw else raw['AAChange_refGeneWithVer']
+    for each in aa_changes:
         hgvs_list.append(['', '', ''])
         if len(each) >= 2:
             all_hgvs = each.split(',')
@@ -94,12 +131,14 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, bp_
                     break
     hgvs_df = pd.DataFrame(hgvs_list, columns=hgvs_header, index=raw.index)
     raw = raw.join(hgvs_df, rsuffix='_new')
-    start_cols = 'Chr,Start,End,Ref,Alt,Func_refGene,GeneDetail_refGene,Gene_refGene,ExonicFunc_refGene,Transcript,NT_Change,AA_Change,AF'.split(',')
+    ver = 'WithVer' if 'Func_refGeneWithVer' in raw else ''
+    start_cols = f'Chr,Start,End,Ref,Alt,Func_refGene{ver},GeneDetail_refGene{ver},Gene_refGene{ver},ExonicFunc_refGene{ver},Transcript,NT_Change,AA_Change,AF'.split(',')
     if 'up_start' in raw.columns:
         start_cols.append('up_start')
         start_cols.append('down_start')
     order = start_cols + [x for x in raw.columns if x not in start_cols]
     new = raw.loc[:, order]
+    # new是没有过滤的信息，输出加入了新信息的annovar注释结果
     new.to_csv(infile[:-3]+'xls', sep='\t', index=False)
 
     # 过滤
@@ -109,10 +148,10 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, bp_
     dirname = os.path.dirname(infile)
     basename = 'filtered.' + os.path.basename(infile)[:-3]+'xls'
     out_filtered = os.path.join(dirname, basename)
+    # 输出过滤后的加入了新信息的annovar注释结果
     filtered.to_csv(out_filtered, sep='\t', index=False)
 
     # 提取hot信息
-    out = os.path.join(dirname, 'detected.hotspot.xlsx')
     if hots:
         hot_df = pd.read_excel(hots, header=0, index_col=0)
         hot_df.set_index('1', inplace=True)
@@ -125,15 +164,18 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, bp_
         start_cols = start_cols + ['OKR_Name', 'is_hotspot']
         order = start_cols + [x for x in new.columns if x not in start_cols]
         new = new[order]
+        # 在annovar注释的结果中加入OKR_Name和is_hotspot信息后输出
         new.to_csv(infile[:-3] + 'xls', sep='\t', index=False)
 
-        # 提取hotspot
-        candidates = filtered['Otherinfo4']+':'+filtered['Otherinfo5'].astype(str)+\
-                     ':'+filtered['Otherinfo6']+':'+filtered['Otherinfo7']+':'+filtered['Otherinfo8']
-        filtered['is_hotspot'] = [x in hot_df.index for x in candidates]
-        filtered['OKR_Name'] = [hot_df.loc[x, 'OKR_Name'] if x in hot_df.index else '' for x in candidates]
-        filtered = filtered[order]
+        # 按照af过滤结果并输出
+        filtered = new.loc[new['AF'] >= af, :]
+        # 对于非hotspot采用af>0.05过滤
+        inds = filtered['is_hotspot'] | (filtered['AF'] >= not_hot_af)
+        filtered = filtered.loc[inds]
         filtered.to_csv(out_filtered, sep='\t', index=False)
+
+        # 提取hotspot，输出命中的hotspot，表格内容以原hotspot为主，即仅仅提取hotspot信息
+        out = os.path.join(dirname, 'detected.hotspot.xlsx')
         hits = [x for x in candidates if x in hot_df.index]
         if hits:
             hits_df = hot_df.loc[hits]
@@ -141,7 +183,9 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, bp_
         else:
             hits_df = None
             print('No hotspot detected!')
-    return out
+        return out
+    else:
+        return out_filtered
 
 
 def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspot'):
@@ -180,7 +224,15 @@ def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspo
     return target
 
 
-def parse_cnr(cnr, out='cnv.final.txt', single_cutoff=1.0, mean_cutoff=0.0):
+def parse_cnr(cnr, out='cnv.final.txt', amplication_cutoff=math.log2(3), deletion_cutoff=0, okr_targets=None):
+    okr_cnv_dict = dict()
+    okr_query_lst = []
+    if okr_targets:
+        with open(okr_targets) as f:
+            for line in f:
+                gene, fname = line.strip().split()
+                okr_cnv_dict[gene] = fname
+
     with open(cnr) as f, open(out, 'w') as fw:
         # chromosome, start, end, gene, depth, log2, weight
         header = f.readline().strip().split('\t')
@@ -189,10 +241,15 @@ def parse_cnr(cnr, out='cnv.final.txt', single_cutoff=1.0, mean_cutoff=0.0):
             lst = line.strip().split('\t')
             log2cn = float(lst[-1])
             gene_info = lst[3]
-            if abs(log2cn) >= single_cutoff and len(gene_info.split(';')) > 1:
+            if (log2cn >= amplication_cutoff or log2cn <= deletion_cutoff) and len(gene_info.split(';')) > 1:
                 gene_info_dict = dict(x.split('=') for x in gene_info.split(';') if '=' in x)
                 if 'ensembl_gn' in gene_info_dict:
                     gene = gene_info_dict['ensembl_gn']
+                    if log2cn > 0 and f'{gene} amplification' in okr_cnv_dict:
+                        okr_query_lst.append(f'{gene} amplification')
+                    elif log2cn <= 0 and f'{gene} deletion' in okr_cnv_dict:
+                        okr_query_lst.append(f'{gene} deletion')
+
                     result.setdefault(gene, list())
                     result[gene].append(log2cn)
                 else:
@@ -202,23 +259,43 @@ def parse_cnr(cnr, out='cnv.final.txt', single_cutoff=1.0, mean_cutoff=0.0):
         fw.write('gene\tmeanLog2CN\n')
         for gene, log2cn_lst in result.items():
             mean_cn = sum(log2cn_lst)/len(log2cn_lst)
-            if abs(mean_cn) >= mean_cutoff:
-                fw.write(f'{gene}\t{mean_cn}\n')
-    return out
+            fw.write(f'{gene}\t{mean_cn}\n')
+    return okr_query_lst
 
 
-def annotate_sv(vcf):
-    cmd = f"""bcftools filter -i 'FILTER="PASS" & INFO/PRECISE=1' {vcf} -o filtered.{vcf} """
-    cmd2 = f"/nfs2/software/SVAFotate/svafotate.py -i filtered.{vcf} -o svafotate.filtered.{vcf} -ccdg /nfs2/software/SVAFotate/ccdg_sv_afs.bed.gz --gnomad /nfs2/software/SVAFotate/gnomad_sv_afs.bed.gz"
-    cmd3 = f"java -Xmx4g -jar /nfs2/software/snpEff/snpEff.jar -v hg19 svafotate.filtered.{vcf} > snpeff.svafotate.filtered.{vcf}"
-    cmd4 = f"/nfs2/software/simple_sv_annotation/simple_sv_annotation.py snpeff.svafotate.filtered.{vcf} -o simple.snpeff.svafotate.filtered.{vcf} --gene_list /storage/dqgu/OKR/reportPipe/database/fusion.gene.list --known_fusion_pairs /nfs2/software/simple_sv_annotation/fusion_pairs.txt"
-    cmd5 = f"bcftools annotate -x 'INFO/ANN' -o simple.snpeff.svafotate.filtered.{vcf} simple.snpeff.svafotate.filtered.{vcf}"
-    cmd6 = f"/nfs2/software/svtools/vcfToBedpe -i simple.snpeff.svafotate.filtered.{vcf} -o simple.snpeff.svafotate.filtered.{vcf}.bedpe"
+def annotate_sv(vcf, out='fusion.final.txt', target_genes=None, okr_fusion_list=None, okr_fusion_pairs=None):
+    if target_genes:
+        targets = set(x.strip().split('\t')[0] for x in open(target_genes))
+    else:
+        targets = []
+
+    okr_f_s_d = dict()
+    if okr_fusion_list:
+        with open(okr_fusion_list) as f:
+            for line in f:
+                gene, fname = line.strip().split()
+                okr_f_s_d[gene] = fname
+
+    okr_f_p_d = dict()
+    if okr_fusion_pairs:
+        with open(okr_fusion_pairs) as f:
+            for line in f:
+                gene_pair, fname = line.strip().split()
+                okr_f_p_d[gene_pair] = fname
+
+    cmd = f"""bcftools filter -i 'FILTER="PASS" & INFO/PRECISE=1' {vcf} -o {vcf}.filtered """
+    cmd2 = f"/nfs2/software/SVAFotate/svafotate.py -i {vcf}.filtered -o {vcf}.filtered.svafotate -ccdg /nfs2/software/SVAFotate/ccdg_sv_afs.bed.gz --gnomad /nfs2/software/SVAFotate/gnomad_sv_afs.bed.gz"
+    cmd3 = f"java -Xmx4g -jar /nfs2/software/snpEff/snpEff.jar -v hg19 {vcf}.filtered.svafotate > {vcf}.filtered.svafotate.snpeff"
+    cmd4 = f"/nfs2/software/simple_sv_annotation/simple_sv_annotation.py {vcf}.filtered.svafotate.snpeff -o {vcf}.filtered.svafotate.snpeff.simple --known_fusion_pairs /nfs2/software/simple_sv_annotation/fusion_pairs.txt"
+    cmd5 = f"bcftools annotate -x 'INFO/ANN' -o {vcf}.filtered.svafotate.snpeff.simplex {vcf}.filtered.svafotate.snpeff.simple"
+    cmd6 = f"/nfs2/software/svtools/vcfToBedpe -i {vcf}.filtered.svafotate.snpeff.simplex -o {vcf}.filtered.svafotate.snpeff.simplex.bedpe"
     descs = ['filtering', 'svafotate pop freq', 'snpeff annotate', 'simplify annotation', 'remove ANN', 'vcf2Bed']
     for each, desc in zip([cmd, cmd2, cmd3, cmd4, cmd5, cmd6], descs):
         print('running:', desc)
         check_call(each, shell=True)
-    with open(f"simple.snpeff.svafotate.filtered.{vcf}.bedpe") as f, open('final_fusion.txt', 'w') as fw:
+
+    okr_query = []
+    with open(f"{vcf}.filtered.svafotate.snpeff.simplex.bedpe") as f, open(out, 'w') as fw:
         #0:CHROM_A 1:START_A 2:END_A 3:CHROM_B 4:START_B 5:END_B 6:ID 7:QUAL 8:STRAND_A 9:STRAND_B 10:TYPE 11:FILTER 12:INFO 13:FORMAT 14:T190079D1L18 15:B180518G1L2
         header = f.readline()
         fw.write('fusion_genes\tbreak_positions\ttype\n')
@@ -231,41 +308,118 @@ def annotate_sv(vcf):
                 annot = lst[12].split('simple_ANN=')[1].split(',')
                 g1 = annot[0].split('|')[2]
                 g2 = annot[1].split('|')[2]
-                break_pos = f'{lst[0]}:{(int(lst[1])+int(lst[2]))//2}-{lst[3]}:{(int(lst[4])+int(lst[5]))//2}'
-                fw.write(f'{g1}--{g2}\t{break_pos}\t{lst[10]}\n')
+                report = False
+                if g1+'-'+g2 in okr_f_p_d:
+                    report = True
+                    okr_query.append(okr_f_p_d[g1 + '-' + g2])
+                elif g2+'-'+g1 in okr_f_p_d:
+                    report = True
+                    okr_query.append(okr_f_p_d[g2 + '-' + g1])
+                elif g1 in okr_f_s_d or g2 in okr_f_s_d:
+                    report = True
+                    if g1 in okr_f_s_d:
+                        okr_query.append(okr_f_s_d[g1])
+                    if g2 in okr_f_s_d:
+                        okr_query.append(okr_f_s_d[g2])
+                elif g1 in targets or g2 in targets:
+                    report = True
+
+                if report:
+                    break_pos = f'{lst[0]}:{(int(lst[1])+int(lst[2]))//2}-{lst[3]}:{(int(lst[4])+int(lst[5]))//2}'
+                    fw.write(f'{g1}--{g2}\t{break_pos}\t{lst[10]}\n')
             else:
                 pass
+    return okr_query
 
 
-def pipeline(vcf, hots, comm_trans, genome=None, af=0.02, tumour=1, msi=0, tmb=0):
+def filter_germline(vcf, target_genes, comm_trans, genome):
+    targets = set(x.strip().split('\t')[0] for x in open(target_genes))
+    annovar_vcf, annovar_txt = annovar_annotation(vcf)
+    a = pd.read_table(annovar_txt)
+    f = ['pathogenic' in x.lower() for x in a['CLNSIG']]
+    f0 = [x == 'reviewed_by_expert_panel' for x in a['CLNREVSTAT']]
+    f1 = [x != 'intronic' for x in a['Func_refGeneWithVer']]
+    f2 = [x in targets for x in a['Gene_refGeneWithVer']]
+    # AF > 0.2
+    f3 = [any(float(y) >= 0.2 for y in x.split(':')[2].split(',')) >= 0.2 for x in a['Otherinfo14']]
+    f4 = [x == '.' or float(x) <= 0.01 for x in a['esp6500siv2_all']]
+    f5 = [x == '.' or float(x) <= 0.01 for x in a['1000g2015aug_all']]
+    f6 = [x == '.' or float(x) <= 0.01 for x in a['ExAC_ALL']]
+    f7 = [x == '.' or float(x) <= 0.01 for x in a['gnomAD_exome_ALL']]
+    f8 = [x == '.' or float(x) <= 0.01 for x in a['gnomAD_exome_EAS']]
+    f9 = [x == '.' or float(x) <= 0.01 for x in a['ExAC_EAS']]
+    m = pd.DataFrame([f1, f2, f3, f4, f5, f6, f7, f8, f9]).T
+    all_match = m.apply(all, axis=1)
+    p = ( pd.Series(f) & pd.Series(f0) & pd.Series(f2) & pd.Series(f3) ) | all_match
+    r = a.loc[p]
+    if r.shape[0] == 0:
+        print(f'{annovar_txt} is empty after filtering!')
+    # r.to_csv(file[:-3] + 'filtered.xls', sep='\t')
+    out = process_annovar_txt(r, comm_trans, genome=genome, hots=None, af=0.0, bp_num=25)
+    return out
+
+
+def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1,
+             hots='/nfs2/database/Panel800/hotspot.xlsx',
+             genome='/nfs2/database/1_human_reference/hg19/ucsc.hg19.fasta',
+             comm_trans='/nfs2/database/Panel800/common_transcripts.txt',
+             target_fusion_genes='/nfs2/database/Panel800/other.fusion.gene.list',
+             okr_fusion_list='/nfs2/database/Panel800/okr.fusion.gene.list',
+             okr_fusion_pairs='/nfs2/database/Panel800/okr.fusion.pair',
+             target_germline_genes='/nfs2/database/Panel800/germline.target.txt'
+             ):
     """
     通过爬虫的方式注释进行okr注释和爬取报告
     :return:
     """
-    if not os.path.exists(f'{vcf}.hg19_multianno.vcf'):
-        annovar_vcf = annovar_annotation(vcf)
-    else:
-        print('annovar注释结果已存在,不再重新注释')
-        annovar_vcf = f'{vcf}.hg19_multianno.vcf'
-    dirname = os.path.dirname(annovar_vcf)
-    basename = os.path.basename(annovar_vcf)
-    out = os.path.join(dirname, 'filtered.'+basename)
-    filtered = filter_vcf(annovar_vcf, out, af=af, tumour=tumour)
-    detected = process_annovar_txt(annovar_vcf[:-3]+'txt', comm_trans, genome=genome, hots=hots, af=af)
+    # indel processing
+    indel_vcfs = glob(os.path.join(input_dir, 'TNVariantCaller.mutations.*.vcf'))
+    indel_vcf = sorted(indel_vcfs, key=lambda x:len(x))[0]
+    annovar_vcf, annovar_txt = annovar_annotation(indel_vcf)
+    _ = filter_vcf_by_af(annovar_vcf, af=af, tumour=tumour_ind)
+
+    detected = process_annovar_txt(annovar_txt, comm_trans, genome=genome, hots=hots, af=af, not_hot_af=not_hot_af)
+
+    tmb_file = glob(os.path.join(input_dir, 'TMB.TNVariantCaller.mutations.*.vcf.txt'))[0]
+    with open(tmb_file) as f:
+        tmb = float(f.readline().split('TMB:')[1].strip())
+    msi_file = glob(os.path.join(input_dir, '*.TNMSI.output'))[0]
+    with open(msi_file) as f:
+        _ = f.readline()
+        msi = float(f.readline().split()[2])
+
+    okr_query_lst = []
+    if msi >= 10:
+        okr_query_lst.append('Microsatellite instability-High')
+    if tmb >= 10:
+        okr_query_lst.append('Tumor Mutational Burden')
+
     if os.path.exists(detected):
         detected = pd.read_excel(detected)
         okr_names = detected['OKR_Name']
-        mutations = [x for x in okr_names if type(x) == str]
-        with open('okr_query.list') as f:
-            for each in mutations:
-                f.write(each+'\n')
-            if msi >= 10:
-                mutations.append('Microsatellite instability-High')
-                f.write('Microsatellite instability-High\n')
-            if tmb >= 10:
-                f.write('Tumor Mutational Burden\n')
-                mutations.append('Tumor Mutational Burden')
-        print(mutations)
+        okr_query_lst += [x for x in okr_names if type(x) == str]
+
+    # cnv processing
+    cnv_file = glob(os.path.join(input_dir, '*.HQ20.cnr'))[0]
+    out = os.path.join(input_dir, 'cnv.final.txt')
+    cnv_query = parse_cnr(cnv_file, out)
+    okr_query_lst += cnv_query
+
+    # fusion processing
+    sv_file = glob(os.path.join(input_dir, 'SV.*.vcf'))[0]
+    out = os.path.join(input_dir, 'fusion.final.txt')
+    fusion_okr_query = annotate_sv(sv_file, out, target_fusion_genes, okr_fusion_list, okr_fusion_pairs)
+    okr_query_lst += fusion_okr_query
+
+    print('okr query:', okr_query_lst)
+    with open('okr_query.list', 'w') as f:
+        for each in okr_query_lst:
+            f.write(each + '\n')
+
+    # germline processing
+    germline_vcfs =  glob(os.path.join(input_dir, 'germline.*.vcf'))
+    germline_vcf = sorted(germline_vcfs, key=lambda x: len(x))[0]
+    filter_germline(germline_vcf, target_germline_genes, comm_trans, genome)
 
 
 if __name__ == '__main__':
