@@ -224,7 +224,7 @@ def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspo
     return target
 
 
-def parse_cnr(cnr, out='cnv.final.txt', amplication_cutoff=math.log2(3), deletion_cutoff=0, okr_targets=None):
+def parse_cnr(cnr, out='cnv.final.txt', amplification_cutoff=math.log2(3), deletion_cutoff=0, okr_targets=None):
     okr_cnv_dict = dict()
     okr_query_lst = []
     if okr_targets:
@@ -241,7 +241,7 @@ def parse_cnr(cnr, out='cnv.final.txt', amplication_cutoff=math.log2(3), deletio
             lst = line.strip().split('\t')
             log2cn = float(lst[-1])
             gene_info = lst[3]
-            if (log2cn >= amplication_cutoff or log2cn <= deletion_cutoff) and len(gene_info.split(';')) > 1:
+            if (log2cn >= amplification_cutoff or log2cn <= deletion_cutoff) and len(gene_info.split(';')) > 1:
                 gene_info_dict = dict(x.split('=') for x in gene_info.split(';') if '=' in x)
                 if 'ensembl_gn' in gene_info_dict:
                     gene = gene_info_dict['ensembl_gn']
@@ -290,6 +290,12 @@ def annotate_sv(vcf, out='fusion.final.txt', target_genes=None, okr_fusion_list=
     cmd5 = f"bcftools annotate -x 'INFO/ANN' -o {vcf}.filtered.svafotate.snpeff.simplex {vcf}.filtered.svafotate.snpeff.simple"
     cmd6 = f"/nfs2/software/svtools/vcfToBedpe -i {vcf}.filtered.svafotate.snpeff.simplex -o {vcf}.filtered.svafotate.snpeff.simplex.bedpe"
     descs = ['filtering', 'svafotate pop freq', 'snpeff annotate', 'simplify annotation', 'remove ANN', 'vcf2Bed']
+    if os.path.exists(f'{vcf}.filtered.svafotate.snpeff.simple'):
+        os.remove(f'{vcf}.filtered.svafotate.snpeff.simple')
+    if os.path.exists(f'{vcf}.filtered.svafotate.snpeff.simplex'):
+        os.remove(f'{vcf}.filtered.svafotate.snpeff.simplex')
+    if os.path.exists(f'{vcf}.filtered.svafotate.snpeff.simplex.bedpe'):
+        os.remove(f'{vcf}.filtered.svafotate.snpeff.simplex.bedpe')
     for each, desc in zip([cmd, cmd2, cmd3, cmd4, cmd5, cmd6], descs):
         print('running:', desc)
         check_call(each, shell=True)
@@ -338,10 +344,18 @@ def filter_germline(vcf, target_genes, comm_trans, genome):
     a = pd.read_table(annovar_txt)
     f = ['pathogenic' in x.lower() for x in a['CLNSIG']]
     f0 = [x == 'reviewed_by_expert_panel' for x in a['CLNREVSTAT']]
-    f1 = [x != 'intronic' for x in a['Func_refGeneWithVer']]
-    f2 = [x in targets for x in a['Gene_refGeneWithVer']]
+    if 'Func_refGeneWithVer' in a:
+        f1 = [x != 'intronic' for x in a['Func_refGeneWithVer']]
+    else:
+        f1 = [x != 'intronic' for x in a['Func_refGene']]
+    if 'Gene_refGeneWithVer' in a:
+        f2 = [x in targets for x in a['Gene_refGeneWithVer']]
+    else:
+        f2 = [x in targets for x in a['Gene_refGene']]
     # AF > 0.2
-    f3 = [any(float(y) >= 0.2 for y in x.split(':')[2].split(',')) >= 0.2 for x in a['Otherinfo14']]
+    last_col = a.columns[-1]
+    # 下面一行试图寻找AF，有可能vcf中没有直接AF信息
+    f3 = [any(float(y) >= 0.2 for y in x.split(':')[2].split(',')) >= 0.2 for x in a[last_col]]
     f4 = [x == '.' or float(x) <= 0.01 for x in a['esp6500siv2_all']]
     f5 = [x == '.' or float(x) <= 0.01 for x in a['1000g2015aug_all']]
     f6 = [x == '.' or float(x) <= 0.01 for x in a['ExAC_ALL']]
@@ -354,18 +368,23 @@ def filter_germline(vcf, target_genes, comm_trans, genome):
     r = a.loc[p]
     if r.shape[0] == 0:
         print(f'{annovar_txt} is empty after filtering!')
-    # r.to_csv(file[:-3] + 'filtered.xls', sep='\t')
-    out = process_annovar_txt(r, comm_trans, genome=genome, hots=None, af=0.0, bp_num=25)
-    return out
+    else:
+        # 加工一下过滤结果，主要是为了提取common转录本的hgvs信息
+        old = annovar_txt[:-3]+'filtered.txt'
+        r.to_csv(old)
+        out = process_annovar_txt(old, comm_trans, genome=genome, hots=None, af=0.0, bp_num=25)
+        os.remove(old)
+        return out
 
 
-def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1,
+def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1, msi_cutoff=10, tmb_cutoff=10,
              hots='/nfs2/database/Panel800/hotspot.xlsx',
              genome='/nfs2/database/1_human_reference/hg19/ucsc.hg19.fasta',
              comm_trans='/nfs2/database/Panel800/common_transcripts.txt',
              target_fusion_genes='/nfs2/database/Panel800/other.fusion.gene.list',
              okr_fusion_list='/nfs2/database/Panel800/okr.fusion.gene.list',
              okr_fusion_pairs='/nfs2/database/Panel800/okr.fusion.pair',
+             okr_cnv_genes='/nfs2/database/Panel800/okr.cnv.gene.list',
              target_germline_genes='/nfs2/database/Panel800/germline.target.txt'
              ):
     """
@@ -373,13 +392,16 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1,
     :return:
     """
     # indel processing
+    print('Step1: annovar注释'.format(af))
     indel_vcfs = glob(os.path.join(input_dir, 'TNVariantCaller.mutations.*.vcf'))
     indel_vcf = sorted(indel_vcfs, key=lambda x:len(x))[0]
     annovar_vcf, annovar_txt = annovar_annotation(indel_vcf)
     _ = filter_vcf_by_af(annovar_vcf, af=af, tumour=tumour_ind)
 
+    print('Step2: 依据{}提取hotspot, 包括af过滤:hotspot af>={} 或 非hotspot af>={}'.format(hots, af, not_hot_af))
     detected = process_annovar_txt(annovar_txt, comm_trans, genome=genome, hots=hots, af=af, not_hot_af=not_hot_af)
 
+    print('Step3: 提取tmb和msi信息并判定tmb >= {}, msi >= {}'.format(msi_cutoff, tmb_cutoff))
     tmb_file = glob(os.path.join(input_dir, 'TMB.TNVariantCaller.mutations.*.vcf.txt'))[0]
     with open(tmb_file) as f:
         tmb = float(f.readline().split('TMB:')[1].strip())
@@ -388,41 +410,43 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1,
         _ = f.readline()
         msi = float(f.readline().split()[2])
 
-    okr_query_lst = []
-    if msi >= 10:
-        okr_query_lst.append('Microsatellite instability-High')
-    if tmb >= 10:
-        okr_query_lst.append('Tumor Mutational Burden')
-
-    if os.path.exists(detected):
-        detected = pd.read_excel(detected)
-        okr_names = detected['OKR_Name']
-        okr_query_lst += [x for x in okr_names if type(x) == str]
-
+    print('Step4: 提取cnv信息，并判定OKR是否可以注释提取的CNV')
     # cnv processing
     cnv_file = glob(os.path.join(input_dir, '*.HQ20.cnr'))[0]
     out = os.path.join(input_dir, 'cnv.final.txt')
-    cnv_query = parse_cnr(cnv_file, out)
-    okr_query_lst += cnv_query
+    cnv_query = parse_cnr(cnv_file, out, okr_targets=okr_cnv_genes)
 
+    print('Step5: 提取融合信息，并判定OKR是否可以查询该融合信息')
     # fusion processing
     sv_file = glob(os.path.join(input_dir, 'SV.*.vcf'))[0]
     out = os.path.join(input_dir, 'fusion.final.txt')
     fusion_okr_query = annotate_sv(sv_file, out, target_fusion_genes, okr_fusion_list, okr_fusion_pairs)
-    okr_query_lst += fusion_okr_query
 
+    print("Step6: 输出可以用于OKR 查询的列表")
+    okr_query_lst = []
+    if msi >= msi_cutoff:
+        okr_query_lst.append('Microsatellite instability-High')
+    if tmb >= tmb_cutoff:
+        okr_query_lst.append('Tumor Mutational Burden')
+    if os.path.exists(detected):
+        detected = pd.read_excel(detected)
+        okr_names = detected['OKR_Name']
+        okr_query_lst += [x for x in okr_names if type(x) == str]
+    okr_query_lst += cnv_query
+    okr_query_lst += fusion_okr_query
     print('okr query:', okr_query_lst)
     with open('okr_query.list', 'w') as f:
         for each in okr_query_lst:
             f.write(each + '\n')
 
+    print('Step7: 过滤germline的SNP/indel')
     # germline processing
-    germline_vcfs =  glob(os.path.join(input_dir, 'germline.*.vcf'))
+    germline_vcfs = glob(os.path.join(input_dir, 'germline.*.vcf'))
     germline_vcf = sorted(germline_vcfs, key=lambda x: len(x))[0]
     filter_germline(germline_vcf, target_germline_genes, comm_trans, genome)
 
 
 if __name__ == '__main__':
     from xcmds import xcmds
-    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annotate_sv'])
+    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annotate_sv', 'filter_germline'])
 
