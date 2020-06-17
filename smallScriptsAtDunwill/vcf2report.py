@@ -140,13 +140,14 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
     new = raw.loc[:, order]
     # new是没有过滤的信息，输出加入了新信息的annovar注释结果
     new.to_csv(infile[:-3]+'xls', sep='\t', index=False)
+    new.insert(13, 'report', 'yes')
 
     # 过滤
     filtered = new.loc[new['AF'] >= af, :]
     if filtered.shape[0] <= 0:
         print(f'No mutation pass AF >{af} filtering')
     dirname = os.path.dirname(infile)
-    basename = 'filtered.' + os.path.basename(infile)[:-3]+'xls'
+    basename = '02.filtered.' + os.path.basename(infile)[:-3]+'xls'
     out_filtered = os.path.join(dirname, basename)
     # 输出过滤后的加入了新信息的annovar注释结果
     filtered.to_csv(out_filtered, sep='\t', index=False)
@@ -175,10 +176,11 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
         filtered.to_csv(out_filtered, sep='\t', index=False)
 
         # 提取hotspot，输出命中的hotspot，表格内容以原hotspot为主，即仅仅提取hotspot信息
-        out = os.path.join(dirname, 'detected.hotspot.xlsx')
+        out = os.path.join(dirname, '01.detected.hotspot.xlsx')
         hits = [x for x in candidates if x in hot_df.index]
         if hits:
             hits_df = hot_df.loc[hits]
+            # hits_df['report'] = 'yes'
             hits_df.to_excel(out)
         else:
             hits_df = None
@@ -245,21 +247,25 @@ def parse_cnr(cnr, out='cnv.final.txt', amplification_cutoff=math.log2(2.5), del
                 gene_info_dict = dict(x.split('=') for x in gene_info.split(';') if '=' in x)
                 if 'ensembl_gn' in gene_info_dict:
                     gene = gene_info_dict['ensembl_gn']
-                    if log2cn > 0 and f'{gene} amplification' in okr_cnv_dict:
-                        okr_query_lst.append(f'{gene} amplification')
-                    elif log2cn <= 0 and f'{gene} deletion' in okr_cnv_dict:
-                        okr_query_lst.append(f'{gene} deletion')
-
                     result.setdefault(gene, list())
                     result[gene].append(log2cn)
                 else:
                     # print('skip NO gene info found line:', line)
                     pass
 
-        fw.write('gene\tmeanLog2CN\n')
+        fw.write('gene\tmeanLog2CN\tOKR_Name\treport\n')
         for gene, log2cn_lst in result.items():
             mean_cn = sum(log2cn_lst)/len(log2cn_lst)
-            fw.write(f'{gene}\t{mean_cn}\n')
+            okr_name = f'{gene} amplification'
+            okr_name2 = f'{gene} deletion'
+            if mean_cn > 0 and okr_name in okr_cnv_dict:
+                okr_query_lst.append(okr_name)
+                fw.write(f'{gene}\t{mean_cn}\t{okr_name}\tyes\n')
+            elif mean_cn <= 0 and okr_name2 in okr_cnv_dict:
+                okr_query_lst.append(okr_name2)
+                fw.write(f'{gene}\t{mean_cn}\t{okr_name2}\tyes\n')
+            else:
+                fw.write(f'{gene}\t{mean_cn}\t\tyes\n')
     return okr_query_lst
 
 
@@ -314,7 +320,7 @@ def annotate_sv(vcf, out='fusion.final.txt', target_genes=None, okr_fusion_list=
     with open(f"{vcf}.filtered.svafotate.snpeff.simplex.bedpe") as f, open(out, 'w') as fw:
         #0:CHROM_A 1:START_A 2:END_A 3:CHROM_B 4:START_B 5:END_B 6:ID 7:QUAL 8:STRAND_A 9:STRAND_B 10:TYPE 11:FILTER 12:INFO 13:FORMAT 14:T190079D1L18 15:B180518G1L2
         header = f.readline()
-        fw.write('fusion_genes\tbreak_positions\ttype\n')
+        fw.write('fusion_genes\tbreak_positions\ttype\tOKR_Name\treport\n')
         for line in f:
             lst = line.strip().split('\t')
             if lst[11].lower() not in ['pass']:
@@ -325,24 +331,30 @@ def annotate_sv(vcf, out='fusion.final.txt', target_genes=None, okr_fusion_list=
                 g1 = annot[0].split('|')[2]
                 g2 = annot[1].split('|')[2]
                 report = False
+                okr_name = ''
                 if g1+'-'+g2 in okr_f_p_d:
                     report = True
                     okr_query.append(okr_f_p_d[g1 + '-' + g2])
+                    okr_name = okr_query[-1]
                 elif g2+'-'+g1 in okr_f_p_d:
                     report = True
                     okr_query.append(okr_f_p_d[g2 + '-' + g1])
+                    okr_name = okr_query[-1]
                 elif g1 in okr_f_s_d or g2 in okr_f_s_d:
                     report = True
                     if g1 in okr_f_s_d:
                         okr_query.append(okr_f_s_d[g1])
+                        okr_name = okr_query[-1]
                     if g2 in okr_f_s_d:
                         okr_query.append(okr_f_s_d[g2])
+                        okr_name = okr_query[-1]
+
                 elif g1 in targets or g2 in targets:
                     report = True
 
                 if report:
                     break_pos = f'{lst[0]}:{(int(lst[1])+int(lst[2]))//2}-{lst[3]}:{(int(lst[4])+int(lst[5]))//2}'
-                    fw.write(f'{g1}--{g2}\t{break_pos}\t{lst[10]}\n')
+                    fw.write(f'{g1}--{g2}\t{break_pos}\t{lst[10]}\t{okr_name}\tyes\n')
             else:
                 pass
     return okr_query
@@ -423,21 +435,30 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1, msi_cutoff=10, t
     print('Step4: 提取cnv信息，并判定OKR是否可以注释提取的CNV')
     # cnv processing
     cnv_file = glob(os.path.join(input_dir, '*.HQ20.cnr'))[0]
-    out = os.path.join(input_dir, 'cnv.final.txt')
+    out = os.path.join(input_dir, '03.cnv.final.txt')
     cnv_query = parse_cnr(cnv_file, out, okr_targets=okr_cnv_genes)
 
     print('Step5: 提取融合信息，并判定OKR是否可以查询该融合信息')
     # fusion processing
     sv_file = glob(os.path.join(input_dir, 'SV.*.vcf'))[0]
-    out = os.path.join(input_dir, 'fusion.final.txt')
+    out = os.path.join(input_dir, '04.fusion.final.txt')
     fusion_okr_query = annotate_sv(sv_file, out, target_fusion_genes, okr_fusion_list, okr_fusion_pairs)
 
     print("Step6: 输出可以用于OKR 查询的列表")
     okr_query_lst = []
-    if msi >= msi_cutoff:
-        okr_query_lst.append('Microsatellite instability-High')
-    if tmb >= tmb_cutoff:
-        okr_query_lst.append('Tumor Mutational Burden')
+    with open('05.TMB_MSI.xls', 'w') as f:
+        f.write('metric\tvalue\tOKR_Name\treport\n')
+        if msi >= msi_cutoff:
+            okr_query_lst.append('Microsatellite instability-High')
+            f.write(f'MSI\t{msi}\tMicrosatellite instability-High\tyes\n')
+        else:
+            f.write(f'MSI\t{msi}\t\tyes\n')
+        if tmb >= tmb_cutoff:
+            okr_query_lst.append('Tumor Mutational Burden')
+            f.write(f'TMB\t{tmb}\tTumor Mutational Burden\tyes\n')
+        else:
+            f.write(f'TMB\t{tmb}\t\tyes\n')
+
     if os.path.exists(detected):
         detected = pd.read_excel(detected)
         okr_names = detected['OKR_Name']
@@ -445,7 +466,7 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1, msi_cutoff=10, t
     okr_query_lst += cnv_query
     okr_query_lst += fusion_okr_query
     print('okr query:', okr_query_lst)
-    with open('okr_query.list', 'w') as f:
+    with open('06.okr_query.list', 'w') as f:
         for each in okr_query_lst:
             f.write(each + '\n')
 

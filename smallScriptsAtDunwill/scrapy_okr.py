@@ -80,7 +80,15 @@ def get_gene_description():
     desc_file.close()
 
 
-def get_report(mutations, cancer, filter_preset, template, report_name='report'):
+def get_report(mutations:list, cancer, filter_preset, template, report_name='report'):
+    """
+    :param mutations: 突变列表，如['ERBB3 mutation', 'TP53 mutation', 'Tumor Mutational Burden']
+    :param cancer:
+    :param filter_preset:
+    :param template:
+    :param report_name:
+    :return:
+    """
     # 切换到目标页面
     browsite = 'http://10.62.2.16:8088/#/browse'
     browser.get(browsite)
@@ -252,16 +260,25 @@ def get_report(mutations, cancer, filter_preset, template, report_name='report')
     time.sleep(1)
 
 
+# if __name__ == '__main__':
+#     mutations = ['FBXW7 deleterious mutation', 'KRAS G12 mutation', 'ERBB3 mutation', 'TP53 mutation']
+#     mutations.append('Tumor Mutational Burden'),
+#     # mutations += ['Microsatellite stable']
+#     mutations += ['Microsatellite instability-High']
+#     # mutations += ['Microsatellite instability-Low']
+#     get_report(
+#         mutations,
+#         # cancer='Non-Small Cell Lung Cancer',
+#         cancer='Rectal Cancer',
+#         filter_preset='Epi800_Test',
+#         template='CL_800_Panel',
+#     )
+
+# 串行步骤：
+# （1）借助python的paramiko包把命令投递到服务器完成annovar等注释
+# （2）windown OKR爬虫注释，借助paramiko把结果上传到服务器
+# （3）前面两步准备好输入文件后，完成报告生成
+
 if __name__ == '__main__':
-    mutations = ['FBXW7 deleterious mutation', 'KRAS G12 mutation', 'ERBB3 mutation', 'TP53 mutation']
-    mutations.append('Tumor Mutational Burden'),
-    # mutations += ['Microsatellite stable']
-    mutations += ['Microsatellite instability-High']
-    # mutations += ['Microsatellite instability-Low']
-    get_report(
-        mutations,
-        # cancer='Non-Small Cell Lung Cancer',
-        cancer='Rectal Cancer',
-        filter_preset='Epi800_Test',
-        template='CL_800_Panel',
-    )
+    from xcmds import xcmds
+    xcmds.xcmds(locals(), include=['get_report'])
