@@ -260,25 +260,25 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
     time.sleep(1)
 
 
-# if __name__ == '__main__':
-#     mutations = ['FBXW7 deleterious mutation', 'KRAS G12 mutation', 'ERBB3 mutation', 'TP53 mutation']
-#     mutations.append('Tumor Mutational Burden'),
-#     # mutations += ['Microsatellite stable']
-#     mutations += ['Microsatellite instability-High']
-#     # mutations += ['Microsatellite instability-Low']
-#     get_report(
-#         mutations,
-#         # cancer='Non-Small Cell Lung Cancer',
-#         cancer='Rectal Cancer',
-#         filter_preset='Epi800_Test',
-#         template='CL_800_Panel',
-#     )
+if __name__ == '__main__':
+    mutations = ['FBXW7 deleterious mutation', 'KRAS G12 mutation', 'ERBB3 mutation', 'TP53 mutation']
+    mutations.append('Tumor Mutational Burden'),
+    # mutations += ['Microsatellite stable']
+    mutations += ['Microsatellite instability-High']
+    # mutations += ['Microsatellite instability-Low']
+    get_report(
+        mutations,
+        # cancer='Non-Small Cell Lung Cancer',
+        cancer='Rectal Cancer',
+        filter_preset='Epi800_Test',
+        template='CL_800_Panel',
+    )
 
 # 串行步骤：
 # （1）借助python的paramiko包把命令投递到服务器完成annovar等注释
-# （2）windown OKR爬虫注释，借助paramiko把结果上传到服务器
+# （2）window OKR爬虫注释，借助paramiko把结果上传到服务器
 # （3）前面两步准备好输入文件后，完成报告生成
 
-if __name__ == '__main__':
-    from xcmds import xcmds
-    xcmds.xcmds(locals(), include=['get_report'])
+# if __name__ == '__main__':
+#     from xcmds import xcmds
+#     xcmds.xcmds(locals(), include=['get_report'])
