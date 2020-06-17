@@ -224,7 +224,7 @@ def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspo
     return target
 
 
-def parse_cnr(cnr, out='cnv.final.txt', amplification_cutoff=math.log2(3), deletion_cutoff=0, okr_targets=None):
+def parse_cnr(cnr, out='cnv.final.txt', amplification_cutoff=math.log2(2.5), deletion_cutoff=0, okr_targets=None):
     okr_cnv_dict = dict()
     okr_query_lst = []
     if okr_targets:
@@ -296,9 +296,19 @@ def annotate_sv(vcf, out='fusion.final.txt', target_genes=None, okr_fusion_list=
         os.remove(f'{vcf}.filtered.svafotate.snpeff.simplex')
     if os.path.exists(f'{vcf}.filtered.svafotate.snpeff.simplex.bedpe'):
         os.remove(f'{vcf}.filtered.svafotate.snpeff.simplex.bedpe')
+    # calculate
     for each, desc in zip([cmd, cmd2, cmd3, cmd4, cmd5, cmd6], descs):
         print('running:', desc)
         check_call(each, shell=True)
+    # remove unwanted files
+    if os.path.exists(f'{vcf}.filtered'):
+        os.remove(f'{vcf}.filtered')
+    if os.path.exists(f'{vcf}.filtered.svafotate.snpeff.simple'):
+        os.remove(f'{vcf}.filtered.svafotate.snpeff.simple')
+    if os.path.exists(f'{vcf}.filtered.svafotate.snpeff'):
+        os.remove(f'{vcf}.filtered.svafotate.snpeff')
+    if os.path.exists(f'{vcf}.filtered.svafotate'):
+        os.remove(f'{vcf}.filtered.svafotate')
 
     okr_query = []
     with open(f"{vcf}.filtered.svafotate.snpeff.simplex.bedpe") as f, open(out, 'w') as fw:
