@@ -13,6 +13,7 @@ def pca(table, row_sum_cutoff=1, exp_cutoff=0.5, cv_cutoff=0.01, pass_exp_cutoff
     data = pd.read_csv(table, header=0, index_col=0, sep=None, engine='python')
     if target_row:
         targets = [x.strip().split()[0] for x in open(target_row)]
+        targets = [x for x in targets if x in data.index]
         data = data.loc[targets].copy()
     if group_file is not None:
         group_info = pd.read_csv(group_file, sep=None, index_col=0, header=0, engine='python')
