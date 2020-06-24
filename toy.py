@@ -103,7 +103,7 @@ def main():
     turtle.goto(120,-160)
     turtle.speed(5)
     turtle.down()
-    turtle.write('Best wishes to YanTing',font=('STliti',15, 'italic'), align="center")
+    turtle.write('Best wishes to ？',font=('STliti',15, 'italic'), align="center")
     turtle.up()
     turtle.goto(120,-190)
     turtle.down()
