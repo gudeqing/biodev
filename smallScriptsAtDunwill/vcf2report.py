@@ -226,14 +226,17 @@ def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspo
     return target
 
 
-def parse_cnr(cnr, out='cnv.final.txt', amplification_cutoff=math.log2(2.5), deletion_cutoff=0, okr_targets=None):
-    okr_cnv_dict = dict()
+def parse_cnr(cnr, out='cnv.final.txt', amp_cutoff=3, del_cutoff=1.2, okr_targets=None, other_target_genes=None):
+    amp_cutoff = math.log2(amp_cutoff / 2)
+    del_cutoff = math.log2(del_cutoff / 2)
+    okr_cnv_lst = []
     okr_query_lst = []
     if okr_targets:
-        with open(okr_targets) as f:
-            for line in f:
-                gene, fname = line.strip().split()
-                okr_cnv_dict[gene] = fname
+        okr_cnv_lst = [x.strip() for x in open(okr_targets)]
+    if other_target_genes:
+        other_target_genes = [x.strip() for x in open(other_target_genes)]
+    else:
+        other_target_genes = []
 
     with open(cnr) as f, open(out, 'w') as fw:
         # chromosome, start, end, gene, depth, log2, weight
@@ -241,9 +244,9 @@ def parse_cnr(cnr, out='cnv.final.txt', amplification_cutoff=math.log2(2.5), del
         result = dict()
         for line in f:
             lst = line.strip().split('\t')
-            log2cn = float(lst[-1])
+            log2cn = float(lst[-2])
             gene_info = lst[3]
-            if (log2cn >= amplification_cutoff or log2cn <= deletion_cutoff) and len(gene_info.split(';')) > 1:
+            if len(gene_info.split(';')) > 1:
                 gene_info_dict = dict(x.split('=') for x in gene_info.split(';') if '=' in x)
                 if 'ensembl_gn' in gene_info_dict:
                     gene = gene_info_dict['ensembl_gn']
@@ -253,41 +256,47 @@ def parse_cnr(cnr, out='cnv.final.txt', amplification_cutoff=math.log2(2.5), del
                     # print('skip NO gene info found line:', line)
                     pass
 
-        fw.write('gene\tmeanLog2CN\tOKR_Name\treport\n')
+        fw.write('gene\tmeanLog2CN\tmeanCN\tOKR_Name\treport\n')
         for gene, log2cn_lst in result.items():
             mean_cn = sum(log2cn_lst)/len(log2cn_lst)
-            okr_name = f'{gene} amplification'
-            okr_name2 = f'{gene} deletion'
-            if mean_cn > 0 and okr_name in okr_cnv_dict:
-                okr_query_lst.append(okr_name)
-                fw.write(f'{gene}\t{mean_cn}\t{okr_name}\tyes\n')
-            elif mean_cn <= 0 and okr_name2 in okr_cnv_dict:
-                okr_query_lst.append(okr_name2)
-                fw.write(f'{gene}\t{mean_cn}\t{okr_name2}\tyes\n')
-            else:
-                fw.write(f'{gene}\t{mean_cn}\t\tyes\n')
+            exact_cn = round(2**mean_cn*2, 2)
+            # if (mean_cn >= amp_cutoff or mean_cn <= del_cutoff):
+            if all(x > amp_cutoff for x in log2cn_lst) or all(x <= del_cutoff for x in log2cn_lst):
+                # print(log2cn_lst)
+                okr_name = f'{gene} amplification' if mean_cn >0 else f'{gene} deletion'
+                # if gene == 'ERBB2':
+                #     print(okr_name)
+                #     print(log2cn_lst)
+                if okr_name in okr_cnv_lst:
+                    okr_query_lst.append(okr_name)
+                    fw.write(f'{gene}\t{mean_cn:.2f}\t{exact_cn}\t{okr_name}\tyes\n')
+                elif gene in other_target_genes:
+                    fw.write(f'{gene}\t{mean_cn:.2f}\t{exact_cn}\t\tyes\n')
+                else:
+                    pass
+    print(f'hit {len(okr_query_lst)} okr cnv record!')
     return okr_query_lst
 
 
-def annotate_sv(vcf, out='fusion.final.txt', target_genes=None, okr_fusion_list=None, okr_fusion_pairs=None):
-    if target_genes:
-        targets = set(x.strip().split('\t')[0] for x in open(target_genes))
+def annotate_sv(vcf, out='fusion.final.txt', other_target_genes=None, okr_fusion_list=None, okr_fusion_pairs=None):
+    if other_target_genes:
+        targets = set(x.strip() for x in open(other_target_genes))
     else:
-        targets = []
+        targets = set()
 
     okr_f_s_d = dict()
     if okr_fusion_list:
         with open(okr_fusion_list) as f:
             for line in f:
                 gene, fname = line.strip().split()
-                okr_f_s_d[gene] = fname
+                okr_f_s_d[gene] = line.strip()
 
     okr_f_p_d = dict()
     if okr_fusion_pairs:
         with open(okr_fusion_pairs) as f:
             for line in f:
                 gene_pair, fname = line.strip().split()
-                okr_f_p_d[gene_pair] = fname
+                okr_f_p_d[gene_pair] = line.strip()
 
     cmd = f"""bcftools filter -i 'FILTER="PASS" & INFO/PRECISE=1' {vcf} -o {vcf}.filtered """
     cmd2 = f"/nfs2/software/SVAFotate/svafotate.py -i {vcf}.filtered -o {vcf}.filtered.svafotate -ccdg /nfs2/software/SVAFotate/ccdg_sv_afs.bed.gz --gnomad /nfs2/software/SVAFotate/gnomad_sv_afs.bed.gz"
@@ -296,16 +305,20 @@ def annotate_sv(vcf, out='fusion.final.txt', target_genes=None, okr_fusion_list=
     cmd5 = f"bcftools annotate -x 'INFO/ANN' -o {vcf}.filtered.svafotate.snpeff.simplex {vcf}.filtered.svafotate.snpeff.simple"
     cmd6 = f"/nfs2/software/svtools/vcfToBedpe -i {vcf}.filtered.svafotate.snpeff.simplex -o {vcf}.filtered.svafotate.snpeff.simplex.bedpe"
     descs = ['filtering', 'svafotate pop freq', 'snpeff annotate', 'simplify annotation', 'remove ANN', 'vcf2Bed']
+    #
     if os.path.exists(f'{vcf}.filtered.svafotate.snpeff.simple'):
         os.remove(f'{vcf}.filtered.svafotate.snpeff.simple')
     if os.path.exists(f'{vcf}.filtered.svafotate.snpeff.simplex'):
         os.remove(f'{vcf}.filtered.svafotate.snpeff.simplex')
+    print(f'{vcf}.filtered.svafotate.snpeff.simplex.bedpe')
     if os.path.exists(f'{vcf}.filtered.svafotate.snpeff.simplex.bedpe'):
-        os.remove(f'{vcf}.filtered.svafotate.snpeff.simplex.bedpe')
-    # calculate
-    for each, desc in zip([cmd, cmd2, cmd3, cmd4, cmd5, cmd6], descs):
-        print('running:', desc)
-        check_call(each, shell=True)
+        # os.remove(f'{vcf}.filtered.svafotate.snpeff.simplex.bedpe')
+        print('sv注释结果已经存在，跳过注释')
+    else:
+        # calculate
+        for each, desc in zip([cmd, cmd2, cmd3, cmd4, cmd5, cmd6], descs):
+            print('running:', desc)
+            check_call(each, shell=True)
     # remove unwanted files
     if os.path.exists(f'{vcf}.filtered'):
         os.remove(f'{vcf}.filtered')
@@ -326,10 +339,16 @@ def annotate_sv(vcf, out='fusion.final.txt', target_genes=None, okr_fusion_list=
             if lst[11].lower() not in ['pass']:
                 continue
             # SIMPLE_ANN=DEL|EXON_DEL|GNA14|NM_004297.3|Exon1-2del|3,DEL|EXON_DEL|GNA14-AS1|NR_121184.1|Exon2-5del|3;SV_HIGHEST_TIER=3
-            if 'simple_ANN=' in lst[12]:
-                annot = lst[12].split('simple_ANN=')[1].split(',')
-                g1 = annot[0].split('|')[2]
-                g2 = annot[1].split('|')[2]
+            # SIMPLE_ANN=INV|GENE_FUSION|ALK&EML4|ALK|KNOWN_FUSION|1
+            # SIMPLE_ANN=BND|GENE_FUSION&FRAMESHIFT_VARIANT|ENOX1&TYRO3|NM_006293.3|KNOWN_FUSION|1
+            # print(lst[12])
+            if 'SIMPLE_ANN=' in lst[12]:
+                annot = lst[12].split('SIMPLE_ANN=')[1].split(',')[0].split('|')
+                # print(annot)
+                if 'GENE_FUSION' not in annot[1]:
+                    continue
+                g1, g2 = annot[2].split('&')
+                print(g1, g2)
                 report = False
                 okr_name = ''
                 if g1+'-'+g2 in okr_f_p_d:
@@ -353,7 +372,9 @@ def annotate_sv(vcf, out='fusion.final.txt', target_genes=None, okr_fusion_list=
                     report = True
 
                 if report:
-                    break_pos = f'{lst[0]}:{(int(lst[1])+int(lst[2]))//2}-{lst[3]}:{(int(lst[4])+int(lst[5]))//2}'
+                    b1 = f'{lst[0]}:{(int(lst[1])+int(lst[2]))//2+1}'
+                    b2 = f'{lst[3]}:{(int(lst[4])+int(lst[5]))//2+1}'
+                    break_pos = f'{b1}-{b2}'
                     fw.write(f'{g1}--{g2}\t{break_pos}\t{lst[10]}\t{okr_name}\tyes\n')
             else:
                 pass
@@ -399,7 +420,7 @@ def filter_germline(vcf, target_genes, comm_trans, genome):
         return out
 
 
-def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1, msi_cutoff=10, tmb_cutoff=10,
+def pipeline(input_dir, af=0.02, not_hot_af=0.05, msi_cutoff=10, tmb_cutoff=10,
              hots='/nfs2/database/Panel800/hotspot.xlsx',
              genome='/nfs2/database/1_human_reference/hg19/ucsc.hg19.fasta',
              comm_trans='/nfs2/database/Panel800/common_transcripts.txt',
@@ -407,6 +428,7 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1, msi_cutoff=10, t
              okr_fusion_list='/nfs2/database/Panel800/okr.fusion.gene.list',
              okr_fusion_pairs='/nfs2/database/Panel800/okr.fusion.pair',
              okr_cnv_genes='/nfs2/database/Panel800/okr.cnv.gene.list',
+             other_cnv_genes='/nfs2/database/Panel800/other.cnv.gene.list',
              target_germline_genes='/nfs2/database/Panel800/germline.target.txt'
              ):
     """
@@ -415,19 +437,22 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1, msi_cutoff=10, t
     """
     # indel processing
     print('Step1: annovar注释'.format(af))
-    indel_vcfs = glob(os.path.join(input_dir, 'TNVariantCaller.mutations.*.vcf'))
+    indel_vcfs = glob(os.path.join(input_dir, 'T*VariantCaller.mutations.*.vcf'))
+    if not indel_vcfs:
+        raise Exception('Cannot find somatic indel vcf!')
     indel_vcf = sorted(indel_vcfs, key=lambda x:len(x))[0]
     annovar_vcf, annovar_txt = annovar_annotation(indel_vcf)
+    tumour_ind = 1 if indel_vcf.startswith('TO') else 0
     _ = filter_vcf_by_af(annovar_vcf, af=af, tumour=tumour_ind)
 
     print('Step2: 依据{}提取hotspot, 包括af过滤:hotspot af>={} 或 非hotspot af>={}'.format(hots, af, not_hot_af))
     detected = process_annovar_txt(annovar_txt, comm_trans, genome=genome, hots=hots, af=af, not_hot_af=not_hot_af)
 
-    print('Step3: 提取tmb和msi信息并判定tmb >= {}, msi >= {}'.format(msi_cutoff, tmb_cutoff))
-    tmb_file = glob(os.path.join(input_dir, 'TMB.TNVariantCaller.mutations.*.vcf.txt'))[0]
+    print('Step3: 提取tmb和msi信息并判定是否tmb >= {}, msi >= {}'.format(msi_cutoff, tmb_cutoff))
+    tmb_file = glob(os.path.join(input_dir, 'TMB.T*VariantCaller.mutations.*.vcf.txt'))[0]
     with open(tmb_file) as f:
         tmb = float(f.readline().split('TMB:')[1].strip())
-    msi_file = glob(os.path.join(input_dir, '*.TNMSI.output'))[0]
+    msi_file = glob(os.path.join(input_dir, '*.T*MSI.output'))[0]
     with open(msi_file) as f:
         _ = f.readline()
         msi = float(f.readline().split()[2])
@@ -436,11 +461,11 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1, msi_cutoff=10, t
     # cnv processing
     cnv_file = glob(os.path.join(input_dir, '*.HQ20.cnr'))[0]
     out = os.path.join(input_dir, '03.cnv.final.txt')
-    cnv_query = parse_cnr(cnv_file, out, okr_targets=okr_cnv_genes)
+    cnv_query = parse_cnr(cnv_file, out, okr_targets=okr_cnv_genes, other_target_genes=other_cnv_genes)
 
     print('Step5: 提取融合信息，并判定OKR是否可以查询该融合信息')
     # fusion processing
-    sv_file = glob(os.path.join(input_dir, 'SV.*.vcf'))[0]
+    sv_file = glob(os.path.join(input_dir, '*SV.*.vcf'))[0]
     out = os.path.join(input_dir, '04.fusion.final.txt')
     fusion_okr_query = annotate_sv(sv_file, out, target_fusion_genes, okr_fusion_list, okr_fusion_pairs)
 
@@ -473,8 +498,11 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, tumour_ind=1, msi_cutoff=10, t
     print('Step7: 过滤germline的SNP/indel')
     # germline processing
     germline_vcfs = glob(os.path.join(input_dir, 'germline.*.vcf'))
-    germline_vcf = sorted(germline_vcfs, key=lambda x: len(x))[0]
-    filter_germline(germline_vcf, target_germline_genes, comm_trans, genome)
+    if not germline_vcfs:
+        print('Cannot find germline indel vcf!')
+    else:
+        germline_vcf = sorted(germline_vcfs, key=lambda x: len(x))[0]
+        filter_germline(germline_vcf, target_germline_genes, comm_trans, genome)
 
 
 if __name__ == '__main__':
