@@ -388,7 +388,11 @@ def annotate_sv(vcf, out='fusion.final.txt', other_target_genes=None, okr_fusion
 
 def filter_germline(vcf, target_genes, comm_trans, genome):
     targets = set(x.strip().split('\t')[0] for x in open(target_genes))
-    annovar_vcf, annovar_txt = annovar_annotation(vcf)
+    if not os.path.exists(vcf[:-3]+'txt'):
+        print(f'annoated file of {vcf} already exist and skip!')
+        annovar_vcf, annovar_txt = annovar_annotation(vcf)
+    else:
+        annovar_txt = vcf[:-3]+'txt'
     a = pd.read_table(annovar_txt)
     f = ['pathogenic' in x.lower() for x in a['CLNSIG']]
     f0 = [x == 'reviewed_by_expert_panel' for x in a['CLNREVSTAT']]
