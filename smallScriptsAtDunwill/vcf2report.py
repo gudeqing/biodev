@@ -154,8 +154,13 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
 
     # 提取hot信息
     if hots:
-        hot_df = pd.read_excel(hots, header=0, index_col=0)
-        hot_df.set_index('1', inplace=True)
+        hot_df = pd.read_excel(hots, header=0)
+        # print(hot_df.head())
+        if 1 in hot_df.columns:
+            hot_df.set_index(1, inplace=True)
+        else:
+            hot_df.set_index('1', inplace=True)
+
 
         # 在new信息中添加is_hotspot
         candidates = new['Otherinfo4'] + ':' + new['Otherinfo5'].astype(str) + \
@@ -507,5 +512,5 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, msi_cutoff=10, tmb_cutoff=10,
 
 if __name__ == '__main__':
     from xcmds import xcmds
-    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annotate_sv', 'filter_germline'])
+    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annotate_sv', 'filter_germline', 'process_annovar_txt'])
 
