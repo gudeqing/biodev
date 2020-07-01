@@ -243,7 +243,7 @@ def parse_cnr(cnr, out='cnv.final.txt', amp_cutoff=3, del_cutoff=1.2, okr_target
     else:
         other_target_genes = []
 
-    with open(cnr) as f, open(out, 'w') as fw:
+    with open(cnr) as f, open(out, 'w') as fw, open(out+'.offtarget', 'w') as fw2:
         # chromosome, start, end, gene, depth, log2, weight
         header = f.readline().strip().split('\t')
         result = dict()
@@ -262,6 +262,7 @@ def parse_cnr(cnr, out='cnv.final.txt', amp_cutoff=3, del_cutoff=1.2, okr_target
                     pass
 
         fw.write('gene\tmeanLog2CN\tmeanCN\tOKR_Name\treport\n')
+        fw2.write('gene\tmeanLog2CN\tmeanCN\tOKR_Name\treport\n')
         for gene, log2cn_lst in result.items():
             mean_cn = sum(log2cn_lst)/len(log2cn_lst)
             exact_cn = round(2**mean_cn*2, 2)
@@ -278,7 +279,7 @@ def parse_cnr(cnr, out='cnv.final.txt', amp_cutoff=3, del_cutoff=1.2, okr_target
                 elif gene in other_target_genes:
                     fw.write(f'{gene}\t{mean_cn:.2f}\t{exact_cn}\t\tyes\n')
                 else:
-                    pass
+                    fw2.write(f'{gene}\t{mean_cn:.2f}\t{exact_cn}\t\tno\n')
     print(f'hit {len(okr_query_lst)} okr cnv record!')
     return okr_query_lst
 
