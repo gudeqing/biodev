@@ -20,6 +20,7 @@ profile.set_preference('browser.download.folderList', 2)
 profile.set_preference('browser.download.manager.showWhenStarting', False)
 # 下面的类型根据https://www.w3school.com.cn/media/media_mimeref.asp查询
 profile.set_preference('browser.helperApps.neverAsk.saveToDisk', 'application/pdf')
+profile.set_preference("pdfjs.disabled", True)
 # 打开浏览器
 options = Options()
 options.add_argument('-headless')  # 无头参数
@@ -93,6 +94,8 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
     browsite = 'http://10.62.2.16:8088/#/browse'
     browser.get(browsite)
     time.sleep(3)
+
+    # --------输入突变-------
     mut_txts = []
     for mut in mutations:
         print('selecting', mut)
@@ -110,7 +113,8 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
         if len(mutation_lst) <= 0:
             raise Exception('可选突变列表为空了！')
         else:
-            print('Mutation number is', len(mutation_lst))
+            # print('Mutation number is', len(mutation_lst))
+            pass
         for x in mutation_lst:
             if x.text == mut:
                 x.click()
@@ -118,6 +122,7 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
                 break
         time.sleep(1)
 
+    # --------选择癌症类型-------
     # 找到下面这个元素并点击，触发下拉框
     indication = browser.find_element_by_id('indication')
     new_class_name = 'ui-select-container select2 select2-container ng-invalid ng-invalid-required ng-touched select2-container-active select2-dropdown-open open direction-up'
@@ -127,18 +132,19 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
     time.sleep(1)
 
     # 触发下拉框后，可以定位所有下拉框的选项，他们存储在<ul>中
-    class_name = '.select2-result-single select2-result-sub'.replace(' ', '.')
+    class_name = '.ui-select-choices ui-select-choices-content select2-results ng-scope'.replace(' ', '.')
+    # class_name = '.select2-result-single select2-result-sub'.replace(' ', '.') 这个名字已经失效，使用上面的
     uls = indication.find_elements_by_css_selector(class_name)
     cancer_lst = []
     for ul in uls:
         cancer_lst += ul.find_elements_by_tag_name('li')
-
+    # print(cancer_lst)
     # print([x.text.encode() for x in cancer_lst])
     # with open('cancer_type.txt', 'wb') as f:
     #     for each in cancer_lst:
     #         f.write(each.text.encode(encoding='UTF-8') + b'\n')
-    # print('Cancer type number is', len(cancer_lst))
-
+    print('Cancer type number is', len(cancer_lst))
+    # 在所有癌症类型中选择目标类型
     if type(cancer) == int:
         cancer = cancer_lst[cancer]
         cancer_txt = cancer.text
@@ -151,6 +157,7 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
                 break
     time.sleep(2)
 
+    # --------filterPreset-------
     # 找到下面这个元素并点击，触发下拉框
     preset = browser.find_element_by_id('filterPreset')
     preset.click()
@@ -173,15 +180,16 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
                 break
     time.sleep(2)
 
+    # --------提交选项-------
     # 提交选项
     browser.find_element_by_css_selector('.btn.btn-primary').click()
     time.sleep(3)
 
-    # 进入报告页面并点击‘generate report’
+    # ---进入报告页面并点击‘generate report’---
     browser.find_element_by_css_selector('.btn.btn-primary').click()
     time.sleep(4)
 
-    # 选择模板
+    # ---选择模板---
     temp = browser.find_element_by_id('reportTemplate')
     new_class_name = 'ui-select-container select2 select2-container ng-invalid ng-invalid-required ng-touched select2-container-active select2-dropdown-open open'
     # 修改temp的class才能触发下拉框
@@ -211,7 +219,7 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
     print('reportTemplate:', tmp_txt)
     print('report_name:', report_name)
 
-    # 设置报告名称
+    # ---设置报告名称---
     report_name_obj = browser.find_element_by_name('reportFilename')
     report_name_obj.clear()
     report_name_obj.send_keys(report_name)
@@ -230,13 +238,14 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
     download_button = browser.find_element_by_css_selector('.btn.btn-primary')
     download_button.click()
     time.sleep(5)
-    #
-    import mouse
-    # print(mouse.get_position())
-    time.sleep(2)
-    mouse.move(718, 459)
-    mouse.click('left')
-    time.sleep(2)
+
+    # # 模拟鼠标点击，由于已可以自动下载，无需
+    # import mouse
+    # # print(mouse.get_position())
+    # time.sleep(2)
+    # mouse.move(718, 459)
+    # mouse.click('left')
+    # time.sleep(2)
 
     # ----------download TXT---------
     txt_button = browser.find_element_by_xpath("//input[@value='{}']".format('TXT'))
@@ -252,19 +261,21 @@ def get_report(mutations:list, cancer, filter_preset, template, report_name='rep
     download_button.click()
     time.sleep(3)
     #
-    import mouse
-    # print(mouse.get_position())
-    time.sleep(2)
-    mouse.move(718, 459)
-    mouse.click('left')
-    time.sleep(1)
+    # import mouse
+    # # print(mouse.get_position())
+    # time.sleep(2)
+    # mouse.move(718, 459)
+    # mouse.click('left')
+    # time.sleep(1)
 
 
 if __name__ == '__main__':
-    mutations = ['FBXW7 deleterious mutation', 'KRAS G12 mutation', 'ERBB3 mutation', 'TP53 mutation']
-    mutations.append('Tumor Mutational Burden'),
+    # mutations = ['FBXW7 deleterious mutation', 'KRAS G12 mutation', 'ERBB3 mutation', 'TP53 mutation']
+    # mutations = ['KRAS G12 mutation', 'ERBB3 mutation', 'TP53 mutation']
+    mutations = ['KRAS G12 mutation', 'ERBB3 mutation']
+    # mutations.append('Tumor Mutational Burden'),
     # mutations += ['Microsatellite stable']
-    mutations += ['Microsatellite instability-High']
+    # mutations += ['Microsatellite instability-High']
     # mutations += ['Microsatellite instability-Low']
     get_report(
         mutations,
