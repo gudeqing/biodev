@@ -20,7 +20,7 @@ profile.set_preference('browser.download.folderList', 2)
 profile.set_preference('browser.download.manager.showWhenStarting', False)
 # 下面的类型根据https://www.w3school.com.cn/media/media_mimeref.asp查询
 profile.set_preference('browser.helperApps.neverAsk.saveToDisk', 'application/pdf')
-profile.set_preference("pdfjs.disabled", True)
+profile.set_preference("pdfjs.disabled", True) #这一行代码如果注释掉，会导致弹框依然出现
 # 打开浏览器
 options = Options()
 options.add_argument('-headless')  # 无头参数
