@@ -88,7 +88,7 @@ def pca_scatter(df=None, out_file='pca.html', annotate=False, text_size='6pt', m
 
     # match markers
     for group_scheme in group_scheme_list:
-        groups = set(df[group_scheme])
+        groups = sorted(set(df[group_scheme]))
         color_pool = get_color_pool(len(groups))
         if len(groups) <= len(marker_pool):
             marker_dict = dict(zip(groups, marker_pool))
@@ -121,7 +121,7 @@ def pca_scatter(df=None, out_file='pca.html', annotate=False, text_size='6pt', m
             ]
         )
         s.add_tools(hover)
-        groups = list(set(df[group_scheme]))
+        groups = sorted(set(df[group_scheme]))
         legend_items = list()
         for group in groups:
             tmp = s.scatter(
