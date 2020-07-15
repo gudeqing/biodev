@@ -121,7 +121,7 @@ def pca_scatter(df=None, out_file='pca.html', annotate=False, text_size='6pt', m
             ]
         )
         s.add_tools(hover)
-        groups = set(df[group_scheme])
+        groups = list(set(df[group_scheme]))
         legend_items = list()
         for group in groups:
             tmp = s.scatter(
