@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 
-def violin(df, data_col, group_cols:list, hue_cols:list=None, index_col=None, split=False, orient=None,
+def violin(df, data_col, group_cols:list, hue_cols:list=None, index_col=None, split=False, orient=None, cut:float=0,
                 exchange_xy=False, out=None, scale='width', style='darkgrid', target_index=None, inner=None):
     sns.set(style=style)
     sns.set(font_scale=0.5)
@@ -51,13 +51,13 @@ def violin(df, data_col, group_cols:list, hue_cols:list=None, index_col=None, sp
                     hue_col = None
             if not exchange_xy:
                 ax = sns.violinplot(
-                    x=group_col, y=data_col, data=data, hue=hue_col, cut=0,
+                    x=group_col, y=data_col, data=data, hue=hue_col, cut=cut,
                     scale=scale, orient=orient, width=0.8, linewidth=0.5,
                     inner=inner, split=split, ax=axes[ind]
                 )
             else:
                 ax = sns.violinplot(
-                    x=data_col, y=group_col, data=data, hue=hue_col, cut=0,
+                    x=data_col, y=group_col, data=data, hue=hue_col, cut=cut,
                     scale=scale, orient=orient, width=0.8, linewidth=0.5,
                     inner=inner, split=split, ax=axes[ind]
                 )
@@ -74,18 +74,18 @@ def violin(df, data_col, group_cols:list, hue_cols:list=None, index_col=None, sp
                     hue_col = None
             if not exchange_xy:
                 ax = sns.violinplot(
-                    x=group_col, y=data_col, data=data, hue=hue_col, cut=0,
+                    x=group_col, y=data_col, data=data, hue=hue_col, cut=cut,
                     scale=scale, orient=orient, width=0.8, linewidth=0.5,
                     inner=inner, split=split
                 )
             else:
                 ax = sns.violinplot(
-                    x=data_col, y=group_col, data=data, hue=hue_col, cut=0,
+                    x=data_col, y=group_col, data=data, hue=hue_col, cut=cut,
                     scale=scale, orient=orient, width=0.8, linewidth=0.5,
                     inner=inner, split=split
                 )
             plt.setp(ax.collections, linewidth=0.3)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    # ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
     plt.savefig(out, dpi=300)
 
 
