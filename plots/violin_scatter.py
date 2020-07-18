@@ -50,11 +50,17 @@ def violin(df, data_col, group_cols:list, hue_cols:list=None, index_col=None, sp
                 if hue_col.lower() == 'none':
                     hue_col = None
             if not exchange_xy:
-                ax = sns.violinplot(x=group_col, y=data_col, data=data, hue=hue_col, scale=scale, orient=orient,
-                                    width=0.8, linewidth=0.5, inner=inner, split=split, ax=axes[ind])
+                ax = sns.violinplot(
+                    x=group_col, y=data_col, data=data, hue=hue_col, cut=0,
+                    scale=scale, orient=orient, width=0.8, linewidth=0.5,
+                    inner=inner, split=split, ax=axes[ind]
+                )
             else:
-                ax = sns.violinplot(x=data_col, y=group_col, data=data, hue=hue_col, scale=scale, orient=orient,
-                                    width=0.8, linewidth=0.5, inner=inner, split=split, ax=axes[ind])
+                ax = sns.violinplot(
+                    x=data_col, y=group_col, data=data, hue=hue_col, cut=0,
+                    scale=scale, orient=orient, width=0.8, linewidth=0.5,
+                    inner=inner, split=split, ax=axes[ind]
+                )
             plt.setp(ax.collections, linewidth=0.3)
     else:
         for ind, group_col, hue_col in zip(range(len(group_cols)), group_cols, hue_cols):
@@ -67,18 +73,24 @@ def violin(df, data_col, group_cols:list, hue_cols:list=None, index_col=None, sp
                 if hue_col.lower() == 'none':
                     hue_col = None
             if not exchange_xy:
-                ax = sns.violinplot(x=group_col, y=data_col, data=data, hue=hue_col, scale=scale, orient=orient,
-                                    width=0.8, linewidth=0.5, inner=inner, split=split)
+                ax = sns.violinplot(
+                    x=group_col, y=data_col, data=data, hue=hue_col, cut=0,
+                    scale=scale, orient=orient, width=0.8, linewidth=0.5,
+                    inner=inner, split=split
+                )
             else:
-                ax = sns.violinplot(x=data_col, y=group_col, data=data, hue=hue_col, scale=scale, orient=orient,
-                                    width=0.8, linewidth=0.5, inner=inner, split=split)
+                ax = sns.violinplot(
+                    x=data_col, y=group_col, data=data, hue=hue_col, cut=0,
+                    scale=scale, orient=orient, width=0.8, linewidth=0.5,
+                    inner=inner, split=split
+                )
             plt.setp(ax.collections, linewidth=0.3)
-
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
     plt.savefig(out, dpi=300)
 
 
 def scatter(df, data_col, group_cols:list, hue_cols:list=None, style_cols:list=None, index_col=None, exchange_xy=False,
-            plot_style='whitegrid', target_index=None, out=None, legend='brief', alpha:float=None):
+            plot_style='whitegrid', target_index=None, out=None, legend='brief', alpha:float=None, swarm=False):
     sns.set_style(style=plot_style)
     sns.set(font_scale=0.5)
     # output name
@@ -135,10 +147,12 @@ def scatter(df, data_col, group_cols:list, hue_cols:list=None, style_cols:list=N
         else:
             y_data = group_col
             x_data = data_col
-        ax = sns.scatterplot(x=x_data, y=y_data, data=data, hue=hue_col, style=style_col, ax=tmp_ax,
-                             legend=legend, alpha=alpha)
+        if not swarm:
+            ax = sns.scatterplot(x=x_data, y=y_data, data=data, hue=hue_col, style=style_col, ax=tmp_ax, legend=legend, alpha=alpha)
+        else:
+            ax = sns.swarmplot(x=x_data, y=y_data, data=data, hue=hue_col, size=3, ax=tmp_ax, alpha=alpha)
         plt.setp(ax.collections, linewidth=0.3)
-
+    # plt.gcf().set_size_inches(5,5)
     plt.savefig(out_name, dpi=300)
 
 
