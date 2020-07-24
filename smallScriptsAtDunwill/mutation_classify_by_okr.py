@@ -1,7 +1,7 @@
 import os
 import re
 import pandas as pd
-
+import time
 
 def parse_class_conidition(infile):
     table = pd.read_csv(infile, header=0, index_col=0, sep=None, engine='python')
@@ -215,8 +215,11 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
     aberration_genes = parse_class_aberration(class_condition)
     print('deleterious_genes:{}, activating_genes:{}, splice_genes:{}, mutation_genes:{}, aberration_genes:{}'.format(
         len(deleterious_genes), len(activating_genes), len(splice_genes), len(mutation_genes), len(aberration_genes)))
-
-    table = pd.read_csv(hot_table, header=0, sep=None, engine='python').fillna('.')
+    if hot_table.endswith('xlsx'):
+        table = pd.read_excel(hot_table, header=0).fillna('.')
+    else:
+        table = pd.read_csv(hot_table, header=0, sep=None, engine='python').fillna('.')
+    raw_table = table.copy()
     table = table.set_index(['#CHROM', 'POS', 'REF', 'ALT'])
     targets = ['Gene_refGene', 'ExonNumber', 'Final_pHGVS', 'Variation Type',
                'Oncogenicity', 'Func_refGene', 'ExonicFunc_refGene', 'CLNREVSTAT', 'CLNSIG',]
@@ -395,11 +398,13 @@ def mimic_okr(hot_table, class_condition, parent_info, out='okr_mutation.xlsx'):
                 cls_lst.append('')
         reason_lst.append(reason)
 
-    target_df['OKR_Name'] = cls_lst
-    target_df['myReason'] = reason_lst
-    target_df['other_reportable'] = other_reportable
-    target_df.to_excel(out, merge_cells=False)
-
+    # target_df['OKR_Name'] = cls_lst
+    # target_df['myReason'] = reason_lst
+    # target_df['other_reportable'] = other_reportable
+    raw_table['OKR_Name'] = cls_lst
+    raw_table['myReason'] = reason_lst
+    raw_table['other_reportable'] = other_reportable
+    raw_table.to_excel(out, merge_cells=False, index=False)
 
 if __name__ == '__main__':
     from xcmds import xcmds
