@@ -158,8 +158,10 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
         # print(hot_df.head())
         if 1 in hot_df.columns:
             hot_df.set_index(1, inplace=True)
-        else:
+        elif '1' in hot_df.columns:
             hot_df.set_index('1', inplace=True)
+        else:
+            hot_df.set_index(hot_df.columns[1], inplace=True)
 
 
         # 在new信息中添加is_hotspot
@@ -195,12 +197,13 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
         return out_filtered
 
 
-def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspot'):
+def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspot.xls'):
     """
     这个函数暂时不用了
     1. 根据chr:start:ref:alt作为id，取vcf和hots的交集，并以hots的格式输出
     :param vcf:
-    :param hots:
+    :param hots: excel 文件的hotspot，其中有一列名为1，由chr:start:ref:alt组成，作为唯一id
+        如/bid/Hotspot_All/Hotspot_multianno_plus_IVA_OKR_Classification_updateOKR.20200723.xlsx
     :param id_mode:
     :param out: 输出的excel文件名
     :return:
@@ -220,11 +223,14 @@ def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspo
             else:
                 print(f'found duplicated mutation:{key}')
     hot_df = pd.read_excel(hots, header=0, index_col=0)
-    hot_df.set_index('1', inplace=True)
+    hot_df.set_index(1, inplace=True)
     hits = [x for x in detected if x in hot_df.index]
     if hits:
         target = hot_df.loc[hits]
-        target.to_excel(out+'.xlsx')
+        if out.endswith('xlsx'):
+            target.to_excel(out)
+        else:
+            target.to_csv(out, sep='\t')
     else:
         print('No hotspot detected')
         target = None
@@ -517,5 +523,5 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, msi_cutoff=10, tmb_cutoff=10,
 
 if __name__ == '__main__':
     from xcmds import xcmds
-    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annotate_sv', 'filter_germline', 'process_annovar_txt'])
+    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annotate_sv', 'filter_germline', 'process_annovar_txt', 'extract_hots'])
 
