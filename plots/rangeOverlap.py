@@ -5,11 +5,15 @@ import matplotlib._color_data as mcd
 import matplotlib.patches as mpatch
 import pandas as pd
 import itertools
+from cycler import cycler
+
 
 
 def get_color_pool(n):
-    # https://plot.ly/ipython-notebooks/color-scales/
-    return [f'C{x}' for x in range(n)]
+    color_cycle = cycler(color=matplotlib.rcParams['axes.prop_cycle'])
+    cc = color_cycle()
+    colors = [x[1]['color'] for x in zip(range(n), cc)]
+    return colors
 
 
 def range_lines(bed, header=False, baseline=1, out='lines.pdf', same_height=False):
