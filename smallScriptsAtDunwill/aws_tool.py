@@ -11,12 +11,9 @@ _help = '''
     （1）首先使用get_target_file_path获得某个目录下所有文件路径信息，提供正则匹配参数筛选目标文件。
     （2）使用restore_files 对目标文件进行还原，还原通常需要12小时。
 
-2. 辅助脚本路径：
-    /data/users/dqgu/PycharmProjects/biodev/smallScriptsAtDunwill/restore_aws_data.py 
-
-3. 该脚本包含若干字命令，列出子命令：
+2. 该脚本包含若干字命令，列出子命令：
 ```
-$ python restore_aws_data.py 
+$ python aws_tool.py 
 The tool has the following sub-commands: 
 get_target_file_path（*本次用到）
 tagging_files（对目标文件打标签，便于进行生命周期策略管理）
@@ -25,9 +22,9 @@ restore_data （对目标目录的所有文件进行还原）
 find_restore_download (匹配目标文件->还原文件->下载文件）
 ```
 
-4. 获得子命令使用说明示例：
+3. 获得子命令使用说明示例：
 ```
-$ python restore_aws_data.py get_target_file_path -h
+$ python aws_tool.py get_target_file_path -h
 usage: get_target_file_path [-h] -target_dir target_dir
                             [-out Default:target_file.list]
                             [-full_match_exp Default:.*\.fastq.gz]
@@ -42,16 +39,16 @@ optional arguments:
                          使用re.fullmatch进行匹配的表达式, 只保留匹配上的路径
 ```
 
-5. 还原举例：
-（1）python restore_aws_data.py get_target_file_path -t s3://epionengs/80011001_HCC_Metastase/WES -full_match_exp '.*\.fastq.gz' -out target_file.list
-（2）python restore_aws_data.py restore_files -path  target_file.list
+4.分步还原数据举例：
+（1）python aws_tool.py get_target_file_path -t s3://epionengs/80011001_HCC_Metastase/WES -full_match_exp '.*\.fastq.gz' -out target_file.list
+（2）python aws_tool.py restore_files -path  target_file.list
 
-6. 下载已经还原的数据，注意，还原数据是比较慢的，通常隔天才能完成，除非你愿意加钱。
+5.下载已经还原的数据，注意，还原数据是比较慢的，通常隔天才能完成，除非你愿意加钱。
 （1）举例：aws s3 sync --only-show-errors s3://epionengs/80028_sc_RNA local_path > download.log &  
  (2) 如果有多个文件需要下载，可以写shell循环完成
 
-7. 一键化 搜索-还原-下载：
-python restore_aws_data.py find_restore_download -h
+6. 一键化 搜索-还原-下载：
+python aws_tool.py find_restore_download -h
 
 '''
 
@@ -191,7 +188,6 @@ def find_restore_download(target_dir, outdir, match='.*\.fastq.gz', restore=Fals
         else:
             print('Nothing matched!')
             return
-        import time
 
     if not do_not_download:
         if restore:
