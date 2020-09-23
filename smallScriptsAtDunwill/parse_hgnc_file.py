@@ -107,16 +107,19 @@ class ParseHGNC(object):
         return result
 
 
-def converting(query, hgnc_custom="/nfs2/database/HGNC/custom.txt", out='query_result.txt',
+def converting(query, hgnc_custom=None, out='query_result.txt',
                prior_known_pair=None, symbol2id=False):
     """
     converting ensembl id to symbol or reverse
-    :param hgnc_custom: https://www.genenames.org/download/custom/
+    :param hgnc_custom: https://www.genenames.org/download/custom/， "/nfs2/database/HGNC/custom.txt"
     :param sym: 待查询的列表文件
     :param out: 输出文件名
     :param prior_known_pair: 已经有的ensembl id 和 symbol对应文件, 包含两列; 如提供, 则将优先使用该文件做转换
     :param symbol2id: bool, 如果想把symbol转换为id, 则请用此参数
     """
+    hgnc_custom = hgnc_custom if hgnc_custom is not None else 'hgnc.info.txt'
+    from urllib.request import urlretrieve
+    urlretrieve('https://www.genenames.org/cgi-bin/download/custom?col=gd_hgnc_id&col=gd_app_sym&col=gd_app_name&col=gd_prev_sym&col=gd_aliases&col=gd_pub_ensembl_id&status=Approved&status=Entry%20Withdrawn&hgnc_dbtag=on&order_by=gd_app_sym_sort&format=text&submit=submit', hgnc_custom)
     object = ParseHGNC(hgnc_custom)
     return object.converting(query=query, symbol2id=symbol2id, out=out, known_pair=prior_known_pair)
 
