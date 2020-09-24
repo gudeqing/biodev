@@ -98,7 +98,10 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
         raw = infile
     else:
         raw = pd.read_csv(infile, header=0, sep=None, engine='python')
-    raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[2].astype(float)
+    try:
+        raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[2].astype(float)
+    except Exception:
+        raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[3].astype(float)
     up_streams = []
     down_streams = []
     if genome:
@@ -122,13 +125,16 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
             all_hgvs = each.split(',')
             for hgvs in all_hgvs:
                 hgvs_dict = dict(zip(['gene', 'transcript', 'exon', 'chgvs', 'phgvs'], hgvs.split(':')))
-                if cts[hgvs_dict['gene']].startswith(hgvs_dict['transcript'].split('.')[0]) or len(all_hgvs) == 1:
-                    hgvs_list[-1] = [
-                        hgvs_dict['transcript'],
-                        hgvs_dict['chgvs'] if 'chgvs' in hgvs_dict else '',
-                        hgvs_dict['phgvs'] if 'phgvs' in hgvs_dict else ''
-                    ]
-                    break
+                if hgvs_dict['gene'] in cts:
+                    if cts[hgvs_dict['gene']].startswith(hgvs_dict['transcript'].split('.')[0]) or len(all_hgvs) == 1:
+                        hgvs_list[-1] = [
+                            hgvs_dict['transcript'],
+                            hgvs_dict['chgvs'] if 'chgvs' in hgvs_dict else '',
+                            hgvs_dict['phgvs'] if 'phgvs' in hgvs_dict else ''
+                        ]
+                        break
+                else:
+                    print(hgvs_dict['gene'], '没有常用转录本信息')
     hgvs_df = pd.DataFrame(hgvs_list, columns=hgvs_header, index=raw.index)
     raw = raw.join(hgvs_df, rsuffix='_new')
     ver = 'WithVer' if 'Func_refGeneWithVer' in raw else ''
@@ -523,5 +529,5 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, msi_cutoff=10, tmb_cutoff=10,
 
 if __name__ == '__main__':
     from xcmds import xcmds
-    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annotate_sv', 'filter_germline', 'process_annovar_txt', 'extract_hots'])
+    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annovar_annotation', 'annotate_sv', 'filter_germline', 'process_annovar_txt', 'extract_hots'])
 
