@@ -363,8 +363,9 @@ def annotate_sv(vcf, out='fusion.final.txt', other_target_genes=None, okr_fusion
             if 'SIMPLE_ANN=' in lst[12]:
                 annot = lst[12].split('SIMPLE_ANN=')[1].split(',')[0].split('|')
                 # print(annot)
-                if 'GENE_FUSION' not in annot[1]:
+                if 'GENE_FUSION' not in annot[1] or '&' not in annot[2]:
                     continue
+                # print(annot)
                 g1, g2 = annot[2].split('&')
                 print(g1, g2)
                 report = False
@@ -396,6 +397,7 @@ def annotate_sv(vcf, out='fusion.final.txt', other_target_genes=None, okr_fusion
                     fw.write(f'{g1}--{g2}\t{break_pos}\t{lst[10]}\t{okr_name}\tyes\n')
             else:
                 pass
+    print(okr_query)
     return okr_query
 
 
