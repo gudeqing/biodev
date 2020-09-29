@@ -10,6 +10,11 @@ import scipy.stats as stats
 
 
 def count_mis_per_read(region, bam_file):
+    """
+    :param region: msisensor2 MSI格式
+    :param bam_file:
+    :return:
+    """
     bam = pysam.AlignmentFile(bam_file)
     rg_lst = []
     with open(region) as f:
@@ -57,11 +62,11 @@ def count_mis_per_read(region, bam_file):
                 repeat_num = 0
                 # 当MIS区域前存在插入时，导致无法匹配到repeat，需修正
                 if aln_seq[:start-r.reference_start].endswith(left) or left.endswith(aln_seq[:start-r.reference_start]):
-                    # 确定前面的序列为left flank，则在基本可以断定MSI发生插入或替换,所以要进行下面的搜索
+                    # 确定前面的序列为left flank，则基本可以断定MSI发生插入或替换,所以要进行下面的搜索
                     if not rp_start_to_end.startswith(repeat):
                         rp_start_to_end = rp_start_to_end[rp_start_to_end.find(repeat):]
                 else:
-                    # 这里可能可能有点奇怪，但可以校正回那些由于deletion的导致的MSI缩短的
+                    # 这里可能有点奇怪，但可以校正回那些由于deletion的导致的MSI缩短的
                     match = re.search(f'{left}.*?{right}', full_seq)
                     if match:
                         rp_start_to_end = match.group()[len(left):]
