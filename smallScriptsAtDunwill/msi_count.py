@@ -43,7 +43,7 @@ def count_mis_per_read(region, bam_file):
         right = ld['right_flank_bases']
         end = start + rp_len*int(ld['repeat_times'])
         exp_rp_num = int(ld['repeat_times'])
-        repeat_id = f'{ld["chromosome"]}:{start}:<{left}>{repeat}[{exp_rp_num}]<{right}'
+        repeat_id = f'{ld["chromosome"]}:{start}:{left}|${repeat}[{exp_rp_num}]$|{right}'
         repeat_num_lst = []
         read_set = set()
         for r in bam.fetch(ld['chromosome'], start, end):
