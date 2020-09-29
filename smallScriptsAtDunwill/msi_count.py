@@ -6,7 +6,7 @@ import pandas as pd
 import re
 import statistics
 import scipy.stats as stats
-# from collections import Counter
+from collections import Counter
 
 
 def count_mis_per_read(region, bam_file):
@@ -163,7 +163,7 @@ def run(region, normal_bam, tumor_bam, out):
                 key, n_mean, t_mean, pvalue,
                 n_alt_ratio, t_alt_ratio,
                 len(n_detail), len(t_detail),
-                n_detail, t_detail
+                Counter(n_detail), Counter(t_detail)
             ]
             f.write('\t'.join(str(x) for x in lst)+'\n')
 
