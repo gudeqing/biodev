@@ -125,13 +125,13 @@ def count_mis_per_read(region, bam_file):
     return result
 
 
-def run(region, normal_bam, tumor_bam, out):
+def run(region, normal_bam, tumor_bam, out_prefix='result'):
     print('---Normal---:"?"前面的序列表示bam中标记的和参考基因组没有比对上的部分, "|"表示比对的起始位置和终止位置')
     n = count_mis_per_read(region, normal_bam)
     print('---Tumor---:"?"前面的序列表示bam中标记的和参考基因组没有比对上的部分, "|"表示比对的起始位置和终止位置')
     t = count_mis_per_read(region, tumor_bam)
     print(n)
-    with open(out, 'w') as f:
+    with open(out_prefix+'.txt', 'w') as f:
         header = [
             'MSI', 'norm_mean', 'tumor_mean', 'diff_pvalue',
             'norm_alt_ratio', 'tumor_alt_ratio',
@@ -187,7 +187,7 @@ def run(region, normal_bam, tumor_bam, out):
                 axes[i, 0].set_title(key+' NoData!', fontdict={'fontsize':6}, loc='left')
                 axes[i, 1].set_title(key+' NoData!', fontdict={'fontsize':6}, loc='left')
 
-        plt.savefig('msi_length_distribution.pdf', bbox_inches='tight')
+        plt.savefig(f'{out_prefix}.msi_len_distr.pdf', bbox_inches='tight')
 
 
 if __name__ == '__main__':
