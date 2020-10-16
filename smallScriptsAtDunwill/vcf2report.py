@@ -39,6 +39,53 @@ from pysam import VariantFile, FastaFile
 """
 
 
+def annot_vcf_by_txt(vcfs:tuple, annot, out, how='inner', mark=None):
+    """
+    以两个输入文件的前5列信息作为索引，提取hotspot信息
+    :param vcfs:
+    :param annot:
+    :return:
+    """
+    with open(vcfs[0]) as f:
+        for line in f:
+            if line.startswith('#CHROM'):
+                header = line.split()
+                header[-1] = 'FORMAT_Values'
+                break
+
+    hotspot = pd.read_table(annot, header=0)
+    hotspot = hotspot.set_index(list(hotspot.columns[:5]))
+    merge = []
+    names = []
+    for vcf in vcfs:
+        name = vcf.split('.')[1]
+        names.append(name)
+        vcf_df = pd.read_table(vcf, header=None, comment='#')
+        # fmt_names = vcf_df[9][0].split(':')
+        vcf_df.columns = header
+        vcf_df = vcf_df.set_index(list(vcf_df.columns[:5]))
+        fmt_df = vcf_df[vcf_df.columns[-1]].str.split(':', expand=True)
+        fmt_df = fmt_df.iloc[:, [2, 3]]
+        fmt_df.columns = ['AD', 'AF']
+        vcf_df = vcf_df.join(fmt_df)
+
+        # print(vcf_df.head())
+        # print(hotspot.head())
+        result = vcf_df.join(hotspot, how=how)
+        result = result.reset_index()
+        result.insert(0, 'sample', name)
+        merge.append(result)
+    all_result = pd.concat(merge)
+    all_result.iloc[:, 3] = all_result.iloc[:, 1] + '_' + all_result.iloc[:, 2].astype(str) \
+                        + '_' + all_result.iloc[:, 4] + '_' + all_result.iloc[:, 5]
+    if mark:
+        # mark是一个包含两列的文件，第一列为样本名，第二列为'_'连接的chr_start_ref_alt
+        expected = {":".join(x.strip().split()) for x in open(mark)}
+        detected = all_result['sample']+':'+ all_result.iloc[:, 3]
+        all_result.insert(1, 'Hit', [x in expected for x in detected])
+    all_result.to_csv(out, sep='\t', index=False)
+
+
 def filter_vcf_by_af(vcf, af=0.02, tumour=1):
     dirname = os.path.dirname(vcf)
     basename = os.path.basename(vcf)
@@ -229,7 +276,7 @@ def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspo
             else:
                 print(f'found duplicated mutation:{key}')
     hot_df = pd.read_excel(hots, header=0, index_col=0)
-    hot_df.set_index(1, inplace=True)
+    hot_df.set_index('1', inplace=True)
     hits = [x for x in detected if x in hot_df.index]
     if hits:
         target = hot_df.loc[hits]
@@ -531,5 +578,5 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, msi_cutoff=10, tmb_cutoff=10,
 
 if __name__ == '__main__':
     from xcmds import xcmds
-    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annovar_annotation', 'annotate_sv', 'filter_germline', 'process_annovar_txt', 'extract_hots'])
+    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annovar_annotation', 'annotate_sv', 'filter_germline', 'process_annovar_txt', 'extract_hots', 'annot_vcf_by_txt'])
 
