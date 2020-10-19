@@ -54,6 +54,7 @@ def annot_vcf_by_txt(vcfs:tuple, annot, out, how='inner', mark=None):
                 break
 
     hotspot = pd.read_table(annot, header=0)
+    hotspot.iloc[:, 2] = '.'
     hotspot = hotspot.set_index(list(hotspot.columns[:5]))
     merge = []
     names = []
@@ -61,6 +62,7 @@ def annot_vcf_by_txt(vcfs:tuple, annot, out, how='inner', mark=None):
         name = vcf.split('.')[1]
         names.append(name)
         vcf_df = pd.read_table(vcf, header=None, comment='#')
+        vcf_df[2] = '.'  # 抹掉id信息
         # fmt_names = vcf_df[9][0].split(':')
         vcf_df.columns = header
         vcf_df = vcf_df.set_index(list(vcf_df.columns[:5]))
@@ -71,7 +73,7 @@ def annot_vcf_by_txt(vcfs:tuple, annot, out, how='inner', mark=None):
 
         # print(vcf_df.head())
         # print(hotspot.head())
-        result = vcf_df.join(hotspot, how=how)
+        result = vcf_df.join(hotspot, how=how, rsuffix='.new')
         result = result.reset_index()
         result.insert(0, 'sample', name)
         merge.append(result)
@@ -82,7 +84,13 @@ def annot_vcf_by_txt(vcfs:tuple, annot, out, how='inner', mark=None):
         # mark是一个包含两列的文件，第一列为样本名，第二列为'_'连接的chr_start_ref_alt
         expected = {":".join(x.strip().split()) for x in open(mark)}
         detected = all_result['sample']+':'+ all_result.iloc[:, 3]
-        all_result.insert(1, 'Hit', [x in expected for x in detected])
+        hits = [x in expected for x in detected]
+        missed = [x for x in expected if x not in set(detected)]
+        if missed:
+            print('没有找到', missed)
+        else:
+            print('所有期望的突变都找到了')
+        all_result.insert(1, 'Hit', hits)
     all_result.to_csv(out, sep='\t', index=False)
 
 
