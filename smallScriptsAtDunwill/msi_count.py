@@ -9,7 +9,7 @@ import scipy.stats as stats
 from collections import Counter
 
 
-def count_mis_per_read(region, bam_file):
+def count_msi_per_read(region, bam_file, out='None', cutoff=0.3):
     """
     :param region: msisensor2 MSI格式
     :param bam_file:
@@ -31,10 +31,26 @@ def count_mis_per_read(region, bam_file):
             'right_flank_bases'
         ]
         for line in f:
-            ld = dict(zip(names, line.strip().split()))
-            # print(ld)
+            if '[' in line and ']' in line:
+                # for this style: chr1 78432506 GGCTT 14[A] GCTAG
+                lst = line.strip().split()
+                repeat_unit = lst[3].split('[')[1].split(']')[0]
+                ld = {
+                    'chromosome':lst[0],
+                    'location': lst[1],
+                    'left_flank_bases': lst[2],
+                    'repeat_unit_bases': repeat_unit,
+                    'right_flank_bases': lst[4],
+                    'repeat_times': lst[3].split('[')[0],
+                    'repeat_unit_length': len(repeat_unit)
+                }
+            else:
+                ld = dict(zip(names, line.strip().split()))
+                # print(ld)
             rg_lst.append(ld)
+
     result = dict()
+    print('"^":序列比对的起始位置, "|":比对到repeat区域的起始位置, "$"位置表示比对的终止位置, 如果后续还有序列, 则是未比对上的部分')
     for ld in rg_lst:
         start = int(ld['location'])
         repeat = ld['repeat_unit_bases']
@@ -48,7 +64,7 @@ def count_mis_per_read(region, bam_file):
         read_set = set()
         for r in bam.fetch(ld['chromosome'], start, end):
             # aln_pos = r.get_reference_positions()
-            if r.reference_end is None or r.reference_start is None:
+            if r.reference_end is None or r.reference_start is None or r.is_secondary or r.is_duplicate:
                 continue
             if r.reference_end >= end and r.reference_start <= start and r.query_name not in read_set:
                 read_set.add(r.query_name)  # read name相同的reads只分析一次
@@ -57,19 +73,24 @@ def count_mis_per_read(region, bam_file):
                 # 这种数的方式也决定了MSI不能太长，否则也没有办法在reads中数到完整的MSI
                 aln_seq = r.query_alignment_sequence
                 full_seq = r.query_sequence
-                rp_start_to_end = aln_seq[start-r.reference_start:]
+                rp_start_to_end = aln_seq[start-r.reference_start:]  # repeat比对起始到read末尾的序列
                 ini_seq1 = rp_start_to_end
                 repeat_num = 0
-                # 当MIS区域前存在插入时，导致无法匹配到repeat，需修正
+                # read 以重复区域结尾或开头，那么没办法判断是否扩增，如何识别这样的read？未实现
+                # 当MSI区域前存在插入时，导致无法匹配到repeat，需修正
                 if aln_seq[:start-r.reference_start].endswith(left) or left.endswith(aln_seq[:start-r.reference_start]):
                     # 确定前面的序列为left flank，则基本可以断定MSI发生插入或替换,所以要进行下面的搜索
                     if not rp_start_to_end.startswith(repeat):
                         rp_start_to_end = rp_start_to_end[rp_start_to_end.find(repeat):]
                 else:
                     # 这里可能有点奇怪，但可以校正回那些由于deletion的导致的MSI缩短的
-                    match = re.search(f'{left}.*?{right}', full_seq)
+                    # 如果repeat前面的序列和左侧翼不匹配，则通过下面的正则匹配重新找到
+                    # match = re.search(f'{left}.*?{right}', full_seq)
+                    match = re.search(left+f'({repeat})+?'+right, full_seq)
                     if match:
+                        # print('xxx', rp_start_to_end)
                         rp_start_to_end = match.group()[len(left):]
+                        # print('xxx', rp_start_to_end)
 
                 seq = rp_start_to_end
                 while True:
@@ -78,7 +99,6 @@ def count_mis_per_read(region, bam_file):
                         seq = seq[rp_len:]
                     else:
                         break
-
                 # repeat 区域往前推，看是否还有扩增
                 seq2 = aln_seq[:start-r.reference_start]
                 ini_seq2 = seq2
@@ -110,26 +130,68 @@ def count_mis_per_read(region, bam_file):
                             break
                 #
                 repeat_num_lst.append(repeat_num)
-                print(f'>find {repeat_num} of {repeat_id} in aligned part of read {r.query_name}:')
-                print('',r.cigarstring,
-                      full_seq[:r.query_alignment_start]
-                      +'?'+ini_seq2
-                      +'|'+ini_seq1
-                      +'|'+full_seq[r.query_alignment_end:])
+                print(f'>find {repeat_num} repeats of {repeat_id} in aligned part of read {r.query_name}:')
+                print(
+                    # repeat_id,
+                    # repeat_num,
+                    # r.query_name,
+                    r.cigarstring,
+                    full_seq[:r.query_alignment_start]
+                    +'^'+ini_seq2
+                    +'|'+ini_seq1
+                    +'$'+full_seq[r.query_alignment_end:]
+                )
         if len(repeat_num_lst) > 0:
+            # 计算alt时，如果支持的read数超过5%才算有效，比如该位点有500条reads，那么有效的alt需要至少5个reads
+            repeat_num_lst = [x for x in repeat_num_lst if repeat_num_lst.count(x) > int(len(repeat_num_lst)*0.02)]
             alt_ratio = sum(x != exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst)
+            ins_ratio = sum(x > exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst) + 1e-5
+            del_ratio = sum(x < exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst)
         else:
             alt_ratio = 0
+            ins_ratio = 0
+            del_ratio = 0
             print('NO effective reads found for', repeat_id)
-        result[repeat_id] = (repeat_num_lst, alt_ratio)
+        result[repeat_id] = (repeat_num_lst, alt_ratio, ins_ratio, del_ratio)
+    if out != 'None':
+        with open(out, 'w') as f:
+            site_num = len(result)
+            unstable_num = 0
+            # f.write('site\trepeat_distribution\tmutation_ratio%\n')
+            header = ['site', 'bias=del_rate/ins_rate', 'alt_rate', 'mean_len', 'len_std', 'total_reads', 'len_distribution']
+            f.write('\t'.join(header)+'\n')
+            for k, v in result.items():
+                read_num = len(v[0])
+                std = statistics.stdev(v[0])
+                mean = statistics.mean(v[0])
+                # median = statistics.median(v[0])
+                # conf_range = stats.t.interval(0.90, read_num-1, loc=mean, scale=std)
+                # 假设正太分布，根据均值和方差算(min, max) that contains alpha percent of the distribution
+                # conf_range = stats.norm.interval(0.90, loc=mean, scale=std)
+                # conf_range = stats.poisson.interval(0.9, v[1], loc=int(median))
+                # conf_range = (round(conf_range[0]), round(conf_range[1]))
+                # expect = int(k.split('[')[1].split(']')[0])
+                # 把参考重复长度当作期望均值，检验本次采用是否和均值相同
+                # t, pvalue = stats.ttest_1samp(v[0], expect)
+                # f.write(f'{k}\t{Counter(v[0])}\t{v[1]:.2%}\t{mean:.2f}\t{std:.2f}\t{read_num}\t{v[3]/v[2]:.2f}\t{pvalue}\n')
+                f.write(f'{k}\t{v[3]/v[2]:.2f}\t{v[1]:.2%}\t{mean:.2f}\t{std:.2f}\t{read_num}\t{Counter(v[0])}\n')
+                # if v[1] > cutoff:
+                # if not(conf_range[0]<expect<conf_range[1]):
+                # if not(conf_range[0]<=expect<=conf_range[1]) or v[1] > 0.55:
+                if v[3] > cutoff*v[2]:
+                    # 根据MSIsenor-pro的文献，MSS样本中，长度分布应该是左偏的，根据经验可推测，正常样本应该比较符合对称的分布如正太分布
+                    # 所以根据insertion和deletion的比例判断是否发生了unstable
+                    unstable_num += 1
+            print('Summary:', site_num, unstable_num, "{:.2%}".format(unstable_num/site_num))
+            f.write(f'Summary\t{unstable_num}(bias>{cutoff})/{site_num}\t{unstable_num/site_num:.2%}\n')
     return result
 
 
 def run(region, normal_bam, tumor_bam, out_prefix='result'):
     print('---Normal---:"?"前面的序列表示bam中标记的和参考基因组没有比对上的部分, "|"表示比对的起始位置和终止位置')
-    n = count_mis_per_read(region, normal_bam)
+    n = count_msi_per_read(region, normal_bam)
     print('---Tumor---:"?"前面的序列表示bam中标记的和参考基因组没有比对上的部分, "|"表示比对的起始位置和终止位置')
-    t = count_mis_per_read(region, tumor_bam)
+    t = count_msi_per_read(region, tumor_bam)
     print(n)
     with open(out_prefix+'.txt', 'w') as f:
         header = [
