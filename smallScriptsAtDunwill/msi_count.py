@@ -43,7 +43,7 @@ def parse_region(region):
             yield ld
 
 
-def msi_stat(region, bam_file, out='None', min_reads=20):
+def msi_stat(region, bam_file, out='None', min_reads=20, cutoff=0.2):
     """
     :param region: 每一行表示一个微卫星位点，可以是MSISensorScan的结果
       example1:  chrM    65      1       2       6       439     953     G       CGTCT   TGTGC
@@ -167,7 +167,7 @@ def msi_stat(region, bam_file, out='None', min_reads=20):
         def process(stat_result):
             header = [
                 'site', 'bias=del_rate/ins_rate',
-                'alt_rate', 'total_reads',
+                'alt_rate', 'total_reads', 'is_unstable',
                 'mean_len', 'len_std', 'len_distribution'
             ]
             lines = []
@@ -190,15 +190,17 @@ def msi_stat(region, bam_file, out='None', min_reads=20):
                     threshold = 2
                 elif 0.13 < v[1] <= 0.2:
                     threshold = 1.8
-
+                unstable = 'no'
                 if del_ins_bias >= threshold and v[1] >= 0.1:
                     # 根据MSIsenor-pro的文献，MSS样本中，deletion为主要特征，根据经验可推测，正常样本应该比较符合对称的分布如正太分布
                     # 所以根据insertion和deletion的比例判断是否发生了unstable
                     unstable_num += 1
-                lines.append([k, round(del_ins_bias, 2), f'{v[1]:.2%}', read_num, round(mean, 2), round(std,2), distr])
+                    unstable = 'yes'
+                lines.append([k, round(del_ins_bias, 2), f'{v[1]:.2%}', read_num, unstable, round(mean, 2), round(std,2), distr])
             lines.sort(key=lambda x: (x[1], x[2]), reverse=True)
             lines = [header] + lines
-            lines = [['#Summary', f'{unstable_num}/{site_num}', f'{unstable_num/site_num:.2%}']] + lines
+            status = 'MSI:High' if round(unstable_num/site_num, 2) >= cutoff else 'MSI:Stable'
+            lines = [['#Summary', f'{unstable_num}/{site_num}', f'{unstable_num/site_num:.2%}', status]] + lines
             return lines
 
         lines = process(result)
