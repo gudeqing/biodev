@@ -9,7 +9,7 @@ import scipy.stats as stats
 from collections import Counter
 
 
-def count_msi_per_read(region, bam_file, out='None', cutoff=0.3):
+def count_msi_per_read(region, bam_file, out='None', cutoff=0.0):
     """
     :param region: msisensor2 MSI格式
     :param bam_file:
@@ -142,8 +142,8 @@ def count_msi_per_read(region, bam_file, out='None', cutoff=0.3):
                     +'$'+full_seq[r.query_alignment_end:]
                 )
         if len(repeat_num_lst) > 0:
-            # 计算alt时，如果支持的read数超过5%才算有效，比如该位点有500条reads，那么有效的alt需要至少5个reads
-            repeat_num_lst = [x for x in repeat_num_lst if repeat_num_lst.count(x) > int(len(repeat_num_lst)*0.02)]
+            # 计算alt时，如果支持的read数超过2%才算有效，比如该位点有500条reads，那么有效的alt需要至少5个reads
+            repeat_num_lst = [x for x in repeat_num_lst if repeat_num_lst.count(x) > int(len(repeat_num_lst)*0.01)+1]
             alt_ratio = sum(x != exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst)
             ins_ratio = sum(x > exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst) + 1e-5
             del_ratio = sum(x < exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst)
@@ -158,12 +158,16 @@ def count_msi_per_read(region, bam_file, out='None', cutoff=0.3):
             site_num = len(result)
             unstable_num = 0
             # f.write('site\trepeat_distribution\tmutation_ratio%\n')
-            header = ['site', 'bias=del_rate/ins_rate', 'alt_rate', 'mean_len', 'len_std', 'total_reads', 'len_distribution']
+            header = [
+                'site', 'bias=del_rate/ins_rate',
+                'alt_rate', 'mean_len', 'len_std', 'total_reads', 'len_distribution'
+            ]
             f.write('\t'.join(header)+'\n')
             for k, v in result.items():
                 read_num = len(v[0])
                 std = statistics.stdev(v[0])
                 mean = statistics.mean(v[0])
+                del_ins_bias = round(v[3]/v[2], 2)
                 # median = statistics.median(v[0])
                 # conf_range = stats.t.interval(0.90, read_num-1, loc=mean, scale=std)
                 # 假设正太分布，根据均值和方差算(min, max) that contains alpha percent of the distribution
@@ -174,16 +178,33 @@ def count_msi_per_read(region, bam_file, out='None', cutoff=0.3):
                 # 把参考重复长度当作期望均值，检验本次采用是否和均值相同
                 # t, pvalue = stats.ttest_1samp(v[0], expect)
                 # f.write(f'{k}\t{Counter(v[0])}\t{v[1]:.2%}\t{mean:.2f}\t{std:.2f}\t{read_num}\t{v[3]/v[2]:.2f}\t{pvalue}\n')
-                f.write(f'{k}\t{v[3]/v[2]:.2f}\t{v[1]:.2%}\t{mean:.2f}\t{std:.2f}\t{read_num}\t{Counter(v[0])}\n')
+                if read_num < 15:
+                    site_num -= 1
+                    continue
+                # skewness = stats.skew(v[0])
+                # z, skew_pvalue = stats.skewtest(v[0])
+                f.write(f'{k}\t{del_ins_bias}\t{v[1]:.2%}\t{mean:.2f}\t{std:.2f}\t{read_num}\t{Counter(v[0])}\n')
                 # if v[1] > cutoff:
                 # if not(conf_range[0]<expect<conf_range[1]):
                 # if not(conf_range[0]<=expect<=conf_range[1]) or v[1] > 0.55:
-                if v[3] > cutoff*v[2]:
+                # if skewness < -0.01 and skew_pvalue < 0.05:
+                # 测试发现MSI-H的细胞系中，大部分sites的分布长度还是符合对称分布的, 将其混入其他标准品中时，会导致明显的不对称性
+                # 测序临床样本发现，blood样本也会出现不对称性，可能是测序深度不够
+                if cutoff <= 0:
+                    threshold = 1.5
+                    if 0.1 < v[1] <= 0.13:
+                        threshold = 2
+                    elif 0.13 < v[1] <= 0.2:
+                        threshold = 1.8
+                else:
+                    threshold = cutoff
+                if del_ins_bias > threshold and v[1] > 0.1:
                     # 根据MSIsenor-pro的文献，MSS样本中，长度分布应该是左偏的，根据经验可推测，正常样本应该比较符合对称的分布如正太分布
                     # 所以根据insertion和deletion的比例判断是否发生了unstable
                     unstable_num += 1
             print('Summary:', site_num, unstable_num, "{:.2%}".format(unstable_num/site_num))
-            f.write(f'Summary\t{unstable_num}(bias>{cutoff})/{site_num}\t{unstable_num/site_num:.2%}\n')
+            # f.write(f'Summary\t{unstable_num}(bias>{cutoff})/{site_num}\t{unstable_num/site_num:.2%}\n')
+            f.write(f'Summary\t{unstable_num}/{site_num}\t{unstable_num/site_num:.2%}\n')
     return result
 
 
