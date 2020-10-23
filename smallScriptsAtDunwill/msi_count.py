@@ -200,7 +200,7 @@ def msi_stat(region, bam_file, out='None', min_reads=20, cutoff=0.2):
             lines.sort(key=lambda x: (x[1], x[2]), reverse=True)
             lines = [header] + lines
             status = 'MSI:High' if round(unstable_num/site_num, 2) >= cutoff else 'MSI:Stable'
-            lines = [['#Summary', f'{unstable_num}/{site_num}', f'{unstable_num/site_num:.2%}', status]] + lines
+            lines = [['#Summary', f'{unstable_num}|{site_num}', f'{unstable_num/site_num:.2%}', status]] + lines
             return lines
 
         lines = process(result)
