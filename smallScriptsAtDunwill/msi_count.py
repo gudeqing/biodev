@@ -9,14 +9,7 @@ import scipy.stats as stats
 from collections import Counter
 
 
-def count_msi_per_read(region, bam_file, out='None', cutoff=0.0):
-    """
-    :param region: msisensor2 MSI格式
-    :param bam_file:
-    :return:
-    """
-    bam = pysam.AlignmentFile(bam_file)
-    rg_lst = []
+def parse_region(region):
     with open(region) as f:
         names = [
             'chromosome',
@@ -36,7 +29,7 @@ def count_msi_per_read(region, bam_file, out='None', cutoff=0.0):
                 lst = line.strip().split()
                 repeat_unit = lst[3].split('[')[1].split(']')[0]
                 ld = {
-                    'chromosome':lst[0],
+                    'chromosome': lst[0],
                     'location': lst[1],
                     'left_flank_bases': lst[2],
                     'repeat_unit_bases': repeat_unit,
@@ -47,11 +40,27 @@ def count_msi_per_read(region, bam_file, out='None', cutoff=0.0):
             else:
                 ld = dict(zip(names, line.strip().split()))
                 # print(ld)
-            rg_lst.append(ld)
+            yield ld
 
+
+def msi_stat(region, bam_file, out='None', min_reads=20):
+    """
+    :param region: 每一行表示一个微卫星位点，可以是MSISensorScan的结果
+      example1:  chrM    65      1       2       6       439     953     G       CGTCT   TGTGC
+      example2:  chr1 78432506 GGCTT 14[A] GCTAG'格式
+    :param bam_file: bam文件路径，需要索引
+    :param out: 输出文件
+    :param min_reads: 支持某个位点的最小reads数量
+    说明:
+        判定某个MS是否稳定的一个阈值，默认根据deletion和insertion的频率进行过滤，如比例大于1.5，且频率和大于10%
+        根据MSIsenor-pro的文献，MSI样本中，deletion为主要特征，
+        而根据经验可推测MSS样本应该比较符合对称的分布如正太分，所以使用上述bias判定稳定性比较可靠
+    :return: 字典result[repeat_id] = (repeat_num_lst, alt_ratio, ins_ratio, del_ratio)
+    """
+    bam = pysam.AlignmentFile(bam_file)
     result = dict()
     print('"^":序列比对的起始位置, "|":比对到repeat区域的起始位置, "$"位置表示比对的终止位置, 如果后续还有序列, 则是未比对上的部分')
-    for ld in rg_lst:
+    for ld in parse_region(region):
         start = int(ld['location'])
         repeat = ld['repeat_unit_bases']
         rp_len = int(ld['repeat_unit_length'])
@@ -145,7 +154,7 @@ def count_msi_per_read(region, bam_file, out='None', cutoff=0.0):
             # 计算alt时，如果支持的read数超过2%才算有效，比如该位点有500条reads，那么有效的alt需要至少5个reads
             repeat_num_lst = [x for x in repeat_num_lst if repeat_num_lst.count(x) > int(len(repeat_num_lst)*0.01)+1]
             alt_ratio = sum(x != exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst)
-            ins_ratio = sum(x > exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst) + 1e-5
+            ins_ratio = sum(x > exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst) + 1e-3
             del_ratio = sum(x < exp_rp_num for x in repeat_num_lst)/len(repeat_num_lst)
         else:
             alt_ratio = 0
@@ -153,67 +162,59 @@ def count_msi_per_read(region, bam_file, out='None', cutoff=0.0):
             del_ratio = 0
             print('NO effective reads found for', repeat_id)
         result[repeat_id] = (repeat_num_lst, alt_ratio, ins_ratio, del_ratio)
+
     if out != 'None':
-        with open(out, 'w') as f:
-            site_num = len(result)
-            unstable_num = 0
-            # f.write('site\trepeat_distribution\tmutation_ratio%\n')
+        def process(stat_result):
             header = [
                 'site', 'bias=del_rate/ins_rate',
-                'alt_rate', 'mean_len', 'len_std', 'total_reads', 'len_distribution'
+                'alt_rate', 'total_reads',
+                'mean_len', 'len_std', 'len_distribution'
             ]
-            f.write('\t'.join(header)+'\n')
-            for k, v in result.items():
+            lines = []
+            site_num = len(stat_result)
+            unstable_num = 0
+            for k, v in stat_result.items():
                 read_num = len(v[0])
+                if read_num <= min_reads:
+                    site_num -= 1
+                    continue
                 std = statistics.stdev(v[0])
                 mean = statistics.mean(v[0])
                 del_ins_bias = round(v[3]/v[2], 2)
-                # median = statistics.median(v[0])
-                # conf_range = stats.t.interval(0.90, read_num-1, loc=mean, scale=std)
-                # 假设正太分布，根据均值和方差算(min, max) that contains alpha percent of the distribution
-                # conf_range = stats.norm.interval(0.90, loc=mean, scale=std)
-                # conf_range = stats.poisson.interval(0.9, v[1], loc=int(median))
-                # conf_range = (round(conf_range[0]), round(conf_range[1]))
+                distr = dict(Counter(v[0]))
                 # expect = int(k.split('[')[1].split(']')[0])
-                # 把参考重复长度当作期望均值，检验本次采用是否和均值相同
-                # t, pvalue = stats.ttest_1samp(v[0], expect)
-                # f.write(f'{k}\t{Counter(v[0])}\t{v[1]:.2%}\t{mean:.2f}\t{std:.2f}\t{read_num}\t{v[3]/v[2]:.2f}\t{pvalue}\n')
-                if read_num < 15:
-                    site_num -= 1
-                    continue
-                # skewness = stats.skew(v[0])
-                # z, skew_pvalue = stats.skewtest(v[0])
-                f.write(f'{k}\t{del_ins_bias}\t{v[1]:.2%}\t{mean:.2f}\t{std:.2f}\t{read_num}\t{Counter(v[0])}\n')
-                # if v[1] > cutoff:
-                # if not(conf_range[0]<expect<conf_range[1]):
-                # if not(conf_range[0]<=expect<=conf_range[1]) or v[1] > 0.55:
-                # if skewness < -0.01 and skew_pvalue < 0.05:
                 # 测试发现MSI-H的细胞系中，大部分sites的分布长度还是符合对称分布的, 将其混入其他标准品中时，会导致明显的不对称性
-                # 测序临床样本发现，blood样本也会出现不对称性，可能是测序深度不够
-                if cutoff <= 0:
-                    threshold = 1.5
-                    if 0.1 < v[1] <= 0.13:
-                        threshold = 2
-                    elif 0.13 < v[1] <= 0.2:
-                        threshold = 1.8
-                else:
-                    threshold = cutoff
-                if del_ins_bias > threshold and v[1] > 0.1:
-                    # 根据MSIsenor-pro的文献，MSS样本中，长度分布应该是左偏的，根据经验可推测，正常样本应该比较符合对称的分布如正太分布
+                # 测试wes临床样本发现，blood样本也会出现不对称性，可能是测序深度不够
+                threshold = 1.5
+                if 0.1 < v[1] <= 0.13:
+                    threshold = 2
+                elif 0.13 < v[1] <= 0.2:
+                    threshold = 1.8
+
+                if del_ins_bias >= threshold and v[1] >= 0.1:
+                    # 根据MSIsenor-pro的文献，MSS样本中，deletion为主要特征，根据经验可推测，正常样本应该比较符合对称的分布如正太分布
                     # 所以根据insertion和deletion的比例判断是否发生了unstable
                     unstable_num += 1
-            print('Summary:', site_num, unstable_num, "{:.2%}".format(unstable_num/site_num))
-            # f.write(f'Summary\t{unstable_num}(bias>{cutoff})/{site_num}\t{unstable_num/site_num:.2%}\n')
-            f.write(f'Summary\t{unstable_num}/{site_num}\t{unstable_num/site_num:.2%}\n')
+                lines.append([k, round(del_ins_bias, 2), f'{v[1]:.2%}', read_num, round(mean, 2), round(std,2), distr])
+            lines.sort(key=lambda x: (x[1], x[2]), reverse=True)
+            lines = [header] + lines
+            lines = [['#Summary', f'{unstable_num}/{site_num}', f'{unstable_num/site_num:.2%}']] + lines
+            return lines
+
+        lines = process(result)
+        with open(out, 'w') as f:
+            for line in lines:
+                f.write('\t'.join(str(x) for x in line)+'\n')
+
     return result
 
 
-def run(region, normal_bam, tumor_bam, out_prefix='result'):
-    print('---Normal---:"?"前面的序列表示bam中标记的和参考基因组没有比对上的部分, "|"表示比对的起始位置和终止位置')
-    n = count_msi_per_read(region, normal_bam)
-    print('---Tumor---:"?"前面的序列表示bam中标记的和参考基因组没有比对上的部分, "|"表示比对的起始位置和终止位置')
-    t = count_msi_per_read(region, tumor_bam)
-    print(n)
+def paired_msi(region, normal_bam, tumor_bam, out_prefix='result'):
+    print('---Normal---')
+    n = msi_stat(region, normal_bam)
+    print('---Tumor---')
+    t = msi_stat(region, tumor_bam)
+    # print(n)
     with open(out_prefix+'.txt', 'w') as f:
         header = [
             'MSI', 'norm_mean', 'tumor_mean', 'diff_pvalue',
@@ -231,6 +232,7 @@ def run(region, normal_bam, tumor_bam, out_prefix='result'):
         else:
             width = 9
             height = 22 / 5 * len(n)
+
         fig, axes = plt.subplots(nrows=len(n), ncols=2, figsize=(width, height))
         plt.rcParams['axes.titleweight'] = 'bold'
         # axes = [y for x in axes for y in x]
