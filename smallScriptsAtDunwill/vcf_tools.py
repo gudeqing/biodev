@@ -210,61 +210,91 @@ class VCF(object):
             json.dump(rule_dict, f, indent=2)
 
 
-class DiffVCF():
-    def diff_vcf(self, vcf, vcf2, out='diff.vcf', exclude_if="TRANSLATION_IMPACT=synonymous", true_num=0):
-        """
-        把vcf2解析成字典，然后读vcf时查询该字典, 排除在字典中存在的记录，然后使用info_filter_if信息进一步过滤。
-        'CHROM' + 'POS' + 'REF' + 'ALT' + 'GT'作为字典的key
-        :param vcf: 需要处理的vcf文件，将从vcf排除出现在vcf2中的突变
-        :param vcf2: 被过滤的信息
-        :param out: 过滤后的输出vcf文件
-        :param exclude_if: 最后的过滤的条件, 目前仅仅支持"=", 例如"TRANSLATION_IMPACT=synonymous;GENE_REGION=Intronic",
-            符合N(=true_num)个条件的记录都会被过滤掉.
-        :param true_num: 通过过滤条件的次数, 默认为0，表示要求所有条件都要满足.
-        :return:
-        """
-        tmp_dict = dict()
-        for line_dict, line in VCF(vcf2).line2dict():
-            if line_dict:
-                key = line_dict['CHROM']+line_dict['POS']+line_dict['REF']+line_dict['ALT']
-                sample = line_dict['samples'][0]
-                sample = sample if sample in line_dict else sample+'_x'
-                key += line_dict[sample]['GT']
-                tmp_dict[key] = line
+def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=None, sample_ind=-1,
+                comm_ids:tuple=('AAChange_refGeneWithVer',)):
+    """
+    使用pysam解析vcf，建立结果字典
+    mutation唯一id构成：chr:start:ref:alt
+    {
+        'sample':{'mut1':0.1,'mut2':0.2,'mut3':0.3},
+        'sample2':{'mut1':0.12,'mut2':0.22,'mut3':0.32},
+        'comm_field': {'mut1':'g:t:c:p','mut2':'g:t:c:p','mut3':'g:t:c:p'},
+    }
+    :param vcfs:
+    :param fields:
+    :return:
+    """
+    if often_trans:
+        often_dict = dict(
+            x.strip().split('\t')[:2] for x in open(often_trans) if len(x.strip().split()) > 1
+        )
+    else:
+        often_dict = dict()
 
-        with open(out, 'w') as f:
-            for line_dict, line in VCF(vcf).line2dict():
-                if type(line_dict)==dict:
-                    key = line_dict['CHROM'] + line_dict['POS'] + line_dict['REF'] + line_dict['ALT']
-                    sample = line_dict['samples'][0]
-                    sample = sample if sample in line_dict else sample + '_x'
-                    key += line_dict[sample]['GT']
-                    if key not in tmp_dict:
-                        if exclude_if:
-                            filters = exclude_if.split(';')
-                            i = 0
-                            for filter_exp in filters:
-                                k, v = filter_exp.split('=')
-                                if k in line_dict['INFO']:
-                                    if line_dict['INFO'].get(k) != v:
-                                        i += 1
-                                elif k in line_dict:
-                                    if line_dict[k] != v:
-                                        i += 1
-                                else:
-                                    # 没有找到，也算通过过滤条件
-                                    i += 1
-                            if true_num == 0:
-                                pass_if = i == len(filters)
-                            else:
-                                pass_if = i >= true_num
-                            if pass_if:
-                                f.write(line)
-                        else:
-                            f.write(line)
+    def get_comm_aa_change(changes, ofen_dict):
+        target = None
+        if often_dict:
+            for each in changes:
+                tmp = each.split(':')
+                trans = often_dict.get(tmp[0])
+                if trans:
+                    transcript = tmp[1].split('.')[0]
+                    if (trans.split('.')[0] == transcript):
+                        target = each
+                        break
                 else:
-                    f.write(line)
+                    # print(f'{tmp[0]} is not recorded in common transcripts!')
+                    pass
+        if target is None:
+            target = changes
+        return target
 
+    rd = dict()
+    for vcf in vcfs:
+        with VariantFile(vcf) as f:
+            for r in f:
+                # mutation id
+                mid = ':'.join([str(r.contig), str(r.pos), r.ref, r.alts[0]])
+                sample = r.samples.keys()[sample_ind]
+                rd.setdefault(sample, dict())
+                for each in comm_ids:
+                    if each in rd and mid in rd[each]:
+                        # 每个id只解析一次
+                        continue
+                    if each in r.info:
+                        rd.setdefault(each, dict())
+                        if each == 'AAChange_refGeneWithVer' or each =='AAChange_refGene':
+                            cid = get_comm_aa_change(r.info[each], often_dict)
+                        else:
+                            cid = r.info[each]
+                        rd[each][mid] = cid
+                values = []
+                for each in data_fields:
+                    loc, field = each.split('/')
+                    if loc == 'FORMAT':
+                        if field == 'AF':
+                            value = r.samples[sample][field][0]
+                        else:
+                            value = r.samples[sample][field]
+                    else:
+                        value = r.info[field]
+                    if type(value) == float:
+                        value = round(value, 4)
+                    values.append(value)
+                rd[sample][mid] = '|'.join(str(x) for x in values)
+
+    df = pd.DataFrame(rd)
+    df.index.name = 'mutation'
+    cids = sorted([x for x in df.columns if x in comm_ids])
+    samples = sorted([x for x in df.columns if x not in cids])
+    order = cids + samples
+    df = df[order]
+    df.to_csv(out, sep='\t')
+
+
+if __name__ == '__main__':
+    from xcmds import xcmds
+    xcmds.xcmds(locals())
 
 
 
