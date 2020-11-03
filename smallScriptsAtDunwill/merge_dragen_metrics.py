@@ -5,6 +5,12 @@ import os
 
 
 def coverage(files, out):
+    """
+    合并metrics
+    :param files: *.target_bed_coverage_metrics
+    :param out:
+    :return:
+    """
     files = glob.glob(files)
     files = sorted(files)
     print(files)
@@ -23,6 +29,12 @@ def coverage(files, out):
 
 
 def mapping(files, out):
+    """
+
+    :param files: .mapping_metrics
+    :param out:
+    :return:
+    """
     files = glob.glob(files)
     files = sorted(files)
     print(files)
