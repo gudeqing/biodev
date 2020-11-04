@@ -18,6 +18,7 @@ class VCF(object):
 
     def line2dict(self):
         """
+        实践表明由于pysam模块可以非常好的处理vcf文件，而且速度快，这里定义的函数可以在vcf不规范时考虑使用
         主要目的是把一行信息转换为字典; header信息除外, 不加处理直接返回。
         返回一个生成器，包含两个元素，第一个元素是字典结构，第二个元素是未加处理的行（方便用于过滤）;
         如果当前行是header信息，则第一个元素是第一个‘=’前的字符，也就是名称。
@@ -56,7 +57,7 @@ class VCF(object):
                     for sample in header[9:]:
                         values = line_dict.pop(sample).split(':')
                         if sample in line_dict:
-                            print(f'name of sample {sample} are conflicted with others! We will rename it by adding _x')
+                            print(f'name of sample {sample} is conflicted with others! We will rename it by adding _x')
                             sample += '_x'
                         line_dict[sample] = dict(zip(format_lst, values))
                     line_dict['samples'] = header[9:]
@@ -79,9 +80,8 @@ class VCF(object):
 
     def stat_range(self):
         """
-        要求vcf中的'.'表示无相关注释，而不是其他含义
+        要求vcf中的'.'表示无相关注释，而不是其他含义, 大部分vcf都是遵守这样的规范
         rg表示取值范围 fd表示字段名 tp表示字段取值类型
-        本次未使用自己写的line2dict获取信息，主要是为了熟悉pysam的VariantFile
         :return:
         """
         field_type = self.get_field_type()
@@ -112,6 +112,7 @@ class VCF(object):
                             if type(info[fd]) == tuple:
                                 values = info[fd]
                             else:
+                                # 所有的值都以列表或tuple形式存储
                                 values = [info[fd]]
                             if tp == 'Integer' or tp == 'Float':
                                 # 一个字段可能对应多个值，如不同基因型对应的不同统计数据
