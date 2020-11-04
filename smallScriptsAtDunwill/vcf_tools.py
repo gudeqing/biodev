@@ -212,7 +212,7 @@ class VCF(object):
 
 
 def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=None, sample_ind=-1,
-                comm_ids:tuple=('AAChange_refGeneWithVer',)):
+                comm_ids:tuple=('AAChange_refGeneWithVer',), pass_filter=False):
     """
     使用pysam解析vcf，建立结果字典
     mutation唯一id构成：chr:start:ref:alt
@@ -259,6 +259,9 @@ def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=N
     for vcf in vcfs:
         with VariantFile(vcf) as f:
             for r in f:
+                if pass_filter:
+                    if list(r.filter)[0] != 'PASS':
+                        continue
                 # mutation id
                 mid = ':'.join([str(r.contig), str(r.pos), r.ref, r.alts[0]])
                 sample = r.samples.keys()[sample_ind]
