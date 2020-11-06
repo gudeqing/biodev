@@ -212,7 +212,7 @@ class VCF(object):
 
 
 def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=None, sample_ind=-1,
-                comm_ids:tuple=('AAChange_refGeneWithVer',), pass_filter=False):
+                comm_ids:tuple=('AAChange_refGeneWithVer',), pass_filter=False, target_vcf=None):
     """
     使用pysam解析vcf，建立结果字典
     mutation唯一id构成：chr:start:ref:alt
@@ -236,6 +236,15 @@ def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=N
         )
     else:
         often_dict = dict()
+
+    if target_vcf:
+        targets = set()
+        with VariantFile(target_vcf) as f:
+            for r in f:
+                mid = ':'.join([str(r.contig), str(r.pos), r.ref, r.alts[0]])
+                targets.add(mid)
+    else:
+        targets = None
 
     def get_comm_aa_change(changes, often_dict):
         target = None
@@ -264,6 +273,9 @@ def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=N
                         continue
                 # mutation id
                 mid = ':'.join([str(r.contig), str(r.pos), r.ref, r.alts[0]])
+                if targets:
+                    if mid not in targets:
+                        continue
                 sample = r.samples.keys()[sample_ind]
                 rd.setdefault(sample, dict())
                 for each in comm_ids:
@@ -294,6 +306,7 @@ def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=N
 
     df = pd.DataFrame(rd)
     df.index.name = 'mutation'
+    df.loc['sum'] = df.apply(lambda x: sum(type(i) == str for i in x))
     cids = sorted([x for x in df.columns if x in comm_ids])
     samples = sorted([x for x in df.columns if x not in cids])
     order = cids + samples
