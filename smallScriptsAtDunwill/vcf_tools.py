@@ -4,6 +4,7 @@ import json
 import gzip
 from collections import namedtuple
 import pandas as pd
+import numpy as np
 from pysam import VariantFile
 from concurrent.futures import ProcessPoolExecutor as Pool
 
@@ -212,7 +213,7 @@ class VCF(object):
 
 
 def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=None, sample_ind=-1,
-                comm_ids:tuple=('AAChange_refGeneWithVer',), pass_filter=False, target_vcf=None):
+                comm_ids:tuple=('AAChange_refGeneWithVer',), pass_filter=False, target_vcf=None, positive_vcf=None):
     """
     使用pysam解析vcf，建立结果字典
     mutation唯一id构成：chr:start:ref:alt
@@ -245,6 +246,15 @@ def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=N
                 targets.add(mid)
     else:
         targets = None
+
+    if positive_vcf:
+        positives = set()
+        with VariantFile(positive_vcf) as f:
+            for r in f:
+                mid = ':'.join([str(r.contig), str(r.pos), r.ref, r.alts[0]])
+                positives.add(mid)
+    else:
+        positives = None
 
     def get_comm_aa_change(changes, often_dict):
         target = None
@@ -304,9 +314,21 @@ def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=N
                     values.append(value)
                 rd[sample][mid] = '|'.join(str(x) for x in values)
 
-    df = pd.DataFrame(rd)
+    df = pd.DataFrame(rd).fillna('-')
     df.index.name = 'mutation'
-    df.loc['sum'] = df.apply(lambda x: sum(type(i) == str for i in x))
+    if positives:
+        dfcopy = df.copy()
+        df.loc['positives'] = dfcopy.apply(lambda x: sum(i != '-' for i in x))
+        judge = lambda x: sum(v != '-' and (i in positives) for i, v in zip(x.index, x))
+        df.loc['TP'] = dfcopy.apply(judge)
+        judge2 = lambda x: sum(v != '-' and (i not in positives) for i, v in zip(x.index, x))
+        df.loc['FP'] = dfcopy.apply(judge2)
+        judge3 = lambda x: sum(v == '-' and (i in positives) for i, v in zip(x.index, x))
+        df.loc['FN'] = dfcopy.apply(judge3)
+        # judge4 = lambda x: sum(v == '-' and (i not in positives) for i, v in zip(x.index, x))
+        # df.loc['TN'] = dfcopy.apply(judge4)
+        if targets:
+            df.loc['TN'] = len(targets) - df.loc['TP'] - df.loc['FP'] - df.loc['FN']
     cids = sorted([x for x in df.columns if x in comm_ids])
     samples = sorted([x for x in df.columns if x not in cids])
     order = cids + samples
