@@ -224,7 +224,7 @@ def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=N
     }
     :param vcfs: vcf路径信息，空格分开多个vcf
     :param out: 输出文件名，每行以一个突变为单位，第一列为chr:pos:ref:alts构成的突变id，
-    :param data_fields: 结果矩阵中的信息对应的字段信息，如果提供多个，将用冒号隔开
+    :param data_fields: 结果矩阵中的信息对应的字段信息，如果提供多个，将用‘|’隔开
     :param often_trans: 常用转录本
     :param sample_ind: 样本索引，即vcf中第几个样本是我们关注的样本，默认提取最后一个样本的信息
     :param comm_ids: 提取其他字段作为每一行的注释，可以是多个字段，提取的信息从输出文件的第二列开始存放。
