@@ -689,8 +689,8 @@ if __name__ == "__main__":
                              "If 0, this option will be ignored; If 2, z-score will be used.")
     parser.add_argument('-sig_type', default="padjust", type=str,
                         help="pvalue or padjust, for diff significance judgement. Default: padjust")
-    parser.add_argument('--dispersion', type=float, default=0.1,
-                        help='Only used for single sample vs single sample with edgeR.Default: 0.1')
+    parser.add_argument('--dispersion', type=float, default=0.16,
+                        help='Only used for single sample vs single sample with edgeR.Default: 0.16')
     parser.add_argument('--deseq2_padjust_way', type=str, default="BH",
                         help='One of ("holm", "hochberg", "hommel", "bonferroni", "BH", "BY",)'
                              'Default: None')
