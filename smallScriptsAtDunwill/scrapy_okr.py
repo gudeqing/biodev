@@ -33,7 +33,7 @@ browser = webdriver.Firefox(executable_path=executable_path, firefox_profile=pro
 login_site = "http://10.62.2.16:8088/#/login"
 browser.get(login_site)
 time.sleep(5)  # 等待加载完成，否则后续可能失败
-browser.find_element_by_id('username').send_keys('dqgu')
+browser.find_element_by_id('username').send_keys('gudeqing')
 browser.find_element_by_id('password').send_keys('dunwill1220')
 browser.find_element_by_id('submit').click()
 time.sleep(2)
