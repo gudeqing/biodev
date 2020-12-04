@@ -288,7 +288,7 @@ def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspo
                 detected.append(key)
             else:
                 print(f'found duplicated mutation:{key}')
-    hot_df = pd.read_excel(hots, header=0, index_col=0)
+    hot_df = pd.read_excel(hots, header=0)
     hot_df.set_index('1', inplace=True)
     hits = [x for x in detected if x in hot_df.index]
     if hits:
