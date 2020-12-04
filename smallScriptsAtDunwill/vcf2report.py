@@ -158,10 +158,23 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
         raw = infile
     else:
         raw = pd.read_csv(infile, header=0, sep=None, engine='python')
-    try:
-        raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[2].astype(float)
-    except Exception:
-        raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[3].astype(float)
+
+    possible_format = raw.iloc[0, -2].split(':')
+    af_index = -1
+    if 'AF' in possible_format:
+        af_index = possible_format.index('AF')
+    else:
+        possible_format = raw.iloc[0, -3].split(':')
+        if 'AF' in possible_format:
+            af_index = possible_format.index('AF')
+    if af_index > 0:
+        raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[af_index].astype(float)
+    else:
+        try:
+            raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[2].astype(float)
+        except Exception:
+            raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[3].astype(float)
+
     up_streams = []
     down_streams = []
     if genome:
@@ -249,7 +262,9 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
         filtered.to_csv(out_filtered, sep='\t', index=False)
 
         # 提取hotspot，输出命中的hotspot，表格内容以原hotspot为主，即仅仅提取hotspot信息
-        out = os.path.join(dirname, '01.detected.hotspot.xlsx')
+        # out_name = '01.detected.hotspot.xlsx'
+        out_name = '01.hotspot.' + os.path.basename(infile)[:-3] + 'xlsx'
+        out = os.path.join(dirname, out_name)
         hits = [x for x in candidates if x in hot_df.index]
         if hits:
             hits_df = hot_df.loc[hits]
