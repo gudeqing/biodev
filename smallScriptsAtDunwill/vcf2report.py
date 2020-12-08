@@ -142,7 +142,7 @@ def annovar_annotation(vcf):
     return f'{vcf}.hg19_multianno.vcf', f'{vcf}.hg19_multianno.txt'
 
 
-def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not_hot_af=0.05, bp_num=25):
+def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not_hot_af=0.05, bp_num=25, target_genes=None):
     """
     某些突变有可能不在常用转录本内，而且有多个转录本的注释，这个时候chgvs信息将为空
     :param infile:
@@ -158,6 +158,11 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
         raw = infile
     else:
         raw = pd.read_csv(infile, header=0, sep=None, engine='python')
+
+    if target_genes:
+        target_genes = [x.strip() for x in open(target_genes)]
+        index = [any(x in target_genes for x in y.split(';')) for y in raw['Gene_refGeneWithVer']]
+        raw = raw.loc[index]
 
     possible_format = raw.iloc[0, -2].split(':')
     af_index = -1
@@ -606,5 +611,8 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, msi_cutoff=10, tmb_cutoff=10,
 
 if __name__ == '__main__':
     from xcmds import xcmds
-    xcmds.xcmds(locals(), include=['pipeline', 'parse_cnr', 'annovar_annotation', 'annotate_sv', 'filter_germline', 'process_annovar_txt', 'extract_hots', 'annot_vcf_by_txt'])
+    xcmds.xcmds(locals(), include=[
+        'pipeline', 'parse_cnr', 'annovar_annotation', 'annotate_sv',
+        'filter_germline', 'process_annovar_txt', 'extract_hots',
+        'annot_vcf_by_txt', 'filter_vcf_by_af'])
 
