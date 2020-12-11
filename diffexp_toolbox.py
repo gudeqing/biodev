@@ -132,8 +132,13 @@ class DiffExpToolbox(object):
             self.exp = self.count+'.{}.xls'.format(exp_type)
             self.count = str(self.count) + '.count.xls'
         df = pd.read_csv(self.count, index_col=0, sep=None, engine='python').round(4)
+        # 去掉gene version信息
+        df.index = [x.rsplit('.', 1)[0] for x in df.index]
+        df.to_csv(self.count, sep='\t')
         self.count_dicts = df.to_dict('index')
         df = pd.read_csv(self.exp, index_col=0, sep=None, engine='python')
+        df.index = [x.rsplit('.', 1)[0] for x in df.index]
+        df.to_csv(self.exp, sep='\t')
         self.exp_dicts = df.to_dict('index')
         if sorted(self.count_dicts.keys()) != sorted(self.exp_dicts.keys()):
             cha = set(self.count_dicts.keys()) ^ set(self.exp_dicts.keys())
