@@ -224,11 +224,13 @@ def compare_vcf(vcfs:tuple, out, data_fields:tuple=('FORMAT/AF',), often_trans=N
     }
     :param vcfs: vcf路径信息，空格分开多个vcf
     :param out: 输出文件名，每行以一个突变为单位，第一列为chr:pos:ref:alts构成的突变id，
-    :param data_fields: 结果矩阵中的信息对应的字段信息，如果提供多个，将用‘|’隔开
+    :param data_fields: 结果矩阵中的信息对应的字段信息，如果提供多个，输出结果中将用‘|’隔开这些字段的信息
     :param often_trans: 常用转录本
     :param sample_ind: 样本索引，即vcf中第几个样本是我们关注的样本，默认提取最后一个样本的信息
     :param comm_ids: 提取其他字段作为每一行的注释，可以是多个字段，提取的信息从输出文件的第二列开始存放。
         默认提取annovar注释中的AAChange_refGene，这种信息是对具体突变的注释，与样本等信息无关，即在每个样本的vcf中都一样。
+    :param target_vcf: 想要检测的热点突变文件，后续的特异性统计将以改为文件作为背景
+    :param positive_vcf: 已知的突变位点，用于灵敏度和特异性等分析需要
     :return: 输出out文件，表达矩阵，第一列为chr:pos:ref:alts构成的突变id，第二列开始是突变的描述，剩下列是每个突变对应的量化信息如AF。
     """
     if often_trans:
