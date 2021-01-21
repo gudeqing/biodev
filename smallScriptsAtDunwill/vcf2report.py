@@ -186,8 +186,8 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
         genome = FastaFile(genome)
         for chr_name, start in zip(raw['Chr'], raw['Start']):
             up_pos = start - bp_num if start >= bp_num else 0
-            up = genome.fetch(chr_name, up_pos, start)
-            down = genome.fetch(chr_name, start, start+bp_num)
+            up = genome.fetch(chr_name, up_pos, start-1)
+            down = genome.fetch(chr_name, start-1, start+bp_num)
             up_streams.append(up)
             down_streams.append(down)
         raw['up_start'] = up_streams
