@@ -258,6 +258,7 @@ def vcf_header():
 def trans(raw_mutation, out='result.vcf', gene_strand='/nfs2/database/gencode_v29/gene_strand.pair', genome='/nfs2/database/1_human_reference/hg19/ucsc.hg19.fasta'):
     """
     当初写这个脚本的本意是为了根据chr,start,chgvs的信息反推出ref，alt等信息，形成vcf.
+    后来发现，有些coding_change的格式还是无法正确解析, 使用该脚本需谨慎
     如此，当从数据库中下载的突变信息不够完整的时候就可以重新得到vcf进行注释. 当然去mutalyzer转换也是一种选择。
     :param raw_mutation: 文件路径,文件需要四列(chr_name\tstart_position\tgene_name\tcoding_change),第四列的信息可以是g.xxx|c.xxx
     :param gene_strand: 文件路径，两列(gene\tstrand),记录基因所在链的信息
@@ -758,7 +759,7 @@ def simplify_annovar_vcf(vcf, out_prefix, often_trans=None, filter=None):
 def extract_hotspot_from_vcf(vcf, hotspot, exclude_hotspot=None, id_mode='transcript:chgvs', sample_index=1,
                              af_in_info=False, dp_in_info=False):
     """
-    仅适用于hotspot和分析结果都用annovar注释的情况，且只关心有AAChange_refGene注释的突变。
+    注意:仅适用于hotspot和分析结果都用annovar注释的情况，且只关心有AAChange_refGene注释的突变, 也就是落入内含子区域的突变将被忽略。
     目的：hotspot是用annovar注释的vcf，如果分析结果也用annovar注释, 可以根据AAChange_refGene信息比较两个突变是否为同一个突变
     从而可以从分析结果中抽提出hotspot中的突变，用于后续的性能验证统计。
     注意：如果要根据start|ref|alt等信息判定突变是否相同，输入的所有vcf应该进行'bcftools norm'标准化
@@ -1582,47 +1583,6 @@ def new_lod_stat(samples, detected_dict, known_dict, out=None, gradient=(0.01, 0
     pd.DataFrame(result, columns=header).to_excel(out + 'x')
 
 
-def cosmic2vcf(mutation_txt, genome, out='cosmic.vcf', skip_chrom:tuple=('chrMT')):
-    genome = pysam.FastaFile(genome)
-    vcf = set_logger(out, logger_id='merged')
-    for line in vcf_header():
-        vcf.info(line)
-
-    with open(mutation_txt) as f:
-        for line in f:
-            if line.startswith('#'):
-                continue
-
-            chr_id, start, end, ref, alt, idx = line.strip().split()
-            
-            if alt == '-' and ref == '-':
-                continue
-            if alt == '0' and ref == '0':
-                continue
-
-            start = int(start)
-            end = int(end)
-            if chr_id.isnumeric() or (chr_id in ['X', 'Y', 'M', 'MT']):
-                chr_id = 'chr' + chr_id
-                if chr_id in skip_chrom:
-                    # chr_id = 'chrM'
-                    print(f'skip {chr_id}')
-                    continue
-
-            if ref == '-':
-                ref = genome.fetch(chr_id, start-1, start)
-                alt = ref + alt
-            elif alt == '-':
-                if len(ref) != end - start + 1:
-                    raise Exception(f'ref长度和坐标暗示的不一致：{line}')
-                start = start-1
-                alt = genome.fetch(chr_id, start-1, start)
-                ref = alt+ref
-            else:
-                pass
-            vcf.info(f'{chr_id}\t{start}\t{idx}\t{ref}\t{alt}\t.\tPASS\t.')
-
-
 def create_variant_db(vcfs:list, sources:list, canonical_refseq=None, host='0.0.0.0', port=27017, db_name='variants', coll_name='hgvs'):
     import pymongo
     client = pymongo.MongoClient(host=host, port=port) 
@@ -1787,7 +1747,6 @@ if __name__ == '__main__':
             'hotspot2msk',
             'overall_stat',
             'simplify_annovar_vcf',
-            'cosmic2vcf',
             'create_variant_db',
             'query_variant_db',
             'extract_hotspot_from_avenio_result',
