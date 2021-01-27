@@ -249,6 +249,7 @@ def vcf_header():
         '##FILTER=<ID=PASS,Description="All filters passed">',
         '##INFO=<ID=Source,Number=.,Type=String,Description="source of mutation">',
         '##INFO=<ID=AAChange_refGene,Number=.,Type=String,Description="AAChange_refGene annotation">',
+        '##INFO=<ID=Privacy,Number=.,Type=String,Description="other information">',
         # '##FORMAT=<ID=None,Number=R,Type=Integer,Description="None">',
         '#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO',
     ]
@@ -274,7 +275,7 @@ def trans(raw_mutation, out='result.vcf', gene_strand='/nfs2/database/gencode_v2
         lst = raw_line.strip().split()
         line = dict(zip(['chr', 'start', 'gene_name', 'coding_change'], lst[:4]))
         if len(lst) >= 5:
-            info_field = lst[4]
+            info_field = 'Privacy=' + lst[4].replace('=', ':')
         else:
             info_field = '.'
         # 预处理，染色体名称修正或排除，coding_change筛选或修正，gene_name更正
