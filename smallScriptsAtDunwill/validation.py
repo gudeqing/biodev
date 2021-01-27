@@ -861,7 +861,7 @@ def batch_extract_hotspot(vcfs:list, hotspot, sample_info=None, id_mode='transcr
     :param prefix: 输出结果文件的前缀，后续会自动加上.xls
     :param sample_index: 指示vcf中第几个样本是肿瘤样本，即目标样本
     :param af_in_info: 指示af信息是否在INFO列，如果提供该参数，则从INFO列中AF提取信息, 该参数的设置是发现罗氏的vcf出现这种情况
-    :param dp_in_info: 指示dp信息是否在INFO列，如果提供该参数，则从INFO列中AF提取信息, 该参数的设置是发现罗氏的vcf出现这种情况
+    :param dp_in_info: 指示dp信息是否在INFO列，如果提供该参数，则从INFO列中DP提取信息, 该参数的设置是发现罗氏的vcf出现这种情况
     :param cmp_pair: 比较信息，即第一组vcf与第二组vcf的配对信息，第一列为第一组vcf中的样本名，第二列为第二组vcf中的样本名
     :return: 默认生成all.detected.hotspot.xls文件，'sample\tmutation\tAF1\tAF2\tconsistency\n'
     """
