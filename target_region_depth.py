@@ -5,7 +5,8 @@ from statistics import median_high
 
 def depth(bed, bams:tuple, out, on_base=False):
     """
-    skip reads in which any of the following flags are set: BAM_FUNMAP, BAM_FSECONDARY, BAM_FQCFAIL, BAM_FDUP
+    skip reads in which any of the following flags are set:
+        BAM_FUNMAP, BAM_FSECONDARY, BAM_FQCFAIL, BAM_FDUP
     for overlap paired reads, count only once!
     如果按照region统计深度，将取region的中位值作为深度代表
     :param bed: bed file
