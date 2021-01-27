@@ -258,6 +258,7 @@ def vcf_header():
 def trans(raw_mutation, out='result.vcf', gene_strand='/nfs2/database/gencode_v29/gene_strand.pair', genome='/nfs2/database/1_human_reference/hg19/ucsc.hg19.fasta'):
     """
     当初写这个脚本的本意是为了根据chr,start,chgvs的信息反推出ref，alt等信息，形成vcf.
+    解析时会过滤掉染色体MT的突变，并且自动去重和排序
     后来发现，有些coding_change的格式还是无法正确解析, 使用该脚本需谨慎
     如此，当从数据库中下载的突变信息不够完整的时候就可以重新得到vcf进行注释. 当然去mutalyzer转换也是一种选择。
     :param raw_mutation: 文件路径,文件需要四列(chr_name\tstart_position\tgene_name\tcoding_change),第四列的信息可以是g.xxx|c.xxx
@@ -270,16 +271,24 @@ def trans(raw_mutation, out='result.vcf', gene_strand='/nfs2/database/gencode_v2
     genome = pysam.FastaFile(genome)
     col5_list = []
     for raw_line in open(raw_mutation):
-        line = dict(zip(['chr', 'start', 'gene_name', 'coding_change'], raw_line.strip().split()))
+        lst = raw_line.strip().split()
+        line = dict(zip(['chr', 'start', 'gene_name', 'coding_change'], lst[:4]))
+        if len(lst) >= 5:
+            info_field = lst[4]
+        else:
+            info_field = '.'
         # 预处理，染色体名称修正或排除，coding_change筛选或修正，gene_name更正
         if line['chr'].isnumeric():
             line['chr'] = 'chr'+line['chr']
         if line['chr'] in ['X', 'Y', 'MT']:
             line['chr'] = 'chr' + line['chr']
 
-        if ',' in line['coding_change']:
+        if ',' in line['coding_change'] or ';' in line['coding_change']:
             # 为了处理civic的数据而作的特殊处理
-            tmplst = line['coding_change'].split(',')
+            if ',' in line['coding_change']:
+                tmplst = line['coding_change'].split(',')
+            else:
+                tmplst = line['coding_change'].split(';')
             valid_cc = []
             for each in tmplst:
                 tmp = each
@@ -324,6 +333,8 @@ def trans(raw_mutation, out='result.vcf', gene_strand='/nfs2/database/gencode_v2
         if type(col5) == str:
             logger.info(col5)
         else:
+            col5 = list(col5)
+            col5.append(info_field)
             if col5 not in col5_list:
                 col5_list.append(col5)
             else:
@@ -334,8 +345,8 @@ def trans(raw_mutation, out='result.vcf', gene_strand='/nfs2/database/gencode_v2
     for line in vcf_header():
         vcf.info(line)
     for each in col5_list:
-        each = list(each) + ['.']*3
-        vcf.info('\t'.join((str(x) for x in each)))
+        line = each[:-1] + ['.']*2 + [each[-1]]
+        vcf.info('\t'.join((str(x) for x in line)))
 
 
 def cat_vcf(vcfs:list, out='merged.vcf'):
