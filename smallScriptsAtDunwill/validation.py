@@ -685,7 +685,7 @@ def simplify_annovar_vcf(vcf, out_prefix, often_trans=None, filter=None):
     with VariantFile(vcf) as fr:
         # remove header
         for key in fr.header.info.keys():
-            if key != 'AAChange_refGene':
+            if key not in ['AAChange_refGene', 'Privacy']:
                 fr.header.info.remove_header(key)
 
         # 仅保留INFO中AAChange_refGene信息
@@ -696,8 +696,11 @@ def simplify_annovar_vcf(vcf, out_prefix, often_trans=None, filter=None):
                     #     if key != 'AAChange_refGene':
                     #         record.info.pop(key)
                     info = record.info['AAChange_refGene']
+                    if 'Privacy' in record.info:
+                        privacy = record.info['Privacy']
                     record.info.clear()
                     record.info['AAChange_refGene'] = info
+                    record.info['Privacy'] = privacy
 
                     # 实施过滤步骤
                     if filter and (not filter_lst):
