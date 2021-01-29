@@ -691,16 +691,22 @@ def simplify_annovar_vcf(vcf, out_prefix, often_trans=None, filter=None):
         # 仅保留INFO中AAChange_refGene信息
         with VariantFile(out_prefix+'.vcf', 'w', header=fr.header) as fw:
             for record in fr:
-                if record.info['AAChange_refGene'][0] not in ['.', 'UNKNOWN']:
+                if record.info['AAChange_refGene'][0] not in ['UNKNOWN']:
+                    if record.info['AAChange_refGene'][0] == ".":
+                        splice_info = record.info['GeneDetail_refGene'][0].split('\\x3b')
+                        splice_str = [record.info['Gene_refGene'][0]+':'+x for x in splice_info]
+                        record.info['AAChange_refGene'] = splice_str
                     # for key in record.info.keys():
                     #     if key != 'AAChange_refGene':
                     #         record.info.pop(key)
                     info = record.info['AAChange_refGene']
+                    privacy = None
                     if 'Privacy' in record.info:
                         privacy = record.info['Privacy']
                     record.info.clear()
                     record.info['AAChange_refGene'] = info
-                    record.info['Privacy'] = privacy
+                    if privacy:
+                        record.info['Privacy'] = privacy
 
                     # 实施过滤步骤
                     if filter and (not filter_lst):
