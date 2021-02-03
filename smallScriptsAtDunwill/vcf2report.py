@@ -142,7 +142,13 @@ def annovar_annotation(vcf):
     return f'{vcf}.hg19_multianno.vcf', f'{vcf}.hg19_multianno.txt'
 
 
-def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not_hot_af=0.05, bp_num=25, target_genes=None):
+def process_annovar_txt(infile,
+                        hots='/nfs2/database/Panel800/hotspot.xlsx',
+                        genome='/nfs2/database/1_human_reference/hg19/ucsc.hg19.fasta',
+                        comm_trans='/nfs2/database/Panel800/common_transcripts.txt',
+                        pop_freq_threshold=0.0,
+                        af=0.02, not_hot_af=0.05,
+                        bp_num=25, target_genes=None):
     """
     某些突变有可能不在常用转录本内，而且有多个转录本的注释，这个时候chgvs信息将为空
     :param infile:
@@ -158,6 +164,16 @@ def process_annovar_txt(infile, comm_trans, genome=None, hots=None, af=0.02, not
         raw = infile
     else:
         raw = pd.read_csv(infile, header=0, sep=None, engine='python')
+
+    if pop_freq_threshold > 0:
+        def filter_by_pop_freq(x):
+            for i in x:
+                if i != '.' and float(i) > pop_freq_threshold:
+                    return False
+            return True
+        pop_fields = ['esp6500siv2_all', '1000g2015aug_all', 'ExAC_ALL',
+                      'gnomAD_exome_ALL', 'gnomAD_exome_EAS', 'ExAC_EAS']
+        raw = raw.loc[raw[pop_fields].apply(filter_by_pop_freq, axis=1)]
 
     if target_genes:
         target_genes = [x.strip() for x in open(target_genes)]
