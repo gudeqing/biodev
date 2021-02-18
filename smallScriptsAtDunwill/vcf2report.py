@@ -42,8 +42,10 @@ from pysam import VariantFile, FastaFile
 def annot_vcf_by_txt(vcfs:tuple, annot, out, how='inner', mark=None):
     """
     以两个输入文件的前5列信息作为索引，提取hotspot信息
-    :param vcfs:
-    :param annot:
+    :param vcfs: vcf文件路径，多个vcf时使用空格隔开
+    :param annot: 突变注释表，要求前五列信息的格式和vcf的一致，第一行为header
+    :param how: 默认为“inner”，即仅提取annot和vcf的交集。
+    :param mark: mark是一个包含两列的文件，第一列为样本名，第二列为'_'连接的chr_start_ref_alt, 用于指定期望的突变，
     :return:
     """
     with open(vcfs[0]) as f:
@@ -95,6 +97,13 @@ def annot_vcf_by_txt(vcfs:tuple, annot, out, how='inner', mark=None):
 
 
 def filter_vcf_by_af(vcf, af=0.02, tumour=1):
+    """
+    调用bcftools对vcf进行基于FORMAT/AF的过滤
+    :param vcf:
+    :param af:
+    :param tumour: 默认指定第二个样本的FORMAT信息是肿瘤样本信息
+    :return:
+    """
     dirname = os.path.dirname(vcf)
     basename = os.path.basename(vcf)
     out = os.path.join(dirname, 'filtered.' + basename)
@@ -109,7 +118,7 @@ def filter_vcf_by_af(vcf, af=0.02, tumour=1):
 
 def annovar_annotation(vcf):
     """
-    调用annovar注释vcf而已
+    调用annovar注释vcf
     :return:
     """
     if os.path.exists(f'{vcf}.hg19_multianno.vcf'):
@@ -157,7 +166,7 @@ def process_annovar_txt(infile,
     :param hots:
     :param af:
     :param not_hot_af:
-    :param bp_num:
+    :param bp_num:用于指定提取突变位点上下游的碱基序列长度
     :return:
     """
     if type(infile) != str:
@@ -301,7 +310,6 @@ def process_annovar_txt(infile,
 
 def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspot.xls'):
     """
-    这个函数暂时不用了
     1. 根据chr:start:ref:alt作为id，取vcf和hots的交集，并以hots的格式输出
     :param vcf:
     :param hots: excel 文件的hotspot，其中有一列名为1，由chr:start:ref:alt组成，作为唯一id
@@ -340,6 +348,15 @@ def extract_hots(vcf, hots, id_mode='chr:start:id:ref:alt', out='detected.hotspo
 
 
 def parse_cnr(cnr, out='cnv.final.txt', amp_cutoff=3, del_cutoff=1.2, okr_targets=None, other_target_genes=None):
+    """
+    :param cnr: cnvkit的分析结果
+    :param out:
+    :param amp_cutoff: 判断扩增的拷贝数阈值
+    :param del_cutoff: 判断缺失的拷贝数阈值
+    :param okr_targets: okr数据库中存在CNV的基因列表
+    :param other_target_genes: 其他公司可能报告CNV的基因列表
+    :return:
+    """
     amp_cutoff = math.log2(amp_cutoff / 2)
     del_cutoff = math.log2(del_cutoff / 2)
     okr_cnv_lst = []
@@ -356,7 +373,10 @@ def parse_cnr(cnr, out='cnv.final.txt', amp_cutoff=3, del_cutoff=1.2, okr_target
         header = f.readline().strip().split('\t')
         result = dict()
         for line in f:
-            lst = line.strip().split('\t')
+            lst = line.strip('\n').split('\t')
+            # 发现有时候倒数第二列的数据为空，因此加入判断跳过
+            if not lst[-2]:
+                continue
             log2cn = float(lst[-2])
             gene_info = lst[3]
             if len(gene_info.split(';')) > 1:
@@ -393,6 +413,15 @@ def parse_cnr(cnr, out='cnv.final.txt', amp_cutoff=3, del_cutoff=1.2, okr_target
 
 
 def annotate_sv(vcf, out='fusion.final.txt', other_target_genes=None, okr_fusion_list=None, okr_fusion_pairs=None):
+    """
+    主要目的是根据delly2的结果vcf提取融合检测结果信息
+    :param vcf:
+    :param out:
+    :param other_target_genes:
+    :param okr_fusion_list:
+    :param okr_fusion_pairs:
+    :return:
+    """
     if other_target_genes:
         targets = set(x.strip() for x in open(other_target_genes))
     else:
@@ -552,7 +581,6 @@ def pipeline(input_dir, af=0.02, not_hot_af=0.05, msi_cutoff=10, tmb_cutoff=10,
              target_germline_genes='/nfs2/database/Panel800/germline.target.txt'
              ):
     """
-    通过爬虫的方式注释进行okr注释和爬取报告
     :return:
     """
     # indel processing
