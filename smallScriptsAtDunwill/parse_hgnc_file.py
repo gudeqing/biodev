@@ -11,7 +11,7 @@ class ParseHGNC(object):
             'Approved symbol',
             'Approved name',
             'Previous symbols',
-            'Synonyms',
+            'Alias symbols',
             'Ensembl gene ID'
         ]
         self.data = pd.read_csv(data, index_col=0, header=0, sep='\t', usecols=target_cols)
