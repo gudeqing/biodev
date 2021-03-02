@@ -203,11 +203,13 @@ def process_annovar_txt(infile,
     else:
         raw = pd.read_csv(infile, header=0, sep=None, engine='python')
 
+    # 首选目标基因过滤
     if target_genes:
         target_genes = [x.strip() for x in open(target_genes)]
         index = [any(x in target_genes for x in y.split(';')) for y in raw['Gene_refGeneWithVer']]
         raw = raw.loc[index]
 
+    # 提取AF信息，优先提取最后一列的AF信息
     possible_format = raw.iloc[0, -2].split(':')
     af_index = -1
     if 'AF' in possible_format:
@@ -224,6 +226,7 @@ def process_annovar_txt(infile,
         except Exception:
             raw['AF'] = raw[raw.columns[-1]].str.split(':', expand=True)[3].astype(float)
 
+    # 提取上下游的参考序列信息
     up_streams = []
     down_streams = []
     if genome:
@@ -236,6 +239,7 @@ def process_annovar_txt(infile,
             down_streams.append(down)
         raw['up_start'] = up_streams
         raw['down_start'] = down_streams
+
     # 提取常用转录本hgvs注释信息
     cts = dict(x.strip().split()[:2] for x in open(comm_trans))
     hgvs_header = ['Transcript', 'NT_Change', 'AA_Change']
@@ -268,7 +272,7 @@ def process_annovar_txt(infile,
     order = start_cols + [x for x in raw.columns if x not in start_cols]
     new = raw.loc[:, order]
     # new是没有过滤的信息，只是在其中加入了新信息
-    new.to_csv(infile[:-3]+'xls', sep='\t', index=False)
+    # new.to_csv(infile[:-3]+'xls', sep='\t', index=False)
     new.insert(13, 'report', 'yes')
 
     if pop_freq_threshold > 0:
@@ -339,7 +343,7 @@ def process_annovar_txt(infile,
         order = start_cols + [x for x in new.columns if x not in start_cols]
         new = new[order]
         # 在annovar注释的结果中加入OKR_Name和is_hotspot信息后输出
-        new.to_csv(infile[:-3] + 'xls', sep='\t', index=False)
+        # new.to_csv(infile[:-3] + 'xls', sep='\t', index=False)
 
         # 按照af过滤结果并输出
         filtered = new.loc[new['AF'] >= af, :]
