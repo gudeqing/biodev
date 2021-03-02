@@ -1,5 +1,6 @@
 import os
 import math
+import re
 from glob import glob
 from subprocess import check_call
 import pandas as pd
@@ -151,13 +152,41 @@ def annovar_annotation(vcf):
     return f'{vcf}.hg19_multianno.vcf', f'{vcf}.hg19_multianno.txt'
 
 
+def oncokb_truncating_genes():
+    genes = "ACTG1 AMER1 ANKRD11 APC ARID1A ARID1B ARID2 ARID3A ARID4A ARID4B ARID5B ASXL1 ASXL2 ATM ATP6V1B2 ATR ATRX ATXN2 AXIN1 AXIN2 B2M BACH2 BAP1 BARD1 BBC3 BCL10 BCL11B BCL2L11 BCOR BCORL1 BIRC3 BLM BMPR1A BRCA1 BRCA2 BRIP1 BTG1 CASP8 CBFB CBL CD58 CDC73 CDH1 CDK12 CDKN1A CDKN1B CDKN2A CDKN2B CDKN2C CEBPA CHEK1 CHEK2 CIC CIITA CRBN CREBBP CTCF CUX1 CYLD DAXX DDX3X DICER1 DNMT3A DNMT3B DTX1 DUSP22 DUSP4 ECT2L EED EGR1 ELF3 EP300 EP400 EPCAM EPHA3 EPHA7 ERCC2 ERCC3 ERCC4 ERF ERRFI1 ESCO2 EZH2 FAM175A FAM58A FANCA FANCC FANCD2 FAS FAT1 FBXO11 FBXW7 FH FLCN FOXA1 FOXL2 FOXO1 FOXP1 FUBP1 GATA3 GPS2 GRIN2A HIST1H1B HIST1H1D HLA-A HLA-B HLA-C HNF1A HOXB13 ID3 INHA INPP4B INPPL1 IRF1 IRF8 JAK1 JARID2 KDM5C KDM6A KEAP1 KLF2 KLF4 KMT2A KMT2B KMT2C KMT2D LATS1 LATS2 LZTR1 MAP2K4 MAP3K1 MAX MED12 MEN1 MGA MITF MLH1 MRE11A MSH2 MSH3 MSH6 MUTYH NBN NCOR1 NF1 NF2 NFE2 NFKBIA NKX3-1 NOTCH1 NOTCH4 NPM1 NSD1 NTHL1 PALB2 PARK2 PARP1 PAX5 PBRM1 PHF6 PHOX2B PIK3R1 PIK3R2 PIK3R3 PMAIP1 PMS1 PMS2 POT1 PPP2R1A PPP6C PRDM1 PTCH1 PTEN PTPN1 PTPN2 PTPRD PTPRS PTPRT RAD21 RAD50 RAD51 RAD51B RAD51C RAD51D RASA1 RB1 RBM10 RECQL RECQL4 REST RNF43 RTEL1 RUNX1 RYBP SDHA SDHAF2 SDHB SDHC SDHD SESN1 SESN2 SESN3 SETD2 SH2B3 SH2D1A SHQ1 SLX4 SMAD2 SMAD3 SMAD4 SMARCA4 SMARCB1 SOCS1 SOX17 SOX9 SPEN SPOP SPRED1 STAG2 STK11 SUFU SUZ12 TBX3 TCF3 TCF7L2 TET1 TET2 TGFBR1 TGFBR2 TMEM127 TNFAIP3 TNFRSF14 TOP1 TP53 TP53BP1 TP63 TSC1 TSC2 VHL WT1 XRCC2"
+    return set(genes.split())
+
+
+def parse_class_deleterious(infile):
+    table = pd.read_csv(infile, header=0, index_col=0, sep=None, engine='python')
+    pattern = re.compile(r'([A-Z0-9]+) deleterious mutation')
+    genes = set()
+    for each in table['variant_class']:
+        match = pattern.match(each)
+        if match:
+            genes.add(match.groups()[0])
+    return genes
+
+
+def parse_class_activating(infile):
+    table = pd.read_csv(infile, header=0, index_col=0, sep=None, engine='python')
+    pattern = re.compile(r'([A-Z0-9]+) activating mutation')
+    genes = set()
+    for each in table['variant_class']:
+        match = pattern.match(each)
+        if match:
+            genes.add(match.groups()[0])
+    return genes
+
+
 def process_annovar_txt(infile,
                         hots='/nfs2/database/Panel800/hotspot.xlsx',
                         genome='/nfs2/database/1_human_reference/hg19/ucsc.hg19.fasta',
                         comm_trans='/nfs2/database/Panel800/common_transcripts.txt',
                         pop_freq_threshold=0.0,
                         af=0.02, not_hot_af=0.05,
-                        bp_num=25, target_genes=None):
+                        bp_num=25, target_genes=None,
+                        okr_class_condition='/nfs2/database/Panel800/OKR20201221/variant_class_condition_tables.txt'):
     """
     某些突变有可能不在常用转录本内，而且有多个转录本的注释，这个时候chgvs信息将为空
     :param infile:
@@ -173,16 +202,6 @@ def process_annovar_txt(infile,
         raw = infile
     else:
         raw = pd.read_csv(infile, header=0, sep=None, engine='python')
-
-    if pop_freq_threshold > 0:
-        def filter_by_pop_freq(x):
-            for i in x:
-                if i != '.' and float(i) > pop_freq_threshold:
-                    return False
-            return True
-        pop_fields = ['esp6500siv2_all', '1000g2015aug_all', 'ExAC_ALL',
-                      'gnomAD_exome_ALL', 'gnomAD_exome_EAS', 'ExAC_EAS']
-        raw = raw.loc[raw[pop_fields].apply(filter_by_pop_freq, axis=1)]
 
     if target_genes:
         target_genes = [x.strip() for x in open(target_genes)]
@@ -237,7 +256,8 @@ def process_annovar_txt(infile,
                         ]
                         break
                 else:
-                    print(hgvs_dict['gene'], '没有常用转录本信息')
+                    print(hgvs_dict['gene']+'没有常用转录本信息')
+
     hgvs_df = pd.DataFrame(hgvs_list, columns=hgvs_header, index=raw.index)
     raw = raw.join(hgvs_df, rsuffix='_new')
     ver = 'WithVer' if 'Func_refGeneWithVer' in raw else ''
@@ -247,11 +267,48 @@ def process_annovar_txt(infile,
         start_cols.append('down_start')
     order = start_cols + [x for x in raw.columns if x not in start_cols]
     new = raw.loc[:, order]
-    # new是没有过滤的信息，输出加入了新信息的annovar注释结果
+    # new是没有过滤的信息，只是在其中加入了新信息
     new.to_csv(infile[:-3]+'xls', sep='\t', index=False)
     new.insert(13, 'report', 'yes')
 
-    # 过滤
+    if pop_freq_threshold > 0:
+        def filter_by_pop_freq(x):
+            for i in x:
+                if i != '.' and float(i) > pop_freq_threshold:
+                    return False
+            return True
+        pop_fields = ['esp6500siv2_all', '1000g2015aug_all', 'ExAC_ALL',
+                      'gnomAD_exome_ALL', 'gnomAD_exome_EAS', 'ExAC_EAS']
+        new = new.loc[new[pop_fields].apply(filter_by_pop_freq, axis=1)]
+
+    # 插入other_reportable information
+    oncokb_genes = oncokb_truncating_genes()
+    deleterious_genes = parse_class_deleterious(okr_class_condition)
+    activating_genes = parse_class_activating(okr_class_condition)
+
+    def other_reportable(based_info):
+        gene, func, exonic_func = based_info
+        match = gene in oncokb_genes
+        if not match:
+            return ''
+        match2 = 'splicing' in func.lower()
+        consider = {'frameshift deletion', 'frameshift insertion',
+                    'frameshift substitution', 'stopgain',
+                    'stoploss'}
+        match3 = exonic_func.lower() in consider
+        if match2 or match3:
+            if gene in deleterious_genes:
+                return f'{gene} deleterious mutation'
+            elif gene in activating_genes:
+                return f'{gene} activating mutation'
+            else:
+                return f'{gene} mutation'
+        else:
+            return ''
+    use_cols = [f'Gene_refGene{ver}', f'Func_refGene{ver}', f'ExonicFunc_refGene{ver}']
+    new.insert(14, 'other_reportable', new[use_cols].apply(other_reportable, axis=1))
+
+    # 根据af过滤
     filtered = new.loc[new['AF'] >= af, :]
     if filtered.shape[0] <= 0:
         print(f'No mutation pass AF >{af} filtering')
