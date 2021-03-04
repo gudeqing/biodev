@@ -7,14 +7,20 @@ import pandas as pd
 from pysam import VariantFile, FastaFile
 
 """
-基于分析流程结果，要出具word报告，主要需要走2大步骤：
+本脚本最初是为了进一步对薛成开发的panel800的分析流程的结果进行注释而开发的，主要借助OKR的信息完成。
 步骤一，在linux上完成：
-    1. 先使用annovar注释vcf，得到格式为txt的注释文件
-    2. 基于annovar注释结果txt文件，根据AF过滤；
-       依据chr:start:ref:alt从hospot表中提取命中的hotspot
-       输出文件 detected.hotspot.xlsx
-       输出文件 filtered.TNVariantCaller.mutations.*.vcf.hg19_multianno.xls，其中增加报告需要的一些加工信息。
-       输出文件 okr_query.list
+    0.hotspot的准备，最初是由丽萌整理，后经过去重等处理，最后其中的OKR_Name信息是通过脚本 /data/users/dqgu/PycharmProjects/biodev/smallScriptsAtDunwill/mutation_classify_by_okr.py的mimic_okr函数完成。
+    目前在使用的panel800的hotspot文件为：/nfs2/database/Panel800/hotspot.xlsx
+    1. 先使用annovar注释经过bcftools norm处理的vcf，得到格式为txt的注释文件，注释函数：annovar_annotation
+    2. 基于annovar注释结果txt文件，作如下处理，处理函数：process_annovar_txt，大致过程如下：
+       a.如果提供候选基因列表，则选提取候选基因相关的突变
+       b.增加AF列，根据AF过滤
+       c.如果提供经典转录本信息，则增加经典转录本对应['Transcript', 'NT_Change', 'AA_Change']三列
+       d.提取突变位点上下游的参考序列信息，即增加up_start和down_start两列
+       e.调整列的顺序
+       f.如果提供hotspot，依据chr:start:ref:alt从hospot表中提取命中的hotspot信息, 输出文件 01.hotspot.*.xlsx
+       g.增加OKR_Name等hotspot信息，输出02.*.xls，该文件即为通过所有过滤条件的注释结果文件，即annovar_txt的加工版
+       i.输出文件 okr_query.list
     3. 提取msi和tmb信息
     4. 整理CNV信息, 要求基因的每个区间log2cnv >= 1
     5. 注释和整理融合信息, 注释并且提取指定基因的结果
@@ -25,18 +31,18 @@ from pysam import VariantFile, FastaFile
     1. 根据hotspot结果，结合msi和tmb信息，进行okr爬虫注释，获取pdf和txt格式报告
     2. 生成word报告，生成报告的流程由张惠开发，我这边提供的输入文件：
         a. okr注释出来的txt格式报告，该文件包含用药等信息
-        b. 步骤一生成的过滤后并加工的txt文件filtered.TNVariantCaller.mutations.*.vcf.hg19_multianno.xls，
-           该文件包含如下几列信息，可用作报告中的snp/indel的输入信息
+        b. 步骤一生成的过滤后并加工的txt文件02.filtered.*.xls，
+           该文件含如下几列信息，可用作报告中的snp/indel的输入信息
            Transcript NT_Change AA_Change AF up_start  down_start  OKR_Name  is_hotspot
         c. msi和tmb信息
         d. cnv信息
         f. 融合信息
-        e. 其他，样本信息和实验信息，由其他途径提供
-        
-为了实现一键化：
-    1. 待张惠这边完成word报告生成流程开发后，我这边将改报告流程和okr注释流程串联起来，从而增加流程连贯性。
-    2. 通过paromiko包模拟服务器登陆和任务提交，完成annovar注释和word报告生成，okr注释在本地完成
-    
+        e. 其他，样本信息和实验信息，由其他途径提供      
+
+* 当前脚本的使用情况：
+    1.目前从未应用于真实报告
+    2.pipeline函数的测试目录：/storage/dqgu/OKR/reportPipe/output_test
+    3.当前脚本中的annovar_annotation，process_annovar_txt函数使用较为频繁，主要是应罗崇林要求，临时对WES等流程得到的VCF进行注释。
 """
 
 
@@ -189,13 +195,16 @@ def process_annovar_txt(infile,
                         okr_class_condition='/nfs2/database/Panel800/OKR20201221/variant_class_condition_tables.txt'):
     """
     某些突变有可能不在常用转录本内，而且有多个转录本的注释，这个时候chgvs信息将为空
-    :param infile:
-    :param comm_trans:
-    :param genome:
-    :param hots:
-    :param af:
-    :param not_hot_af:
-    :param bp_num:用于指定提取突变位点上下游的碱基序列长度
+    :param infile: annovar注释生成的txt文件
+    :param hots: 之前整理的panel800hotspot文件，见/nfs2/database/Panel800/hotspot.xlsx
+    :param genome: 参考基因组fasta文件
+    :param comm_trans: 经典转录本信息
+    :param pop_freq_threshold: 人群频率过滤阈值，默认为0
+    :param af: 突变AF过滤阈值，默认为0.02
+    :param not_hot_af: 非hotspot的AF过滤阈值，默认0.05
+    :param bp_num: 提取突变位点上下游的碱基序列长度，默认25
+    :param target_genes: 候选基因列表文件，每行一个基因symbol
+    :param okr_class_condition: okr数据生成的突变信息文件，应罗崇林要求，用于生成other_reportable列
     :return:
     """
     if type(infile) != str:
