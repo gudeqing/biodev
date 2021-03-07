@@ -238,7 +238,12 @@ def get_detail_info(url, city):
         print(e)
         pup_date = 'unknown'
     # 提取基础信息
-    basic_info = browser.find_element_by_class_name('basic-info-wrapper').find_elements_by_class_name('item')
+    try:
+        basic_info = browser.find_element_by_class_name('basic-info-wrapper').find_elements_by_class_name('item')
+    except Exception as e:
+        print(e)
+        return 'change_IP'
+
     basic_info_dict = dict()
     for each in basic_info:
         tmp = []
@@ -397,7 +402,7 @@ def pipeline():
         success = {x.strip() for x in open('success.list')}
     else:
         success = set()
-    success_log_file = open('success.list', 'w')
+    success_log_file = open('success.list', 'a+')
     fw = open('result.txt', 'a+', encoding='utf-8')
     for city, city_url in city_urls.items():
         if city.strip('市') in target_city_lst:
