@@ -169,25 +169,23 @@ def get_city_urls(start_url='https://www.anjuke.com/sy-city.html'):
 
 def get_zu_shou_url(city_url):
     browser.get(city_url)
+    random_wait()
     zu_shou_sites = set()
-    for choice in browser.find_elements_by_class_name('third_navlist'):
-        for each in choice.find_elements_by_tag_name('a'):
-            sell_type_site = each.get_attribute('href')
-            if sell_type_site.endswith('/sp-zu/'):
-                zu_site = sell_type_site
-                zu_shou_sites.add(zu_site)
-            elif sell_type_site.endswith('/sp-shou/'):
-                sh_site = sell_type_site
-                zu_shou_sites.add(sh_site)
-            if len(zu_shou_sites) == 2:
-                break
+    # for choice in browser.find_elements_by_class_name('third_navlist'):
+    for each in browser.find_elements_by_tag_name('a'):
+        sell_type_site = each.get_attribute('href')
+        if sell_type_site.endswith('.anjuke.com/sp-zu/'):
+            zu_shou_sites.add(sell_type_site)
+        elif sell_type_site.endswith('.anjuke.com/sp-shou/'):
+            zu_shou_sites.add(sell_type_site)
+        if len(zu_shou_sites) == 2:
+            break
+    print(city_url)
+    print('?', zu_shou_sites)
     return sorted(zu_shou_sites)
 
 
-def get_detail_info(url=None, city=None):
-    if url:
-        browser.get(url)
-        random_wait()
+def get_detail_info(url, city=None):
     # 提取title
     try:
         title = browser.find_element_by_tag_name('head').find_element_by_xpath('//meta[@name="keywords"]')
@@ -212,8 +210,12 @@ def get_detail_info(url=None, city=None):
         pup_date = browser.find_element_by_class_name('site-item-date').text
         # pup_date = re.search('(\d+月\d+)日', pup_date).groups()[0]
     except NoSuchElementException as e:
-        print(e)
-        pup_date = 'unknown'
+        # print(e)
+        try:
+            pup_date = browser.find_element_by_class_name('time').text
+        except Exception as e:
+            print(e)
+            pup_date = 'unknown'
     # 提取基础信息
     try:
         basic_info = browser.find_element_by_class_name('basic-info-wrapper').find_elements_by_class_name('item')
@@ -242,6 +244,8 @@ def get_detail_info(url=None, city=None):
     basic_info_dict['latitude'] = lat
     basic_info_dict['longitude'] = lng
     basic_info_dict['published_datetime'] = pup_date
+    # 获取standardHouseId
+    # standardHouseId = re.search('standardHouseId: (.*),?', page).groups()[0]
     # 加工信息
     district = basic_info_dict['地址'].split()[0]
     basic_info_dict['district'] = district
@@ -320,6 +324,7 @@ def get_all_detail(browser, start_url, city, proxy_lst):
                 pass
             detail_url = detail.get_attribute('href')
             if detail_url in success_set:
+                print('已经爬取，跳过： ', choice.get_attribute('data-trace'))
                 continue
             # 进入详情页
             detail.click()
@@ -328,7 +333,7 @@ def get_all_detail(browser, start_url, city, proxy_lst):
             browser.switch_to.window(window_handles[-1])
             wait_wrapper(EC.visibility_of_element_located((By.CLASS_NAME, 'basic-info-wrapper')), browser)
             # 获取数据
-            info = get_detail_info(None, city)
+            info = get_detail_info(detail_url, city)
             if info == 'change_IP':
                 # 会跳过爬取失败的目录
                 # browser = set_firefox(proxy_lst.pop())
@@ -355,9 +360,10 @@ def get_all_detail(browser, start_url, city, proxy_lst):
 
 
 def pipeline():
-    proxy_lst = [{"ip":"27.157.131.27","port":4278,"expire_time":"2021-03-09 04:12:02"},{"ip":"125.106.141.51","port":4245,"expire_time":"2021-03-09 04:12:02"},{"ip":"114.106.156.171","port":4247,"expire_time":"2021-03-09 04:12:02"},{"ip":"182.38.124.143","port":4213,"expire_time":"2021-03-09 04:12:02"},{"ip":"115.211.44.229","port":4274,"expire_time":"2021-03-09 04:12:02"},{"ip":"60.173.35.167","port":4232,"expire_time":"2021-03-09 01:57:02"},{"ip":"114.104.182.135","port":4263,"expire_time":"2021-03-09 03:28:57"},{"ip":"123.119.35.201","port":4281,"expire_time":"2021-03-09 02:42:35"},{"ip":"114.106.136.202","port":4245,"expire_time":"2021-03-09 03:18:26"},{"ip":"60.161.152.131","port":4251,"expire_time":"2021-03-09 04:12:02"}]
+    proxy_lst = [{"ip":"49.88.106.214","port":4214,"expire_time":"2021-03-09 21:21:59"},{"ip":"110.90.222.148","port":4245,"expire_time":"2021-03-09 21:21:59"},{"ip":"183.165.33.85","port":4235,"expire_time":"2021-03-09 21:03:37"},{"ip":"120.14.24.226","port":4267,"expire_time":"2021-03-09 21:21:59"},{"ip":"119.5.181.172","port":4258,"expire_time":"2021-03-09 19:00:22"},{"ip":"14.106.107.254","port":4237,"expire_time":"2021-03-09 18:49:26"},{"ip":"114.106.156.5","port":4247,"expire_time":"2021-03-09 19:09:39"},{"ip":"113.121.20.238","port":4234,"expire_time":"2021-03-09 21:21:59"},{"ip":"171.41.148.220","port":4226,"expire_time":"2021-03-09 19:22:18"},{"ip":"58.243.206.145","port":4243,"expire_time":"2021-03-09 19:49:06"},{"ip":"223.214.222.85","port":4285,"expire_time":"2021-03-09 21:21:59"},{"ip":"182.101.203.62","port":4254,"expire_time":"2021-03-09 21:21:59"},{"ip":"114.106.146.125","port":4210,"expire_time":"2021-03-09 18:47:53"},{"ip":"153.99.4.5","port":4207,"expire_time":"2021-03-09 21:21:59"},{"ip":"120.40.215.188","port":4245,"expire_time":"2021-03-09 21:21:59"},{"ip":"36.7.26.11","port":4272,"expire_time":"2021-03-09 21:21:59"},{"ip":"183.166.119.234","port":4231,"expire_time":"2021-03-09 21:21:59"},{"ip":"182.132.127.165","port":4278,"expire_time":"2021-03-09 21:01:19"},{"ip":"175.155.51.34","port":4258,"expire_time":"2021-03-09 19:59:29"},{"ip":"114.230.64.170","port":4245,"expire_time":"2021-03-09 21:21:59"},{"ip":"122.4.44.255","port":4264,"expire_time":"2021-03-09 21:21:59"},{"ip":"171.120.228.164","port":4227,"expire_time":"2021-03-09 21:21:59"},{"ip":"60.17.200.87","port":4281,"expire_time":"2021-03-09 19:46:30"},{"ip":"171.41.130.83","port":4226,"expire_time":"2021-03-09 20:29:04"},{"ip":"42.242.122.97","port":4243,"expire_time":"2021-03-09 21:21:59"},{"ip":"110.90.221.68","port":4270,"expire_time":"2021-03-09 20:53:38"},{"ip":"60.175.20.121","port":4258,"expire_time":"2021-03-09 21:19:38"}]
     global browser
-    browser = set_chrome(proxy_lst.pop())
+    # browser = set_chrome(proxy_lst.pop())
+    browser = set_chrome()
     if os.path.exists('city_urls.json'):
         city_urls = json.load(open('city_urls.json'))
     else:
@@ -366,17 +372,18 @@ def pipeline():
             json.dump(city_urls, f)
 
     target_city_lst = ['深圳', '成都', '湛江', '曲靖', '泸州', '连云港', '通化', '潍坊']
-
+    target_city_lst = ['湛江', '曲靖', '泸州', '连云港', '通化', '潍坊']
     for city, city_url in city_urls.items():
         if city.strip('市') in target_city_lst:
             shou_url, zu_rul = get_zu_shou_url(city_url)
             get_all_detail(browser, shou_url, city, proxy_lst)
+            print(f'提取完{city}的商铺出售信息')
             get_all_detail(browser, zu_rul, city, proxy_lst)
+            print(f'提取完成{city}的商铺出租信息')
     browser.close()
 
-
 # run
-pipeline()
+# pipeline()
 while True:
     try:
         pipeline()
