@@ -6,6 +6,7 @@ from selenium.webdriver.firefox.options import Options
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as  EC
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
@@ -65,7 +66,7 @@ target_info_dict = dict(
 )
 
 
-def set_chrome(proxy):
+def set_chrome(proxy=None):
     options = webdriver.ChromeOptions()
     options.add_argument("ignore-certificate-errors")
     options.add_argument("--ignore-ssl-errors")
@@ -81,7 +82,7 @@ def set_chrome(proxy):
     options.add_experimental_option('useAutomationExtension', False)
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     preferences = {
-        "profile.managed_default_content_settings.images": 2,
+        # "profile.managed_default_content_settings.images": 2,
         "webrtc.ip_handling_policy": "disable_non_proxied_udp",
         "webrtc.multiple_routes_enabled": False,
         "webrtc.nonproxied_udp_enabled": False,
@@ -89,7 +90,6 @@ def set_chrome(proxy):
     options.add_experimental_option("prefs", preferences)
     # 无头模式，不开启浏览器
     # options.add_argument('--headless')
-
     browser = webdriver.Chrome(options=options, executable_path='D:\Drivers\chromedriver.exe')
     # 反屏蔽[检测是否selenium自动爬取，其大多数情况下，检测基本原理是检测当前浏览器窗口下的 window.navigator 对象是否包含 webdriver 这个属性
     # ，这个属性是 undefined来解决]
@@ -97,6 +97,9 @@ def set_chrome(proxy):
         'Page.addScriptToEvaluateOnNewDocument',
         {'source': 'Object.defineProperty(navigator, "webdriver", {get: () => undefined})'}
     )
+    print('google')
+    browser.get("http://httpbin.org/ip")
+    print(browser.page_source)
     return browser
 
 
@@ -126,30 +129,26 @@ def wait_wrapper(func, browser):
 
 
 def set_firefox(proxy:dict=None):
-    profile = webdriver.FirefoxProfile()
-    profile.set_preference('browser.download.dir', 'd:\\')
-    profile.set_preference('browser.download.folderList', 2)
-    profile.set_preference('browser.download.manager.showWhenStarting', False)
-    # 下面的类型根据https://www.w3school.com.cn/media/media_mimeref.asp查询
-    profile.set_preference('browser.helperApps.neverAsk.saveToDisk', 'application/pdf')
-    profile.set_preference("pdfjs.disabled", True)
-    # 这一行代码如果注释掉，会导致弹框依然出现
     # 打开浏览器
-    options = Options()
-    options.add_argument('-headless')  # 无头参数
+    options = webdriver.FirefoxOptions()
+    # options.add_argument('-headless')  # 无头参数
     options.add_argument("ignore-certificate-errors")
     options.add_argument("--ignore-ssl-errors")
+    executable_path = 'D:\Drivers\geckodriver.exe'
+    profile = webdriver.FirefoxProfile()
+    profile.set_preference("network.proxy.type", 1)
     # 设置代理
     if proxy:
         ip, port = proxy['ip'], proxy['port']
-        print(f'***  使用的IP：{ip}, PORT：{port}')
-        options.add_argument(f"--proxy-server={ip}:{port}")
+        print(f'使用代理IP：{ip}, PORT：{port}')
+        profile.set_preference("network.proxy.http", f"{ip}")
+        profile.set_preference("network.proxy.http_port", f'{port}')
     else:
         print('未使用代理！')
-    executable_path = 'D:\Drivers\geckodriver.exe'
-    browser = webdriver.Firefox(executable_path=executable_path, firefox_profile=profile)
-    # wait = WebDriverWait(browser, 10)
-    # browser.implicitly_wait(10)
+    profile.update_preferences()
+    browser = webdriver.Firefox(firefox_profile=profile, executable_path=executable_path, options=options)
+    browser.get("http://httpbin.org/ip")
+    print(browser.page_source)
     return browser
 
 
@@ -185,32 +184,10 @@ def get_zu_shou_url(city_url):
     return sorted(zu_shou_sites)
 
 
-def get_detail_url(start_url):
-    browser.get(start_url)
-    time.sleep(2)
-    urls = []
-    while True:
-        # 存在页面失效问题，需要先把详情页面的网址先爬取完成，再逐一解析
-        for choice in browser.find_elements_by_class_name('list-item'):
-            # 提取detail_url，如果想进入具体页面抓取信息，则可能需要进行验证
-            detail_url = choice.find_element_by_tag_name('a').get_attribute('href')
-            urls.append(detail_url)
-        # 点击下一页
-        try:
-            next_page = browser.find_element_by_class_name('aNxt')
-            next_page.click()
-            random_sleep()
-            wait_wrapper(EC.visibility_of_element_located((By.CLASS_NAME, 'aNxt')), browser)
-        except Exception as e:
-            print(e)
-            break
-    print(f'find {len(urls)} detail urls')
-    return urls
-
-
-def get_detail_info(url, city):
-    browser.get(url)
-    random_wait()
+def get_detail_info(url=None, city=None):
+    if url:
+        browser.get(url)
+        random_wait()
     # 提取title
     try:
         title = browser.find_element_by_tag_name('head').find_element_by_xpath('//meta[@name="keywords"]')
@@ -295,7 +272,16 @@ def get_detail_info(url, city):
             price = '面议'
     basic_info_dict['price'] = price
     basic_info_dict['unit'] = unit
-    width, height, level = re.findall('(\d+)m', basic_info_dict['规格'])
+    tmp = re.findall('(\d+)m', basic_info_dict['规格'])
+    if not tmp:
+        tmp = ['unknown', 'unknown', 'unknown']
+    elif len(tmp) == 2:
+        tmp.append('unknown')
+    elif len(tmp) == 1:
+        tmp += ['unknown', 'unknown']
+    else:
+        tmp = ['unknown', 'unknown', 'unknown']
+    width, height, level = tmp
     basic_info_dict['width'] = width
     basic_info_dict['height'] = height
     basic_info_dict['level'] = level
@@ -312,84 +298,66 @@ def get_detail_info(url, city):
     return basic_info_dict
 
 
-# 获取出售信息
-def pipeline():
-    proxy_lst = [
-        {"ip": "122.232.230.213", "port": 4278, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "223.215.177.242", "port": 4245, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "36.62.210.254", "port": 4216, "expire_time": "2021-03-07 19:12:11"},
-         {"ip": "42.56.239.116", "port": 4278, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "27.190.81.193", "port": 4282, "expire_time": "2021-03-07 20:51:56"},
-         {"ip": "49.85.111.120", "port": 4257, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "175.154.202.156", "port": 4258, "expire_time": "2021-03-07 20:52:40"},
-         {"ip": "117.70.41.177", "port": 4245, "expire_time": "2021-03-07 21:31:28"},
-         {"ip": "27.152.193.52", "port": 4273, "expire_time": "2021-03-07 19:07:20"},
-         {"ip": "59.54.125.30", "port": 4275, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "153.99.10.54", "port": 4207, "expire_time": "2021-03-07 20:39:15"},
-         {"ip": "106.57.168.90", "port": 4282, "expire_time": "2021-03-07 19:36:00"},
-         {"ip": "49.67.92.148", "port": 4264, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "220.161.33.254", "port": 4245, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "117.28.60.189", "port": 4252, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "114.104.139.166", "port": 4214, "expire_time": "2021-03-07 19:34:00"},
-         {"ip": "114.106.170.127", "port": 4245, "expire_time": "2021-03-07 20:08:01"},
-         {"ip": "221.234.31.198", "port": 4245, "expire_time": "2021-03-07 19:30:22"},
-         {"ip": "125.87.86.51", "port": 4278, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "117.64.254.209", "port": 4251, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "27.44.218.67", "port": 4245, "expire_time": "2021-03-07 20:09:27"},
-         {"ip": "106.57.168.239", "port": 4280, "expire_time": "2021-03-07 20:56:03"},
-         {"ip": "116.54.250.216", "port": 4283, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "113.141.223.37", "port": 4236, "expire_time": "2021-03-07 20:33:40"},
-         {"ip": "27.190.82.153", "port": 4278, "expire_time": "2021-03-07 20:28:20"},
-         {"ip": "125.78.218.73", "port": 4237, "expire_time": "2021-03-07 20:35:23"},
-         {"ip": "60.184.199.115", "port": 4223, "expire_time": "2021-03-07 21:00:18"},
-         {"ip": "183.7.113.72", "port": 4230, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "60.166.181.141", "port": 4231, "expire_time": "2021-03-07 21:08:54"},
-         {"ip": "125.78.217.236", "port": 4237, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "60.185.32.204", "port": 4234, "expire_time": "2021-03-07 19:04:02"},
-         {"ip": "183.7.140.235", "port": 4230, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "220.164.105.105", "port": 4235, "expire_time": "2021-03-07 21:38:56"},
-         {"ip": "122.136.164.246", "port": 4278, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "113.100.9.62", "port": 4245, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "125.87.87.5", "port": 4278, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "119.54.46.145", "port": 4212, "expire_time": "2021-03-07 21:01:57"},
-         {"ip": "106.40.145.249", "port": 4283, "expire_time": "2021-03-07 19:47:27"},
-         {"ip": "110.90.220.187", "port": 4210, "expire_time": "2021-03-07 19:52:46"},
-         {"ip": "123.181.148.224", "port": 4278, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "222.219.252.56", "port": 4256, "expire_time": "2021-03-07 20:45:39"},
-         {"ip": "110.90.222.128", "port": 4260, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "36.57.68.99", "port": 4227, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "182.240.228.141", "port": 4245, "expire_time": "2021-03-07 19:09:08"},
-         {"ip": "49.65.165.20", "port": 4232, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "111.227.42.3", "port": 4278, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "180.119.19.209", "port": 4245, "expire_time": "2021-03-07 19:03:22"},
-         {"ip": "36.6.146.194", "port": 4225, "expire_time": "2021-03-07 19:13:53"},
-         {"ip": "58.21.243.144", "port": 4278, "expire_time": "2021-03-07 21:20:41"},
-         {"ip": "60.161.152.114", "port": 4246, "expire_time": "2021-03-07 20:39:24"},
-         {"ip": "220.201.85.200", "port": 4260, "expire_time": "2021-03-07 20:54:14"},
-         {"ip": "60.173.34.155", "port": 4276, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "112.123.40.112", "port": 4254, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "116.248.172.91", "port": 4221, "expire_time": "2021-03-07 20:58:43"},
-         {"ip": "36.102.175.175", "port": 4285, "expire_time": "2021-03-07 20:03:50"},
-         {"ip": "220.164.105.63", "port": 4235, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "36.102.169.219", "port": 4235, "expire_time": "2021-03-07 19:12:13"},
-         {"ip": "49.85.85.2", "port": 4257, "expire_time": "2021-03-07 21:18:03"},
-         {"ip": "121.205.214.33", "port": 4245, "expire_time": "2021-03-07 20:58:11"},
-         {"ip": "117.69.201.179", "port": 4262, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "112.248.12.235", "port": 4282, "expire_time": "2021-03-07 19:27:46"},
-         {"ip": "112.113.194.167", "port": 4242, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "42.59.117.14", "port": 4260, "expire_time": "2021-03-07 21:27:00"},
-         {"ip": "106.111.157.5", "port": 4217, "expire_time": "2021-03-07 19:56:01"},
-         {"ip": "183.165.10.244", "port": 4272, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "117.70.47.32", "port": 4210, "expire_time": "2021-03-07 18:56:44"},
-         {"ip": "183.147.30.227", "port": 4274, "expire_time": "2021-03-07 19:08:02"},
-         {"ip": "183.165.237.232", "port": 4210, "expire_time": "2021-03-07 21:50:50"},
-         {"ip": "120.35.202.127", "port": 4278, "expire_time": "2021-03-07 20:46:12"},
-         {"ip": "27.44.222.232", "port": 4278, "expire_time": "2021-03-07 21:50:50"}
-    ]
-    global browser
-    # browser = set_firefox(proxy_lst.pop())
-    browser = set_firefox()
+def get_all_detail(browser, start_url, city, proxy_lst):
+    browser.get(start_url)
+    time.sleep(3)
+    success_set = set()
+    if os.path.exists('result.txt'):
+        for line in open('result.txt', encoding='utf-8'):
+            success_set.add(eval(line.strip())['url'])
+    fw = open('result.txt', 'a+', encoding='utf-8')
+    while True:
+        indexes = list(range(len(browser.find_elements_by_class_name('list-item'))))
+        for i in indexes:
+            time.sleep(3)
+            choice: WebElement = browser.find_elements_by_class_name('list-item')[i]
+            # 提取detail_url，如果想进入具体页面抓取信息，则可能需要进行验证
+            detail = choice.find_element_by_tag_name('a')
+            try:
+                detail.find_element_by_class_name('mianyi')
+                continue
+            except Exception:
+                pass
+            detail_url = detail.get_attribute('href')
+            if detail_url in success_set:
+                continue
+            # 进入详情页
+            detail.click()
+            # 切换tab
+            window_handles = browser.window_handles
+            browser.switch_to.window(window_handles[-1])
+            wait_wrapper(EC.visibility_of_element_located((By.CLASS_NAME, 'basic-info-wrapper')), browser)
+            # 获取数据
+            info = get_detail_info(None, city)
+            if info == 'change_IP':
+                # 会跳过爬取失败的目录
+                # browser = set_firefox(proxy_lst.pop())
+                browser = set_chrome(proxy_lst.pop())
+                indexes.append(i)
+                continue
+            # print(info)
+            fw.write(f'{info}\n')
+            # 关闭tab
+            browser.close()
+            assert len(browser.window_handles) == 1
+            browser.switch_to.window(window_handles[0])
+        # 点击下一页
+        try:
+            next_page = browser.find_element_by_class_name('aNxt')
+            next_page.click()
+            random_sleep()
+            wait_wrapper(EC.visibility_of_element_located((By.CLASS_NAME, 'aNxt')), browser)
+        except Exception as e:
+            print(e)
+            break
 
+    fw.close()
+
+
+def pipeline():
+    proxy_lst = [{"ip":"27.157.131.27","port":4278,"expire_time":"2021-03-09 04:12:02"},{"ip":"125.106.141.51","port":4245,"expire_time":"2021-03-09 04:12:02"},{"ip":"114.106.156.171","port":4247,"expire_time":"2021-03-09 04:12:02"},{"ip":"182.38.124.143","port":4213,"expire_time":"2021-03-09 04:12:02"},{"ip":"115.211.44.229","port":4274,"expire_time":"2021-03-09 04:12:02"},{"ip":"60.173.35.167","port":4232,"expire_time":"2021-03-09 01:57:02"},{"ip":"114.104.182.135","port":4263,"expire_time":"2021-03-09 03:28:57"},{"ip":"123.119.35.201","port":4281,"expire_time":"2021-03-09 02:42:35"},{"ip":"114.106.136.202","port":4245,"expire_time":"2021-03-09 03:18:26"},{"ip":"60.161.152.131","port":4251,"expire_time":"2021-03-09 04:12:02"}]
+    global browser
+    browser = set_chrome(proxy_lst.pop())
     if os.path.exists('city_urls.json'):
         city_urls = json.load(open('city_urls.json'))
     else:
@@ -398,41 +366,24 @@ def pipeline():
             json.dump(city_urls, f)
 
     target_city_lst = ['深圳', '成都', '湛江', '曲靖', '泸州', '连云港', '通化', '潍坊']
-    if os.path.exists('success.list'):
-        success = {x.strip() for x in open('success.list')}
-    else:
-        success = set()
-    success_log_file = open('success.list', 'a+')
-    fw = open('result.txt', 'a+', encoding='utf-8')
+
     for city, city_url in city_urls.items():
         if city.strip('市') in target_city_lst:
             shou_url, zu_rul = get_zu_shou_url(city_url)
-            if not os.path.exists(f'{city}.target.urls.txt'):
-                shou_urls = get_detail_url(shou_url)
-                zu_urls = get_detail_url(zu_rul)
-                print(city, 'shou:', len(shou_urls))
-                print(city, 'zu:', len(zu_urls))
-                all_urls = shou_urls + zu_urls
-                with open(f'{city}.target.urls.txt', 'w') as f:
-                    _ = [f.write(x+'\n') for x in all_urls]
-            else:
-                all_urls = [x.strip() for x in open(f'{city}.target.urls.txt')]
-                print(f'all_url_of_{city}:{len(all_urls)}')
+            get_all_detail(browser, shou_url, city, proxy_lst)
+            get_all_detail(browser, zu_rul, city, proxy_lst)
+    browser.close()
 
-            for url in all_urls:
-                if url in success:
-                    continue
-                info = get_detail_info(url, city)
-                if info == 'change_IP':
-                    browser = set_firefox(proxy_lst.pop())
-                    continue
-                else:
-                    success.add(url)
-                    success_log_file.write(url+'\n')
-                    fw.write(f'{info}\n')
-                    # pprint(info)
-    fw.close()
-    success_log_file.close()
 
 # run
 pipeline()
+while True:
+    try:
+        pipeline()
+    except Exception as e:
+        # time.sleep(300)
+        print(e)
+        pipeline()
+
+# 17521126310
+# 1q2w3e4r5t
