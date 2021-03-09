@@ -302,14 +302,16 @@ def get_detail_info(url, city=None):
     return basic_info_dict
 
 
-def get_all_detail(browser, start_url, city, proxy_lst):
+def get_all_detail(browser, start_url, city, proxy_lst, outfile='result.txt'):
     browser.get(start_url)
     time.sleep(3)
     success_set = set()
-    if os.path.exists('result.txt'):
-        for line in open('result.txt', encoding='utf-8'):
-            success_set.add(eval(line.strip())['url'])
-    fw = open('result.txt', 'a+', encoding='utf-8')
+    if os.path.exists(outfile):
+        for line in open(outfile, encoding='utf-8'):
+            tmp_dict = eval(line.strip())
+            if tmp_dict.get('url') and len(tmp_dict['url']) > 10:
+                success_set.add(tmp_dict['url'].split('?', 1)[0])
+    fw = open(outfile, 'a+', encoding='utf-8')
     while True:
         indexes = list(range(len(browser.find_elements_by_class_name('list-item'))))
         for i in indexes:
@@ -323,8 +325,8 @@ def get_all_detail(browser, start_url, city, proxy_lst):
             except Exception:
                 pass
             detail_url = detail.get_attribute('href')
-            if detail_url in success_set:
-                print('已经爬取，跳过： ', choice.get_attribute('data-trace'))
+            if detail_url.split('?', 1)[0] in success_set:
+                print('已经爬取，跳过： ', detail_url)
                 continue
             # 进入详情页
             detail.click()
@@ -359,11 +361,11 @@ def get_all_detail(browser, start_url, city, proxy_lst):
     fw.close()
 
 
-def pipeline():
-    proxy_lst = [{"ip":"49.88.106.214","port":4214,"expire_time":"2021-03-09 21:21:59"},{"ip":"110.90.222.148","port":4245,"expire_time":"2021-03-09 21:21:59"},{"ip":"183.165.33.85","port":4235,"expire_time":"2021-03-09 21:03:37"},{"ip":"120.14.24.226","port":4267,"expire_time":"2021-03-09 21:21:59"},{"ip":"119.5.181.172","port":4258,"expire_time":"2021-03-09 19:00:22"},{"ip":"14.106.107.254","port":4237,"expire_time":"2021-03-09 18:49:26"},{"ip":"114.106.156.5","port":4247,"expire_time":"2021-03-09 19:09:39"},{"ip":"113.121.20.238","port":4234,"expire_time":"2021-03-09 21:21:59"},{"ip":"171.41.148.220","port":4226,"expire_time":"2021-03-09 19:22:18"},{"ip":"58.243.206.145","port":4243,"expire_time":"2021-03-09 19:49:06"},{"ip":"223.214.222.85","port":4285,"expire_time":"2021-03-09 21:21:59"},{"ip":"182.101.203.62","port":4254,"expire_time":"2021-03-09 21:21:59"},{"ip":"114.106.146.125","port":4210,"expire_time":"2021-03-09 18:47:53"},{"ip":"153.99.4.5","port":4207,"expire_time":"2021-03-09 21:21:59"},{"ip":"120.40.215.188","port":4245,"expire_time":"2021-03-09 21:21:59"},{"ip":"36.7.26.11","port":4272,"expire_time":"2021-03-09 21:21:59"},{"ip":"183.166.119.234","port":4231,"expire_time":"2021-03-09 21:21:59"},{"ip":"182.132.127.165","port":4278,"expire_time":"2021-03-09 21:01:19"},{"ip":"175.155.51.34","port":4258,"expire_time":"2021-03-09 19:59:29"},{"ip":"114.230.64.170","port":4245,"expire_time":"2021-03-09 21:21:59"},{"ip":"122.4.44.255","port":4264,"expire_time":"2021-03-09 21:21:59"},{"ip":"171.120.228.164","port":4227,"expire_time":"2021-03-09 21:21:59"},{"ip":"60.17.200.87","port":4281,"expire_time":"2021-03-09 19:46:30"},{"ip":"171.41.130.83","port":4226,"expire_time":"2021-03-09 20:29:04"},{"ip":"42.242.122.97","port":4243,"expire_time":"2021-03-09 21:21:59"},{"ip":"110.90.221.68","port":4270,"expire_time":"2021-03-09 20:53:38"},{"ip":"60.175.20.121","port":4258,"expire_time":"2021-03-09 21:19:38"}]
+def pipeline(proxy_and_city):
     global browser
-    # browser = set_chrome(proxy_lst.pop())
-    browser = set_chrome()
+    proxy_lst, target_city_lst, outfile = proxy_and_city
+    browser = set_chrome(proxy_lst.pop())
+    # browser = set_chrome()
     if os.path.exists('city_urls.json'):
         city_urls = json.load(open('city_urls.json'))
     else:
@@ -371,26 +373,57 @@ def pipeline():
         with open('city_urls.json', 'w', encoding='utf-8') as f:
             json.dump(city_urls, f)
 
-    target_city_lst = ['深圳', '成都', '湛江', '曲靖', '泸州', '连云港', '通化', '潍坊']
-    target_city_lst = ['湛江', '曲靖', '泸州', '连云港', '通化', '潍坊']
     for city, city_url in city_urls.items():
         if city.strip('市') in target_city_lst:
             shou_url, zu_rul = get_zu_shou_url(city_url)
-            get_all_detail(browser, shou_url, city, proxy_lst)
+            get_all_detail(browser, shou_url, city, proxy_lst, outfile)
             print(f'提取完{city}的商铺出售信息')
-            get_all_detail(browser, zu_rul, city, proxy_lst)
+            get_all_detail(browser, zu_rul, city, proxy_lst, outfile)
             print(f'提取完成{city}的商铺出租信息')
     browser.close()
 
-# run
+
+if __name__ == '__main__':
+    # batch run
+    from multiprocessing import Pool
+
+    proxy_lst = [{"ip": "27.158.125.64", "port": 4278, "expire_time": "2021-03-09 22:56:01", "city": "福建省三明市"},
+                 {"ip": "183.94.94.47", "port": 4278, "expire_time": "2021-03-09 23:44:23", "city": "湖北省武汉市"},
+                 {"ip": "27.191.171.137", "port": 4278, "expire_time": "2021-03-10 00:08:01", "city": "河北省唐山市"},
+                 {"ip": "175.146.211.217", "port": 4256, "expire_time": "2021-03-09 23:59:39", "city": "辽宁省营口市"},
+                 {"ip": "119.39.233.13", "port": 4246, "expire_time": "2021-03-10 00:08:01", "city": "湖南省岳阳市"},
+                 {"ip": "117.94.124.235", "port": 4216, "expire_time": "2021-03-09 23:06:17", "city": "江苏省泰州市"},
+                 {"ip": "106.116.83.255", "port": 4278, "expire_time": "2021-03-09 21:26:55", "city": "河北省唐山市"},
+                 {"ip": "117.33.6.182", "port": 4278, "expire_time": "2021-03-09 23:34:04", "city": "陕西省榆林市"},
+                 {"ip": "113.103.116.48", "port": 4245, "expire_time": "2021-03-10 00:08:01", "city": "广东省揭阳市"},
+                 {"ip": "27.44.221.218", "port": 4245, "expire_time": "2021-03-09 23:30:53", "city": "广东省东莞市"}]
+
+    target_cities_lst = [
+        ['连云港', '通化', '潍坊'],
+        ['湛江', '曲靖', '泸州'],
+        ['深圳', '成都']
+    ]
+    proxy_num = int(len(proxy_lst)/len(target_cities_lst))
+    print('proxy number for each run:', proxy_num)
+    arguments = []
+    for ind, cities in enumerate(target_cities_lst):
+        proxies = [proxy_lst.pop() for x in range(proxy_num)]
+        arguments.append((proxies, cities, f'{ind}.result.txt'))
+
+    pool = Pool(3)
+    pool.map(pipeline, arguments)
+    pool.close()
+    pool.join()
+
+# # run
 # pipeline()
-while True:
-    try:
-        pipeline()
-    except Exception as e:
-        # time.sleep(300)
-        print(e)
-        pipeline()
+# while True:
+#     try:
+#         pipeline()
+#     except Exception as e:
+#         # time.sleep(300)
+#         print(e)
+#         pipeline()
 
 # 17521126310
 # 1q2w3e4r5t
