@@ -349,6 +349,7 @@ def get_all_detail(browser, start_url, city, proxy_lst, outfile='result.txt'):
             assert len(browser.window_handles) == 1
             random_sleep()
             browser.switch_to.window(window_handles[0])
+            random_sleep()
         # 点击下一页
         try:
             next_page = browser.find_element_by_class_name('aNxt')
