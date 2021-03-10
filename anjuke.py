@@ -315,7 +315,6 @@ def get_all_detail(browser, start_url, city, proxy_lst, outfile='result.txt'):
     while True:
         indexes = list(range(len(browser.find_elements_by_class_name('list-item'))))
         for i in indexes:
-            time.sleep(3)
             choice: WebElement = browser.find_elements_by_class_name('list-item')[i]
             # 提取detail_url，如果想进入具体页面抓取信息，则可能需要进行验证
             detail = choice.find_element_by_tag_name('a')
@@ -330,6 +329,7 @@ def get_all_detail(browser, start_url, city, proxy_lst, outfile='result.txt'):
                 continue
             # 进入详情页
             detail.click()
+            random_sleep()
             # 切换tab
             window_handles = browser.window_handles
             browser.switch_to.window(window_handles[-1])
@@ -347,6 +347,7 @@ def get_all_detail(browser, start_url, city, proxy_lst, outfile='result.txt'):
             # 关闭tab
             browser.close()
             assert len(browser.window_handles) == 1
+            random_sleep()
             browser.switch_to.window(window_handles[0])
         # 点击下一页
         try:
@@ -387,21 +388,17 @@ if __name__ == '__main__':
     # batch run
     from multiprocessing import Pool
 
-    proxy_lst = [{"ip": "27.158.125.64", "port": 4278, "expire_time": "2021-03-09 22:56:01", "city": "福建省三明市"},
-                 {"ip": "183.94.94.47", "port": 4278, "expire_time": "2021-03-09 23:44:23", "city": "湖北省武汉市"},
-                 {"ip": "27.191.171.137", "port": 4278, "expire_time": "2021-03-10 00:08:01", "city": "河北省唐山市"},
-                 {"ip": "175.146.211.217", "port": 4256, "expire_time": "2021-03-09 23:59:39", "city": "辽宁省营口市"},
-                 {"ip": "119.39.233.13", "port": 4246, "expire_time": "2021-03-10 00:08:01", "city": "湖南省岳阳市"},
-                 {"ip": "117.94.124.235", "port": 4216, "expire_time": "2021-03-09 23:06:17", "city": "江苏省泰州市"},
-                 {"ip": "106.116.83.255", "port": 4278, "expire_time": "2021-03-09 21:26:55", "city": "河北省唐山市"},
-                 {"ip": "117.33.6.182", "port": 4278, "expire_time": "2021-03-09 23:34:04", "city": "陕西省榆林市"},
-                 {"ip": "113.103.116.48", "port": 4245, "expire_time": "2021-03-10 00:08:01", "city": "广东省揭阳市"},
-                 {"ip": "27.44.221.218", "port": 4245, "expire_time": "2021-03-09 23:30:53", "city": "广东省东莞市"}]
+    proxy_lst = [{"ip":"183.164.255.223","port":4252,"expire_time":"2021-03-10 02:41:01","city":"安徽省淮北市"},{"ip":"116.16.176.178","port":4245,"expire_time":"2021-03-10 03:47:50","city":"广东省揭阳市"},{"ip":"114.106.170.30","port":4245,"expire_time":"2021-03-10 01:57:07","city":"安徽省池州市"},{"ip":"171.41.129.111","port":4278,"expire_time":"2021-03-10 02:50:47","city":"湖北省荆门市"},{"ip":"59.58.150.136","port":4206,"expire_time":"2021-03-10 03:47:50","city":"福建省莆田市"},{"ip":"113.229.0.52","port":4256,"expire_time":"2021-03-10 03:47:50","city":"辽宁省营口市"},{"ip":"182.241.34.196","port":4240,"expire_time":"2021-03-10 03:29:43","city":"云南省大理白族自治州"},{"ip":"122.143.55.203","port":4278,"expire_time":"2021-03-10 01:53:00","city":"吉林省白城市"},{"ip":"113.117.26.160","port":4245,"expire_time":"2021-03-10 03:47:50","city":"广东省揭阳市"},{"ip":"114.99.12.237","port":4227,"expire_time":"2021-03-10 03:47:50","city":"安徽省铜陵市"},{"ip":"180.122.102.65","port":4216,"expire_time":"2021-03-10 03:47:50","city":"江苏省泰州市"},{"ip":"139.208.108.61","port":4278,"expire_time":"2021-03-10 03:21:56","city":"吉林省延边朝鲜族自治州"},{"ip":"114.104.140.70","port":4247,"expire_time":"2021-03-10 03:47:50","city":"安徽省黄山市"},{"ip":"49.87.124.170","port":4253,"expire_time":"2021-03-10 02:55:16","city":"江苏省淮安市"},{"ip":"218.91.133.204","port":4245,"expire_time":"2021-03-10 02:57:01","city":"江苏省扬州市"},{"ip":"14.134.188.48","port":4272,"expire_time":"2021-03-10 03:47:50","city":"宁夏固原市"},{"ip":"183.166.86.41","port":4251,"expire_time":"2021-03-10 03:47:50","city":"安徽省淮南市"},{"ip":"42.85.237.96","port":4256,"expire_time":"2021-03-10 00:56:24","city":"辽宁省营口市"},{"ip":"182.241.34.78","port":4240,"expire_time":"2021-03-10 03:47:50","city":"云南省大理白族自治州"},{"ip":"221.9.150.157","port":4258,"expire_time":"2021-03-10 03:47:50","city":"吉林省四平市"},{"ip":"120.38.18.105","port":4232,"expire_time":"2021-03-10 01:05:37","city":"福建省漳州市"},{"ip":"120.34.231.74","port":4216,"expire_time":"2021-03-10 01:54:31","city":"福建省南平市"},{"ip":"113.237.2.168","port":4256,"expire_time":"2021-03-10 02:23:05","city":"辽宁省营口市"},{"ip":"125.119.66.7","port":4245,"expire_time":"2021-03-10 03:47:50","city":"浙江省杭州市"},{"ip":"27.190.74.2","port":4278,"expire_time":"2021-03-10 01:34:15","city":"河北省唐山市"},{"ip":"60.175.39.178","port":4235,"expire_time":"2021-03-10 03:47:50","city":"安徽省安庆市"},{"ip":"59.60.153.55","port":4245,"expire_time":"2021-03-10 02:48:37","city":"福建省漳州市"}]
 
     target_cities_lst = [
         ['连云港', '通化', '潍坊'],
         ['湛江', '曲靖', '泸州'],
         ['深圳', '成都']
+    ]
+    target_cities_lst = [
+        ['通化', '潍坊'],
+        ['湛江', '曲靖'],
+        ['深圳']
     ]
     proxy_num = int(len(proxy_lst)/len(target_cities_lst))
     print('proxy number for each run:', proxy_num)
