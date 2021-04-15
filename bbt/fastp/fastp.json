@@ -1,0 +1,94 @@
+{
+  "workflow": {
+    "generateName": "fastp-",
+    "entryPoint": "fastp-steps",
+    "onExit": "[on_exit]",
+    "arguments": {
+      "cmd_sync_log": "rsync -am --inplace --include='*/' --include='cmd.*' --exclude='*' [dir_workspace]/ [dir_log]",
+      "cmd_sync_data": "rsync -avh --info=progress2 --safe-links --delete --stats --exclude='cmd.*' [dir_workspace]/ [dir_output] > [dir_log]/save-data.log 2>&1",
+      "dir_fastp": "[dir_workspace]/01.fastp"
+    },
+    "templates": [
+      {
+        "name": "fastp-steps",
+        "dag": {
+          "nodes": [
+            {
+              "name": "sys-sync-log",
+              "template": "loop",
+              "arguments": {
+                "seconds": "10",
+                "command": "{{workflow.parameters.cmd_sync_log}}"
+              }
+            },
+            {
+              "name": "fastp",
+              "template": "fastp",
+              "arguments": {
+                "output_dir": "{{workflow.parameters.dir_fastp}}",
+                "command": "./fastp [other_args] -i [read1] -I [read2] -o [outfile] -O [outfile2] -h [outfile3] -j [outfile4] "
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "exit-handler",
+        "steps": [
+          {
+            "steps": [
+              {
+                "name": "save-data",
+                "template": "script",
+                "arguments": {
+                  "command": "{{workflow.parameters.cmd_sync_data}}"
+                },
+                "when": "[save_data] == Succeeded"
+              },
+              {
+                "name": "sys-sync-log",
+                "template": "script",
+                "arguments": {
+                  "command": "tree -sJ [dir_workspace] > [dir_log]/tree.json && {{workflow.parameters.cmd_sync_log}}"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "loop",
+        "inputs": ["seconds", "command"],
+        "daemon": true,
+        "container": {
+          "image": "[imageBasePath]/pipelines/bioinfo_pipelines/utils:0.1",
+          "command": ["bash", "-c"],
+          "args": [
+            "while true; do sleep {{inputs.parameters.seconds}}; {{inputs.parameters.command}}; done"
+          ]
+        }
+      },
+      {
+        "name": "fastp",
+        "inputs": ["output_dir", "command"],
+        "container": {
+          "image": "[imageBasePath]/pipelines/bioinfo_pipelines/fastp:20210402",
+          "command": ["sh", "-c"],
+          "args": [
+            "mkdir -p {{inputs.parameters.output_dir}} && rm -rf {{inputs.parameters.output_dir}}/* && cd {{inputs.parameters.output_dir}} && echo \"{{inputs.parameters.command}}\" >cmd.log && sh cmd.log > cmd.out 2>cmd.err"
+          ]
+        }
+      },
+      {
+        "name": "script",
+        "inputs": ["command"],
+        "container": {
+          "image": "[imageBasePath]/pipelines/bioinfo_pipelines/utils:0.1",
+          "command": ["bash", "-c"],
+          "args": ["sleep 5; {{inputs.parameters.command}}"]
+        }
+      }
+    ]
+  },
+  "dry_run": false
+}
