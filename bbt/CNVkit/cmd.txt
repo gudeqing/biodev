@@ -1,0 +1,25 @@
+# 建议使用已有镜像：docker pull etal/cnvkit
+# 下面的命令提到的参数不全，请参考cmd.ini
+cnvkit.py batch \
+    ${Tumor_bam_file} \ # 输入文件，bam格式
+    -n ${Normal_bam_file} \ # 该参数可选，输入文件，bam格式，如果没有对照，则该参数对应的值为可以设为空，即输入"-n "即可
+    -r ${reference.cnn file} \ # 该参数可选，当输入这个参数时，“-n”和“--output-reference”参数都可以不使用
+    -t ${my_baits_bed_file} \ # 可选参数，输入文件，bed格式
+    -f ${genome_fasta_file} \ # 输入文件，fasta格式，该fasta对应
+    --annotate ${UCSC refFlat.txt or ensFlat.txt file (preferred)} \ # 输入文件，可选参数，基因组注释文件，格式为txt或bed或gff文件
+    --output-reference ${reference.cnn} \ # 可选参数，输出文件名，是根据normal样本计算的结果文件，该文件可以通过-r参数重复利用
+    --output-dir ${outdir} \输出结果目录
+    -m hybrid \ # 有三个候选：{hybrid,amplicon,wgs},默认hybrid
+    --drop-low-coverage \ # 该参数可选，默认不加该参数，客户可以选择加上
+    --scatter \ # 该参数可选，默认不加该参数，客户可以选择加上
+    --diagram # 该参数可选，默认不加该参数，客户可以选择加上
+    ${other_args}
+
+
+
+说明:
+Which BED file should I use?
+(1) target vs. bait BED files:
+For hybrid capture, the targeted regions (or “primary targets”) are the genomic regions your capture kit attempts to ensure are well covered, e.g. exons of genes of interest. The baited regions (or “capture targets”) are the genomic regions your kit actually captures, usually including about 50bp flanking either side of each target. Give CNVkit the bait/capture BED file, not the primary targets.
+For Whole-Genome Sequencing (WGS), use the batch --method wgs option and optionally give the genome’s “access” file – if not given, it will be calculated from the genome sequence FASTA file.
+For Targeted Amplicon Sequencing (TAS), use the batch --method amplicon option and give the target BED file.
