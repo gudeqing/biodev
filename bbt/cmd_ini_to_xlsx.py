@@ -28,6 +28,8 @@ for arg_name in target_sections:
         info['gen_rule'] = 'returnBooleanShowFlag'
     elif detail['prefix'] == 'none' and detail['type'] == 'str':
         info['gen_rule'] = 'returnValue'
+        # 下面这个暂时无法判断，即普通位置参数和’id:[arg]'这种位置参数暂时无法区别
+        # info['gen_rule'] = 'returnValueOnly' 表示这个值前面无任何包括空格在内的前缀
 
     if detail['default'] == 'none':
         info['default'] = ''
