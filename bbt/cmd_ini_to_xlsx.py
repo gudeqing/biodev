@@ -69,4 +69,5 @@ for arg_name in target_sections:
     result[detail['name']] = info
 
 
-pd.DataFrame(result).T.to_excel(f'{parser["tool"]["name"]}.arg_detail.xlsx')
+# pd.DataFrame(result).T.to_excel(f'{parser["tool"]["name"]}.arg_detail.xlsx')
+pd.DataFrame(result).T.to_csv(f'{parser["tool"]["name"]}.arg_detail.csv')
