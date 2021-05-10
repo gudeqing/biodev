@@ -4,6 +4,7 @@ task STAR_Alignment{
     input {
         String? other_parameters
         Int runThreadN = 8
+        # https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/
         String genomeDir
         Array[File] read1
         Array[File]? read2
