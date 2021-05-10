@@ -175,6 +175,14 @@ def format_wdl_task(data):
     inputs, cmd = get_inputs_and_cmd(data)
     for line in inputs:
         lines += ' '*8 + line + '\n'
+    lines += ' '*8 + '# for runtime\n'
+    for k, v in get_runtime(data).items():
+        if k in ['cpu', 'time_minutes']:
+            typ = 'Int'
+        else:
+            typ = 'String'
+            v = f'"{v}"'
+        lines += ' ' * 8 + f'{typ} {k} = {v}' + '\n'
     lines += ' '*4 + '}\n\n'
 
     # command
@@ -196,7 +204,8 @@ def format_wdl_task(data):
     # runtime
     lines += ' ' * 4 + 'runtime {\n'
     for k, v in get_runtime(data).items():
-        lines += ' ' * 8 + f'{k}: "{v}"' + '\n'
+        # lines += ' ' * 8 + f'{k}: "{v}"' + '\n'
+        lines += ' ' * 8 + f'{k}: {k}' + '\n'
     lines += ' ' * 4 + '}\n\n'
 
     # task meta
