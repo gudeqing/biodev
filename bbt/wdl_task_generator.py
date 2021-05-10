@@ -140,6 +140,7 @@ def get_outputs(data):
             name = k
             typ, value = v.split(' ', 1)
             outputs += [typ + ' ' + name + ' = ' + value]
+            # outputs += [f'{k} = {v}']
 
     return outputs
 
@@ -235,7 +236,8 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         print('Usage: python wdl_task_generator.py <cmd.ini>')
     in_file = sys.argv[1]
-    parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+    # parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+    parser = configparser.ConfigParser()
     parser.read(in_file, encoding='utf-8')
     if '参数属性说明' in parser.sections():
         parser.remove_section('参数属性说明')
