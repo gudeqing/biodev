@@ -9,7 +9,7 @@ task STAR_Alignment{
         Array[File] read1
         Array[File]? read2
         String sample
-        String platform = "Illimina"
+        String platform = "Illumina"
         String outSAMtype = "BAM SortedByCoordinate"
         String outSAMunmapped = "Within"
         String readFilesCommand = "zcat"
@@ -23,7 +23,7 @@ task STAR_Alignment{
         String outSAMstrandField = "intronMotif"
         String quantMode = "TranscriptomeSAM"
         String outSAMattrRGline = "ID:~{sample} SM:~{sample} PL:~{platform}"
-        Int limitBAMsortRAM = 35000000000
+        String limitBAMsortRAM = "35000000000"
         Int limitIObufferSize = 150000000
         Int outSAMattrIHstart = 0
         Int alignMatesGapMax = 500000
@@ -119,7 +119,8 @@ task STAR_Alignment{
         other_parameters: {desc: "other arguments, you could set any other argument with a string such as '-i x -j y'", level: "optional", type: "str", value_candidates: ""}
         runThreadN: {desc: "Number of threads to use", level: "required", type: "int", value_candidates: ""}
         genomeDir: {desc: "reference index directory", level: "required", type: "indir", value_candidates: ""}
-        readFilesIn: {desc: "fastq files, separate by white space, such as 'R1.fq R2.fq'", level: "required", type: "infile", value_candidates: ""}
+        read1: {desc: "fastq files, separate by ',', such as 'R1.fq, R1.fq'", level: "required", type: "infile", value_candidates: ""}
+        read2: {desc: "fastq files, separate by ',' , such as 'R2.fq R2.fq'", level: "required", type: "infile", value_candidates: ""}
         sample: {desc: "prefix for outfile name", level: "required", type: "str", value_candidates: ""}
         outSAMtype: {desc: "format specification for output bam/sam", level: "required", type: "str", value_candidates: ""}
         outSAMunmapped: {desc: "format specification for output bam/sam", level: "required", type: "str", value_candidates: ""}
