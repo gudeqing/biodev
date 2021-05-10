@@ -133,6 +133,8 @@ def get_outputs(data):
                 outputs += [f'File {detail["name"]} = ' + '~{' + detail["name"] + '}']
             elif detail['out_dir'] == 'yes':
                 outputs += [f'Array[File] outputs = glob(".*")']
+        if not outputs:
+            outputs += [f'Array[File] outputs = glob(".*")']
     else:
         for k, v in data['outputs'].items():
             name = k
