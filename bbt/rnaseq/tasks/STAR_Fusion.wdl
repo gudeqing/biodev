@@ -69,16 +69,16 @@ task STAR_Fusion{
     }
 
     parameter_meta {
-        other_parameters: {desc: "other arguments, you could set any other argument with a string such as '-i x -j y'", level: "optional", type: "str", value_candidates: ""}
-        CPU: {desc: "Number of threads to use", level: "required", type: "int", value_candidates: ""}
-        left_fq: {desc: "read1 fastq files, separate by white space", level: "optional", type: "infile", value_candidates: ""}
-        right_fq: {desc: "read1 fastq files, separate by white space", level: "optional", type: "infile", value_candidates: ""}
-        chimeric_junction: {desc: "generated file called 'Chimeric.out.junction' by STAR alignment", level: "optional", type: "infile", value_candidates: ""}
-        genome_lib_dir: {desc: "ctat_genome_lib_build_dir", level: "required", type: "indir", value_candidates: ""}
-        sample: {desc: "output directory", level: "required", type: "str", value_candidates: ""}
-        FusionInspector: {desc: "FusionInspector that provides a more in-depth view of the evidence supporting the predicted fusions.", level: "required", type: "str", value_candidates: "inspect, validate"}
-        examine_coding_effect: {desc: "explore impact of fusions on coding sequences", level: "required", type: "bool", value_candidates: "yes, no"}
-        denovo_reconstruct: {desc: "attempt to reconstruct fusion transcripts using Trinity de novo assembly (requires --FusionInspector)", level: "required", type: "bool", value_candidates: "yes, no"}
+        other_parameters: {desc: "other arguments, you could set any other argument with a string such as '-i x -j y'", level: "optional", type: "str", range: "", default: ""}
+        CPU: {desc: "Number of threads to use", level: "required", type: "int", range: "", default: "8"}
+        left_fq: {desc: "read1 fastq files, separate by white space", level: "optional", type: "infile", range: "", default: ""}
+        right_fq: {desc: "read1 fastq files, separate by white space", level: "optional", type: "infile", range: "", default: ""}
+        chimeric_junction: {desc: "generated file called 'Chimeric.out.junction' by STAR alignment", level: "optional", type: "infile", range: "", default: ""}
+        genome_lib_dir: {desc: "ctat_genome_lib_build_dir", level: "required", type: "indir", range: "", default: ""}
+        sample: {desc: "output directory", level: "required", type: "str", range: "", default: "fusion"}
+        FusionInspector: {desc: "FusionInspector that provides a more in-depth view of the evidence supporting the predicted fusions.", level: "required", type: "str", range: "inspect, validate", default: "inspect"}
+        examine_coding_effect: {desc: "explore impact of fusions on coding sequences", level: "required", type: "bool", range: "yes, no", default: "yes"}
+        denovo_reconstruct: {desc: "attempt to reconstruct fusion transcripts using Trinity de novo assembly (requires --FusionInspector)", level: "required", type: "bool", range: "yes, no", default: "yes"}
     }
 
 }
