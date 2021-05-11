@@ -144,7 +144,8 @@ def get_outputs(data):
             detail.setdefault('input_dir', 'no')
             detail.setdefault('out_dir', 'no')
             if detail['is_outfile'] == 'yes':
-                outputs += [f'File {detail["name"]} = ' + '~{' + detail["name"] + '}']
+                # 避免输出名和输入名重复，需要改名
+                outputs += [f'File o_{detail["name"]} = ' + '~{' + detail["name"] + '}']
             elif detail['out_dir'] == 'yes':
                 outputs += [f'Array[File] outputs = glob(".*")']
         if not outputs:
