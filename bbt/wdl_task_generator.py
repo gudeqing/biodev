@@ -19,6 +19,7 @@ def get_runtime(data, section='runtime'):
 
 def get_parameter_meta(data):
     arg_meta = dict()
+    # keys = ['type', 'desc', 'level', 'default', 'range']
     for section in data.sections():
         detail = data[section]
         if {'name', 'type', 'desc'} - set(detail.keys()):
@@ -26,17 +27,30 @@ def get_parameter_meta(data):
             continue
         meta = arg_meta.setdefault(detail['name'], dict())
         meta['desc'] = detail['desc']
+
+        # get level
         meta['level'] = 'required' if detail['require'] == 'yes' else 'optional'
+
+        # get type
         if detail['is_infile'] == 'yes':
             meta['type'] = 'infile'
         elif detail['input_dir'] == 'yes':
             meta['type'] = 'indir'
         else:
             meta['type'] = detail['type']
+
+        # get ranges
         if 'value_candidates' in detail and detail['value_candidates'] != "none":
-            meta['value_candidates'] = detail['value_candidates']
+            # for old style
+            meta['range'] = detail['value_candidates']
         else:
-            meta['value_candidates'] = ''
+            meta['range'] = ''
+
+        # get default
+        if detail['default'] != "none":
+            meta['default'] = detail['default']
+        else:
+            meta['default'] = ''
     return arg_meta
 
 
