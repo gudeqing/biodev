@@ -65,19 +65,19 @@ task salmon{
     }
 
     parameter_meta {
-        other_parameters: {desc: "其他参数，你可以通过该参数输入一个或多个任何其他当前软件支持的参数，例如'-i x -j y'", level: "optional", type: "str", value_candidates: ""}
-        threads: {desc: "Number of threads to use during indexing or quantification", level: "required", type: "int", value_candidates: ""}
-        index_dir: {desc: "Existing directory containing transcripts indexing files for salmon quantification", level: "optional", type: "indir", value_candidates: ""}
-        transcripts: {desc: "Transcript fasta file.", level: "optional", type: "infile", value_candidates: ""}
-        transcript_bam: {desc: "input transcript based alignment (BAM) file(s)", level: "optional", type: "infile", value_candidates: ""}
-        read1: {desc: "read1对应的fastq路径，支持用空格分隔多个文件路径的输入", level: "optional", type: "infile", value_candidates: ""}
-        read2: {desc: "read2对应的fastq路径，支持用空格分隔多个文件路径的输入", level: "optional", type: "infile", value_candidates: ""}
-        single_end_reads: {desc: "sing-end read对应的fastq路径, 支持输入多个文件, 空格分隔", level: "optional", type: "infile", value_candidates: ""}
-        geneMap: {desc: "File containing a mapping of transcripts to genes. If this file is provided salmon will output both quant.sf and quant.genes.sf files, where the latter contains aggregated gene-level abundance estimates. The transcript to gene mapping should be provided as either a GTF file, or a ina simple tab-delimited format where each line contains the name of a transcript and the gene to which it belongs separated by a tab.", level: "optional", type: "infile", value_candidates: ""}
-        outdir: {desc: "Output quantification directory.", level: "required", type: "str", value_candidates: ""}
-        seqBias: {desc: "Bool argument，Perform sequence-specific bias correction.", level: "optional", type: "bool", value_candidates: "no, yes"}
-        gcBias: {desc: "Bool argument. Perform fragment GC bias correction.", level: "optional", type: "bool", value_candidates: "no, yes"}
-        posBias: {desc: "Bool argument. Perform positional bias correction.", level: "optional", type: "bool", value_candidates: "no, yes"}
+        other_parameters: {desc: "其他参数，你可以通过该参数输入一个或多个任何其他当前软件支持的参数，例如'-i x -j y'", level: "optional", type: "str", range: "", default: ""}
+        threads: {desc: "Number of threads to use during indexing or quantification", level: "required", type: "int", range: "", default: "8"}
+        index_dir: {desc: "Existing directory containing transcripts indexing files for salmon quantification", level: "optional", type: "indir", range: "", default: ""}
+        transcripts: {desc: "Transcript fasta file.", level: "optional", type: "infile", range: "", default: ""}
+        transcript_bam: {desc: "input transcript based alignment (BAM) file(s)", level: "optional", type: "infile", range: "", default: ""}
+        read1: {desc: "read1对应的fastq路径，支持用空格分隔多个文件路径的输入", level: "optional", type: "infile", range: "", default: ""}
+        read2: {desc: "read2对应的fastq路径，支持用空格分隔多个文件路径的输入", level: "optional", type: "infile", range: "", default: ""}
+        single_end_reads: {desc: "sing-end read对应的fastq路径, 支持输入多个文件, 空格分隔", level: "optional", type: "infile", range: "", default: ""}
+        geneMap: {desc: "File containing a mapping of transcripts to genes. If this file is provided salmon will output both quant.sf and quant.genes.sf files, where the latter contains aggregated gene-level abundance estimates. The transcript to gene mapping should be provided as either a GTF file, or a ina simple tab-delimited format where each line contains the name of a transcript and the gene to which it belongs separated by a tab.", level: "optional", type: "infile", range: "", default: ""}
+        outdir: {desc: "Output quantification directory.", level: "required", type: "str", range: "", default: "salmon_quant"}
+        seqBias: {desc: "Bool argument，Perform sequence-specific bias correction.", level: "optional", type: "bool", range: "no, yes", default: "yes"}
+        gcBias: {desc: "Bool argument. Perform fragment GC bias correction.", level: "optional", type: "bool", range: "no, yes", default: "yes"}
+        posBias: {desc: "Bool argument. Perform positional bias correction.", level: "optional", type: "bool", range: "no, yes", default: "yes"}
     }
 
 }
