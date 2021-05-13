@@ -1,6 +1,6 @@
 version 1.0
 
-task STAR_Fusion{
+task star_fusion{
     input {
         String? other_parameters
         Int CPU = 8

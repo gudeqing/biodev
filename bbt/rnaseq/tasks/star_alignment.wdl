@@ -1,6 +1,6 @@
 version 1.0
 
-task STAR_Alignment{
+task star_alignment{
     input {
         String? other_parameters
         Int runThreadN = 8
@@ -91,7 +91,8 @@ task STAR_Alignment{
     >>>
 
     output {
-        File bam = glob("*.bam")
+        File bam = glob("*.bam")[0]
+        File transcript_bam = glob("*.bam")
         File align_log = glob("*Log.final.out")[0]
         File? chimeric_out = glob("*Chimeric.out.junction")
         File? sj = glob("SJ.out.tab")
@@ -119,7 +120,8 @@ task STAR_Alignment{
         other_parameters: {desc: "other arguments, you could set any other argument with a string such as '-i x -j y'", level: "optional", type: "str", range: "", default: ""}
         runThreadN: {desc: "Number of threads to use", level: "required", type: "int", range: "", default: "8"}
         genomeDir: {desc: "reference index directory", level: "required", type: "indir", range: "", default: ""}
-        readFilesIn: {desc: "fastq files, separate by white space, such as 'R1.fq R2.fq'", level: "required", type: "infile", range: "", default: ""}
+        read1: {desc: "read1 fastq files", level: "required", type: "infile", range: "", default: ""}
+        read2: {desc: "read2 fastq files", level: "required", type: "infile", range: "", default: ""}
         sample: {desc: "prefix for outfile name", level: "required", type: "str", range: "", default: ""}
         outSAMtype: {desc: "format specification for output bam/sam", level: "required", type: "str", range: "", default: "BAM SortedByCoordinate"}
         outSAMunmapped: {desc: "format specification for output bam/sam", level: "required", type: "str", range: "", default: "Within"}

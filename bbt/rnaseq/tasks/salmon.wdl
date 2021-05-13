@@ -1,6 +1,6 @@
 version 1.0
 
-task salmon{
+task salmon_quant{
     input {
         String? other_parameters
         Int threads = 8
