@@ -115,9 +115,9 @@ def get_inputs_and_cmd(data):
                 else:
                     cmd += ['~{' + f'if {detail["name"]} then "{detail["prefix"]} " else ""' + '}']
         else:
-            if 'multi_sep' not in detail or (not detail['multi_sep']):
-                detail['multi_sep'] = ' '
-            delimiter = detail['multi_sep']
+            if 'multi_value_sep' not in detail or (not detail['multi_value_sep']):
+                detail['multi_value_sep'] = ' '
+            delimiter = detail['multi_value_sep']
 
             if detail['prefix'] == 'none':
                 cmd += ['~{sep=' + f'"{delimiter}" ' + detail['name'] + '}']

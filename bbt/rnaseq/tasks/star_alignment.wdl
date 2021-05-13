@@ -41,6 +41,7 @@ task star_alignment{
         Int chimScoreJunctionNonGTAG = -4
         Float alignSplicedMateMapLminOverLmate = 0
         Int alignSplicedMateMapLmin = 30
+        String quantTranscriptomeBan = "IndelSoftclipSingleend"
         # for runtime
         String docker = "STAR2.7.8a:latest"
         String memory = "32 GiB"
@@ -87,7 +88,8 @@ task star_alignment{
         ~{"--alignInsertionFlush " + alignInsertionFlush} \
         ~{"--chimScoreJunctionNonGTAG " + chimScoreJunctionNonGTAG} \
         ~{"--alignSplicedMateMapLminOverLmate " + alignSplicedMateMapLminOverLmate} \
-        ~{"--alignSplicedMateMapLmin " + alignSplicedMateMapLmin} 
+        ~{"--alignSplicedMateMapLmin " + alignSplicedMateMapLmin} \
+        ~{"--quantTranscriptomeBan " + quantTranscriptomeBan}
     >>>
 
     output {
@@ -154,6 +156,7 @@ task star_alignment{
         chimScoreJunctionNonGTAG: {desc: "penalty for a non-GT/AG chimeric junction", level: "required", type: "int", range: "", default: "-4"}
         alignSplicedMateMapLminOverLmate: {desc: "alignSplicedMateMapLmin normalized to mate length", level: "required", type: "float", range: "", default: "0"}
         alignSplicedMateMapLmin: {desc: "minimum mapped length for a read mate that is spliced", level: "required", type: "int", range: "", default: "30"}
+        quantTranscriptomeBan: {desc: "prohibit various alignment type", level: "required", type: "str", range: "IndelSoftclipSingleend,Singleend", default: "IndelSoftclipSingleend"}
     }
 
 }
