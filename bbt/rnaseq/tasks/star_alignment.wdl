@@ -7,7 +7,7 @@ task star_alignment{
         # https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/
         String genomeDir
         Array[File] read1
-        Array[File]? read2
+        Array[File?] read2
         String sample
         String platform = "Illumina"
         String outSAMtype = "BAM SortedByCoordinate"
@@ -93,11 +93,11 @@ task star_alignment{
     >>>
 
     output {
-        File bam = glob("*.bam")[0]
-        File transcript_bam = glob("*.bam")
+        File bam = glob("*.Aligned.sortedByCoord.out.bam")[0]
+        File transcript_bam = glob("*.Aligned.toTranscriptome.out.bam")[0]
         File align_log = glob("*Log.final.out")[0]
-        File? chimeric_out = glob("*Chimeric.out.junction")
-        File? sj = glob("SJ.out.tab")
+        File chimeric_out = glob("*Chimeric.out.junction")[0]
+        File sj = glob("SJ.out.tab")[0]
     }
 
     runtime {

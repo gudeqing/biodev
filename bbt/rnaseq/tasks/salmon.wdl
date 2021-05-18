@@ -6,7 +6,7 @@ task salmon_quant{
         Int threads = 8
         String? index_dir
         File? transcripts
-        Array[File]? transcript_bam
+        Array[File]+ transcript_bam
         Array[File]? read1
         Array[File]? read2
         Array[File]? single_end_reads

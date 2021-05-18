@@ -13,7 +13,7 @@ task rsem_quant{
         File? bam
         Array[File]? read1
         Array[File]? read2
-        File index
+        String index
         String sample_name = "sample_name"
         # for runtime
         String docker = "rsem:1.3.3"
