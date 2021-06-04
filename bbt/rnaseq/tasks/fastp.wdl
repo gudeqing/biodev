@@ -4,13 +4,13 @@ task fastp{
     input {
         String? other_parameters
         Int threads = 4
-        File read1 = "sample.R1.fastq.gz"
-        File? read2
+        File read1
+        File read2
+        String sample_name
         String? adapter_r1
         String? adapter_r2
-        String sample_name
         # for runtime
-        String docker = "fastp:latest"
+        String docker = "gudeqing/fastp:0.21.0"
         String memory = "5 GiB"
         Int cpu = 4
         String disks = "5 GiB"

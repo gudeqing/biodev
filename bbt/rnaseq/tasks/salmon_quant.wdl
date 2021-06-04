@@ -26,6 +26,7 @@ task salmon_quant{
     command <<<
         set -e 
         salmon quant \
+        -l a \
         ~{other_parameters} \
         ~{"-p " + threads} \
         ~{"-i " + index_dir} \
@@ -43,7 +44,7 @@ task salmon_quant{
 
     output {
         File outfile = outdir + "/quant.sf"
-        File outfile2 = outdir + "/quant_gene.sf"
+        File outfile2 = outdir + "/quant.genes.sf"
     }
 
     runtime {
