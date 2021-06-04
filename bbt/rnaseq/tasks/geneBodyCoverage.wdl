@@ -24,7 +24,7 @@ task geneBodyCoverage{
     >>>
 
     output {
-        Array[File] outputs = glob(".*")
+        Array[File] outputs = glob("*")
     }
 
     runtime {

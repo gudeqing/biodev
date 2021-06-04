@@ -13,7 +13,8 @@ task rsem_quant{
         File? bam
         Array[File]? read1
         Array[File]? read2
-        String index
+        Array[File] indexFiles
+        String index_name = 'rsem'
         String sample_name = "sample_name"
         # for runtime
         String docker = "rsem:1.3.3"
@@ -37,7 +38,7 @@ task rsem_quant{
         ~{bam} \
         ~{sep="," read1} \
         ~{sep="," read2} \
-        ~{index} \
+        ~{sub(indexFiles[0], basename(indexFiles[0]), "") + index_name} \
         ~{sample_name} 
     >>>
 

@@ -4,7 +4,7 @@ task salmon_quant{
     input {
         String? other_parameters
         Int threads = 8
-        String? index_dir
+        Array[File]? indexFiles
         File? transcripts
         Array[File]+ transcript_bam
         Array[File]? read1
@@ -29,7 +29,7 @@ task salmon_quant{
         -l a \
         ~{other_parameters} \
         ~{"-p " + threads} \
-        ~{"-i " + index_dir} \
+        ~{if defined(indexFiles) then "-i " + sub(indexFiles[0], basename(indexFiles[0]), "") else ""} \
         ~{"-t " + transcripts} \
         ~{if defined(transcript_bam) then "-a " else ""}~{sep=" " transcript_bam} \
         ~{if defined(read1) then "-1 " else ""}~{sep=" " read1} \

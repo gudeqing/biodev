@@ -7,7 +7,8 @@ task star_fusion{
         Array[File]? left_fq
         Array[File]? right_fq
         File? chimeric_junction
-        String genome_lib_dir
+        # 文件太多, 只能先用压缩文件作为输入,然后再解压了
+        File genome_lib_dir
         String sample = "fusion"
         String FusionInspector = "inspect"
         Boolean examine_coding_effect = true
@@ -23,6 +24,8 @@ task star_fusion{
     command <<<
         set -e
         mkdir -p ~{sample}
+        mkdir genome_lib_dir
+        tar -zxvf genome_lib_dir
         STAR-Fusion \
         ~{other_parameters} \
         ~{"--CPU " + CPU} \

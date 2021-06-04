@@ -5,7 +5,7 @@ task star_alignment{
         String? other_parameters
         Int runThreadN = 8
         # https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/
-        String genomeDir
+        Array[File] indexFiles
         Array[File] read1
         Array[File?] read2
         String sample
@@ -55,7 +55,7 @@ task star_alignment{
         STAR \
         ~{other_parameters} \
         ~{"--runThreadN " + runThreadN} \
-        ~{"--genomeDir " + genomeDir} \
+        ~{"--genomeDir " + sub(indexFiles[0], basename(indexFiles[0]), "")} \
         --readFilesIn ~{sep="," read1}  ~{sep="," read2}  \
         ~{"--outFileNamePrefix " + sample + "."} \
         --outSAMtype ~{outSAMtype} \

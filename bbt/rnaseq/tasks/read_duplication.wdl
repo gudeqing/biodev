@@ -4,7 +4,7 @@ task read_duplication{
     input {
         String? other_parameters
         File bam
-        String sample_id = "sample_name"
+        String sample_id
         # for runtime
         String docker = "?"
         String memory = "6 GiB"
@@ -22,7 +22,7 @@ task read_duplication{
     >>>
 
     output {
-        Array[File] outputs = glob(".*")
+        Array[File] outputs = glob("*")
     }
 
     runtime {

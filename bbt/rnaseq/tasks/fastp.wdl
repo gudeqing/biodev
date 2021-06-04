@@ -5,7 +5,7 @@ task fastp{
         String? other_parameters
         Int threads = 4
         File read1
-        File read2
+        File? read2
         String sample_name
         String? adapter_r1
         String? adapter_r2
