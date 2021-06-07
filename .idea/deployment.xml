@@ -1,25 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always">
+  <component name="PublishConfigData" autoUpload="Always" serverName="bbt">
     <serverData>
-      <paths name="dunwill132">
+      <paths name="bbt">
         <serverdata>
           <mappings>
-            <mapping deploy="/PycharmProjects/biodev" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/" local="$PROJECT_DIR$/../" web="/" />
+            <mapping local="$PROJECT_DIR$/.idea" web="/" />
           </mappings>
-          <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/.idea" />
-          </excludedPaths>
-        </serverdata>
-      </paths>
-      <paths name="dunwill133">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/PycharmProjects/biodev" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-          <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/.idea" />
-          </excludedPaths>
         </serverdata>
       </paths>
     </serverData>
