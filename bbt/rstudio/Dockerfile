@@ -97,5 +97,14 @@ RUN source /root/miniconda3/bin/activate R3.6.3 && conda install -c bioconda \
 
 # 激活R.3.6.3环境
 RUN echo "source /root/miniconda3/bin/activate R3.6.3" >> ~/.bashrc
+RUN rm  /usr/lib/x86_64-linux-gnu/libstdc++.so.6 \
+    && ln -s  /root/miniconda3/envs/R3.6.3/lib/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
+
+# 下面的生信包由于某种原因，之前没有安装成功。虽然conda显示成功安装，实际上却无法调用，需重新安装
+RUN source /root/miniconda3/bin/activate R3.6.3 \
+    && Rscript -e "BiocManager::install(c('GenomeInfoDbData', 'DO.db', 'org.Hs.eg.db'), update=F)"
+
+RUN source /root/miniconda3/bin/activate R3.6.3 \
+    && conda clean -a
 
 CMD ["bash", "-c", "/headless/rstudio/scripts/cmd.sh"]
