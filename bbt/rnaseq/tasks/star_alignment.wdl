@@ -1,13 +1,14 @@
-version 1.0
+version development
 
 task star_alignment{
     input {
         String? other_parameters
         Int runThreadN = 8
         # https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/
-        Array[File] indexFiles
+        Directory indexDir
         Array[File] read1
-        Array[File?] read2
+        # 下面得如果不默认为[],则cromwell会报错
+        Array[File] read2 = []
         String sample
         String platform = "Illumina"
         String outSAMtype = "BAM SortedByCoordinate"
@@ -23,8 +24,10 @@ task star_alignment{
         String outSAMstrandField = "intronMotif"
         String quantMode = "TranscriptomeSAM"
         String outSAMattrRGline = "ID:~{sample} SM:~{sample} PL:~{platform}"
-        String limitBAMsortRAM = "35000000000"
-        Int limitIObufferSize = 150000000
+#        Int limitBAMsortRAM = 35000000000
+        Int limitBAMsortRAM = 350000000
+#        Int limitIObufferSize = 150000000
+        Int limitIObufferSize = 30000000
         Int outSAMattrIHstart = 0
         Int alignMatesGapMax = 500000
         Int alignIntronMax = 500000
@@ -43,7 +46,7 @@ task star_alignment{
         Int alignSplicedMateMapLmin = 30
         String quantTranscriptomeBan = "IndelSoftclipSingleend"
         # for runtime
-        String docker = "STAR2.7.8a:latest"
+        String docker = "trinityctat/starfusion:1.10.0"
         String memory = "32 GiB"
         Int cpu = 1
         String disks = "50 GiB"
@@ -51,12 +54,12 @@ task star_alignment{
     }
 
     command <<<
-        set -e 
+        set -e
         STAR \
         ~{other_parameters} \
         ~{"--runThreadN " + runThreadN} \
-        ~{"--genomeDir " + sub(indexFiles[0], basename(indexFiles[0]), "")} \
-        --readFilesIn ~{sep="," read1}  ~{sep="," read2}  \
+        ~{"--genomeDir " + indexDir} \
+        --readFilesIn ~{sep="," read1}  ~{sep="," read2} \
         ~{"--outFileNamePrefix " + sample + "."} \
         --outSAMtype ~{outSAMtype} \
         ~{"--outSAMunmapped " + outSAMunmapped} \
@@ -121,7 +124,7 @@ task star_alignment{
     parameter_meta {
         other_parameters: {desc: "other arguments, you could set any other argument with a string such as '-i x -j y'", level: "optional", type: "str", range: "", default: ""}
         runThreadN: {desc: "Number of threads to use", level: "required", type: "int", range: "", default: "8"}
-        genomeDir: {desc: "reference index directory", level: "required", type: "indir", range: "", default: ""}
+        indexDir: {desc: "reference index directory", level: "required", type: "indir", range: "", default: ""}
         read1: {desc: "read1 fastq files", level: "required", type: "infile", range: "", default: ""}
         read2: {desc: "read2 fastq files", level: "required", type: "infile", range: "", default: ""}
         sample: {desc: "prefix for outfile name", level: "required", type: "str", range: "", default: ""}

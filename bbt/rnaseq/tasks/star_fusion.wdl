@@ -1,4 +1,4 @@
-version 1.0
+version development
 
 task star_fusion{
     input {
@@ -8,13 +8,13 @@ task star_fusion{
         Array[File]? right_fq
         File? chimeric_junction
         # 文件太多, 只能先用压缩文件作为输入,然后再解压了
-        File genome_lib_dir
+        Directory genome_lib_dir
         String sample = "fusion"
         String FusionInspector = "inspect"
         Boolean examine_coding_effect = true
         Boolean denovo_reconstruct = true
         # for runtime
-        String docker = "trinityctat/starfusion:1.9.1"
+        String docker = "trinityctat/starfusion:1.10.0"
         String memory = "32 GiB"
         Int cpu = 1
         String disks = "50 GiB"
@@ -24,8 +24,6 @@ task star_fusion{
     command <<<
         set -e
         mkdir -p ~{sample}
-        mkdir genome_lib_dir
-        tar -zxvf genome_lib_dir
         STAR-Fusion \
         ~{other_parameters} \
         ~{"--CPU " + CPU} \

@@ -1,4 +1,4 @@
-version 1.0
+version development
 
 task read_distribution{
     input {
@@ -7,7 +7,7 @@ task read_distribution{
         File refGene
         String sample_id = "sample_name"
         # for runtime
-        String docker = "?"
+        String docker = "cdiasgurjao/rseqc:latest"
         String memory = "10 GiB"
         Int cpu = 2
         String disks = "10 GiB"

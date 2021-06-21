@@ -1,4 +1,4 @@
-version 1.0
+version development
 
 task read_duplication{
     input {
@@ -6,7 +6,7 @@ task read_duplication{
         File bam
         String sample_id
         # for runtime
-        String docker = "?"
+        String docker = "cdiasgurjao/rseqc:latest"
         String memory = "6 GiB"
         Int cpu = 2
         String disks = "6 GiB"

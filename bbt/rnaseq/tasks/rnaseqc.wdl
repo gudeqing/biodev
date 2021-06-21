@@ -1,11 +1,11 @@
-version 1.0
+version development
 
 task rnaseqc{
     input {
         String? other_parameters
-        File gtf
+        File collapsed_gtf
         File bam
-        String outdir = "."
+#        String outdir = "."
         String sample_id
         File? bed
         String? strand
@@ -21,9 +21,9 @@ task rnaseqc{
         set -e 
         rnaseqc \
         ~{other_parameters} \
-        ~{gtf} \
+        ~{collapsed_gtf} \
         ~{bam} \
-        ~{outdir} \
+        ./ \
         ~{"--sample " + sample_id} \
         ~{"--bed " + bed} \
         ~{"--stranded " + strand} 
@@ -56,9 +56,8 @@ task rnaseqc{
 
     parameter_meta {
         other_parameters: {desc: "other arguments, you could set any other argument with a string such as '-i x -j y'", level: "optional", type: "str", range: "", default: ""}
-        gtf: {desc: "The input GTF file containing features to check the bam against", level: "required", type: "infile", range: "", default: ""}
+        collapsed_gtf: {desc: "The input GTF file containing features to check the bam against", level: "required", type: "infile", range: "", default: ""}
         bam: {desc: "The input SAM/BAM file containing reads", level: "required", type: "infile", range: "", default: ""}
-        outdir: {desc: "Output directory", level: "required", type: "str", range: "", default: "."}
         sample_id: {desc: "prefix for output file name", level: "optional", type: "str", range: "", default: ""}
         bed: {desc: "Optional input BED file containing non-overlapping exons used for fragment size calculations", level: "optional", type: "infile", range: "", default: ""}
         strand: {desc: "Use strand-specific metrics. Only features on the same strand of a read will be considered.", level: "optional", type: "str", range: "RF,FR", default: ""}

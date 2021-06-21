@@ -1,4 +1,4 @@
-version 1.0
+version development
 
 task markDuplicates{
     input {
@@ -11,7 +11,7 @@ task markDuplicates{
         String tagging_policy = "DontTag"
         String create_index = "true"
         # for runtime
-        String docker = "broadinstitute/picard:latest"
+        String docker = "trinityctat/starfusion:1.10.0"
         String memory = "6 GiB"
         Int cpu = 2
         String disks = "6 GiB"

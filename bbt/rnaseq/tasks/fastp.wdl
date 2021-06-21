@@ -1,4 +1,4 @@
-version 1.0
+version development
 
 task fastp{
     input {
@@ -19,7 +19,7 @@ task fastp{
 
     command <<<
         set -e 
-        ./fastp \
+        fastp \
         ~{other_parameters} \
         ~{"--thread " + threads} \
         ~{"-i " + read1} \

@@ -1,4 +1,4 @@
-version 1.0
+version development
 
 task rsem_quant{
     input {
@@ -13,11 +13,11 @@ task rsem_quant{
         File? bam
         Array[File]? read1
         Array[File]? read2
-        Array[File] indexFiles
+        Directory indexDir
         String index_name = 'rsem'
         String sample_name = "sample_name"
         # for runtime
-        String docker = "rsem:1.3.3"
+        String docker = "gudeqing/rsem:1.3.3"
         String memory = "10 GiB"
         Int cpu = 2
         String disks = "10 GiB"
@@ -25,7 +25,7 @@ task rsem_quant{
     }
 
     command <<<
-        set -e 
+        set -e
         rsem-calculate-expression \
         ~{other_parameters} \
         ~{"-p " + threads} \
@@ -38,7 +38,7 @@ task rsem_quant{
         ~{bam} \
         ~{sep="," read1} \
         ~{sep="," read2} \
-        ~{sub(indexFiles[0], basename(indexFiles[0]), "") + index_name} \
+        ~{indexDir+"/"+index_name} \
         ~{sample_name} 
     >>>
 
@@ -78,7 +78,7 @@ task rsem_quant{
         bam: {desc: "input alignment file", level: "optional", type: "infile", range: "", default: ""}
         read1: {desc: "input read1 fastq file", level: "optional", type: "infile", range: "", default: ""}
         read2: {desc: "input read2 fastq file", level: "optional", type: "infile", range: "", default: ""}
-        index: {desc: "reference index files", level: "required", type: "infile", range: "", default: ""}
+        indexDir: {desc: "reference index files", level: "required", type: "infile", range: "", default: ""}
         sample_name: {desc: "prefix for output file name", level: "required", type: "str", range: "", default: "sample_name"}
     }
 

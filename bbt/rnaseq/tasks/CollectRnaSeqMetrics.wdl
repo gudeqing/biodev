@@ -1,4 +1,4 @@
-version 1.0
+version development
 
 task CollectRnaSeqMetrics{
     input {
@@ -9,7 +9,7 @@ task CollectRnaSeqMetrics{
         File ref_flat
         File? ribosomal_intervals
         # for runtime
-        String docker = "broadinstitute/picard:latest"
+        String docker = "trinityctat/starfusion:1.10.0"
         String memory = "6 GiB"
         Int cpu = 2
         String disks = "6 GiB"
@@ -18,7 +18,7 @@ task CollectRnaSeqMetrics{
 
     command <<<
         set -e 
-        java -jar /usr/picard/picard.jar CollectRnaSeqMetrics \
+        jar -jar /usr/local/src/picard.jar CollectRnaSeqMetrics \
         ~{other_parameters} \
         ~{"-I " + input_bam} \
         ~{"-O " + sample_id + ".RnaSeqMetrics.txt"} \
