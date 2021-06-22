@@ -40,6 +40,7 @@ def joint_call(my_vcf_list, reference, out_vcf, other_vcf_list=None, threads=0,
     if not other_vcf_list:
         other_vcf_list = []
     # my_samples = [x for x in get_sample_id(my_vcfs)]
+    out_name = "all.joint.vcf" if other_vcf_list else out_vcf
     cmd = 'sentieon driver '
     if threads > 0:
         cmd += '-t {threads} '.format(threads=threads)
@@ -52,10 +53,11 @@ def joint_call(my_vcf_list, reference, out_vcf, other_vcf_list=None, threads=0,
     cmd += '--genotype_model {genotype_model} '.format(genotype_model=genotype_model)
     cmd += '--max_alt_alleles {max_alt_alleles} '.format(max_alt_alleles=max_alt_alleles)
     cmd += '-v ' + ' -v '.join(my_vcf_list + other_vcf_list)
-    cmd += ' all.joint.vcf'
+    cmd += ' {}'.format(out_name)
     print(cmd)
     subprocess.check_call(cmd, shell=True)
-    get_target_vcf("all.joint.vcf", out_vcf, sample_num=len(my_vcf_list))
+    if other_vcf_list:
+        get_target_vcf("all.joint.vcf", out_vcf, sample_num=len(my_vcf_list))
 
 
 if __name__ == '__main__':
