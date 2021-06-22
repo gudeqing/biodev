@@ -1,0 +1,12 @@
+name,prefix,format,gen_rule,default,required,enum_value,category,type,description
+my_vcfs,-my_vcfs,VCF,returnByType,,1,,INPUTS,FILE_ARRAY,input gVcf files
+other_vcfs,-other_vcfs,VCF,returnByType,,0,,INPUTS,FILE_ARRAY,input gVcf files
+reference,-r,"FA,FASTA",returnByType,,1,,INPUTS,FILE,reference fasta file
+out_vcf,-o,"FA,FASTA",returnByType,,1,,PARAM,STRING,output vcf
+threads,-t,,returnByType,0,1,,PARAM,NUMBER,"threads number, 0 means use all threads available"
+dbsnp,-d,,returnByType,,0,,INPUTS,FILE,dbsnp file
+call_conf,--call_conf,,returnByType,30,1,,PARAM,NUMBER,call confidence level(default=30)
+emit_conf,--emit_conf,,returnByType,30,1,,PARAM,NUMBER,emit confidence level(default=30)
+emit_mode,--emit_mode,,returnByType,variant,1,"variant,confident,all",PARAM,ENUM,"emit mode, one of [variant, confident, all]"
+genotype_model,--genotype_model,,returnByType,coalescent,1,"coalescent,multinomial",PARAM,ENUM,"genotype model, one of [coalescent, multinomial]"
+max_alt_alleles,--max_alt_alleles,,returnByType,100,1,,PARAM,NUMBER,maximum number of alternate alleles(default=100)
