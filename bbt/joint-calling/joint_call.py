@@ -3,31 +3,26 @@ import subprocess
 import argparse
 
 
-def open_vcf(vcf, mode='r'):
-    if vcf.endswith('.gz'):
-        import gzip
-        return open(gzip.open(vcf, mode=mode))
-    else:
-        return open(vcf, mode=mode)
-
-
-# def get_sample_id(vcf):
-#     with open_vcf(vcf) as f:
-#         for line in f:
-#             if line.startswith('#CHROM'):
-#                 lst = line.strip().split('\t')
-#                 return lst[-1]
-#
-
 def get_target_vcf(jc_vcf, out_vcf, sample_num=1):
-    with open_vcf(jc_vcf) as fr, open(out_vcf, 'w') as fw:
-        for line in fr:
-            if line.startswith('##'):
-                fw.write(line)
-            else:
-                lst = line.strip().split('\t')
-                newline = '\t'.join(lst[:9+sample_num]) + '\n'
-                fw.write(newline)
+    if out_vcf.endswith('.gz'):
+        import gzip
+        with open(jc_vcf) as fr, gzip.open(out_vcf, mode='wb') as fw:
+            for line in fr:
+                if line.startswith('##'):
+                    fw.write(line)
+                else:
+                    lst = line.split('\t')
+                    newline = '\t'.join(lst[:9 + sample_num]) + '\n'
+                    fw.write(newline.encode())
+    else:
+        with open(jc_vcf) as fr, open(out_vcf, 'w') as fw:
+            for line in fr:
+                if line.startswith('##'):
+                    fw.write(line)
+                else:
+                    lst = line.strip().split('\t')
+                    newline = '\t'.join(lst[:9+sample_num]) + '\n'
+                    fw.write(newline)
 
 
 def joint_call(my_vcf_list, reference, out_vcf, other_vcf_list=None, threads=0,
@@ -57,7 +52,7 @@ def joint_call(my_vcf_list, reference, out_vcf, other_vcf_list=None, threads=0,
     print(cmd)
     subprocess.check_call(cmd, shell=True)
     if other_vcf_list:
-        get_target_vcf("all.joint.vcf", out_vcf, sample_num=len(my_vcf_list))
+        get_target_vcf(out_name, out_vcf, sample_num=len(my_vcf_list))
 
 
 if __name__ == '__main__':
