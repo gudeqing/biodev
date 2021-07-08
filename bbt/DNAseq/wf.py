@@ -6,11 +6,19 @@ from typing import Any, List, Dict
 
 """
 设计思路
-1. 定义argument 类, argument是tool的某个参数
-2. 定义command：[docker] + [tool_dir] + <tool> + <arguments> + [outputs]
-# 因为不同参数的选择可能导致不同的outputs，所以定义task时可以重新定义outputs
-3. 定义task: command_with_arg_value_defined + <outputs> + <depend>
+1. 定义argument,runtime,outputs,meta
+2. 由上述对象进一步定义Command对象
+3. 给Command的参数具体赋值后，加上depend和outputs信息，可以进一步定义task对象
+4. 由task对象可构成workflow对象，当然也可以给workflow对象添加outputs对象,task的outputs优先级高于Command的outputs
+5. 定义方法将Command/Task对象转换成wdl脚本
+6. 定义方法依据Task对象生成具体的cmd信息,如此可以生成nestpipe格式的pipeline。
+7. 定义方法将workflow转换成wdl流程等
 
+注意：
+1. python dict的有序性对于cmd的正确解析非常重要
+2. 定义Argument的顺序非常重要，混乱的顺序对于cmd的形成不利
+3. Argument支持“多值且可重复”参数，如下，但是没有办法转化成wdl的，因为wdl不支持这么复杂的参数
+    Argument(prefix='--x ', array=True, multi_times=True, default=[[1, 2], ['c', 'y']], delimiter=',')
 """
 
 
@@ -20,7 +28,8 @@ class Argument:
     value: Any = None
     # prefix 可以是如 ’-i '或 'i=', 对于前者, 空格一定要带上
     prefix: str = ''
-    # type is one of ['str', 'int', 'float', 'bool', 'infile', 'indir']
+    # type is one of ['str', 'int', 'float', 'bool', 'infile', 'indir', 'fix']
+    # fix 类型表示该参数并不是真正的参数，其为固定的字符串. 例如其可以用来表示管道符如‘| samtools sort’
     type: str = 'str'
     level: str = 'required'
     # for bool type, default is one of ['false', true']
@@ -31,6 +40,7 @@ class Argument:
     # 指示一个参数是否可以多次使用
     multi_times: bool = False
     format: str = None
+    # order字段是为了参数排序设计
     order: int = 0
     desc: str = 'This is description of the argument.'
 
@@ -42,6 +52,20 @@ class Argument:
             if not self.default:
                 # 对于没有默认值的bool参数，强行赋值为false，该参数默认不参与命令行的形成
                 self.default = False
+        elif self.type == 'fix':
+            self.prefix = ''
+            if not self.value:
+                self.value = self.default
+            else:
+                self.default = self.value
+        # 如果某个参数可以接收多个值，那么default，value的类型强制设为列表
+        if self.array:
+            if not self.multi_times:
+                self.__annotations__['default'] = List[Any]
+                self.__annotations__['value'] = List[Any]
+            else:
+                self.__annotations__['default'] = List[List[Any]]
+                self.__annotations__['value'] = List[List[Any]]
         # 对于有集合候选的参数，先对默认值检查一番
         if type(self.range) == set:
             if self.default not in self.range:
@@ -60,7 +84,7 @@ class RunTime:
 @dataclass()
 class Output:
     path: str
-    out_id: str = uuid4()
+    # out_id: str = field(default_factory=uuid4)
     # type should be one of ['File', 'Directory']
     type: str = 'File'
     # 设计locate 参数用于整理结果目录
@@ -103,7 +127,19 @@ class Command:
             else:
                 arg_value = arg.value
 
-            if not arg_value:
+            # 如果value是output对象，则需要转换
+            # if isinstance(arg_value, Output):
+            #     arg_value = arg_value.path
+            # if type(arg_value) == list:
+            #     real_values = []
+            #     for each in arg_value:
+            #         if isinstance(each, Output):
+            #             real_values.append(each.path)
+            #         else:
+            #             real_values.append(each)
+            #     arg_value = real_values
+
+            if arg_value is None:
                 if arg.level == 'required':
                     raise Exception(f'No value found for {arg_name}!')
                 else:
@@ -111,16 +147,22 @@ class Command:
                     continue
             # 对于可以接收多个值的参数
             if arg.array:
-                arg_value = arg.delimiter.join([str(x) for x in arg_value])
+                if not arg.multi_times:
+                    arg_value = arg.delimiter.join([str(x) for x in arg_value])
+                else:
+                    arg_value = [arg.delimiter.join([str(x) for x in v]) for v in arg_value]
             # 处理bool值参数
             if arg.type == "bool":
                 if arg_value:
                     cmd += ' ' + arg.prefix
                 else:
-                    # 如果说bool类型且value为false，则该参数不参与命令行形成
+                    # 如果bool类型且value为false，则该参数不参与命令行形成
                     continue
             else:
-                cmd += ' ' + arg.prefix + str(arg_value)
+                if not arg.multi_times:
+                    cmd += ' ' + arg.prefix + str(arg_value)
+                else:
+                    cmd += ' ' + arg.prefix + (' ' + arg.prefix).join(arg_value)
         return cmd
 
     def format_wdl_task(self, outfile=None, wdl_version='development'):
@@ -132,9 +174,10 @@ class Command:
 @dataclass()
 class Task:
     cmd: Command
-    task_id: str = uuid4()
-    depend: List[str] = field(default_factory=list)
-    outputs: dict = field(default_factory=dict)
+    name: str = None
+    task_id: str = field(default_factory=uuid4)
+    depends: List[str] = field(default_factory=list)
+    outputs: Dict[str, Output] = field(default_factory=dict)
 
 
 @dataclass()
@@ -145,10 +188,11 @@ class Workflow:
 
 
 class ToWdlTask(object):
-    def __init__(self, command: Command, outfile, wdl_version='development'):
+    def __init__(self, command: Command, outfile=None, wdl_version='development'):
         self.cmd = command
+        self.task_name = None
         self.wdl_version = wdl_version
-        self.format_wdl_task(outfile, wdl_version)
+        self.wdl = self.format_wdl_task(outfile, wdl_version)
 
     def get_task_meta(self):
         return self.cmd.meta.__dict__.copy()
@@ -164,6 +208,8 @@ class ToWdlTask(object):
     def get_parameter_meta(self):
         arg_meta = dict()
         for arg_name, detail in self.cmd.args.items():
+            if detail.type == 'fix':
+                continue
             detail = detail.__dict__.copy()
             detail.pop('value')
             detail.pop('order')
@@ -179,7 +225,10 @@ class ToWdlTask(object):
             arg_info = ''
             detail = detail.__dict__
             # define type of arg
-            if detail['type'] == 'bool':
+            if detail['type'] == 'fix':
+                cmd += [detail['value']]
+                continue
+            elif detail['type'] == 'bool':
                 arg_info = 'Boolean'
             elif detail['type'] == 'int':
                 arg_info = 'Int'
@@ -246,7 +295,7 @@ class ToWdlTask(object):
             outputs += [v.type + ' ' + name + ' = ' + f'"{v.path}"']
         return outputs
 
-    def format_wdl_task(self, outfile, wdl_version='development'):
+    def format_wdl_task(self, outfile=None, wdl_version='development'):
         """
         version = 1.0
 
@@ -273,6 +322,7 @@ class ToWdlTask(object):
         :return: *.wdl file
         """
         data = self.cmd
+        self.task_name = data.meta.name
         lines = f'task {data.meta.name}' + '{\n'
         # input
         lines += ' ' * 4 + 'input {\n'
@@ -331,28 +381,138 @@ class ToWdlTask(object):
 
         # write wdl file
         lines += '}\n'
-        with open(outfile, 'w', encoding='utf-8') as f:
-            f.write(f'version {wdl_version}\n\n')
-            f.write(lines)
+        if outfile:
+            with open(outfile, 'w', encoding='utf-8') as f:
+                f.write(f'version {wdl_version}\n\n')
+                f.write(lines)
+        else:
+            return lines
+
+
+class ToWdlWorkflow(object):
+    """
+    workflow的group信息依据：是否可以在同一个循环中并发
+    如何知道task输入的依赖信息：根据值是否为Output对象进行判断, 然后根据
+    """
+    def __init__(self, wf: Workflow):
+        self.wf = wf
+
+    def group_task(self):
+        group = dict()
+        for tid, task in self.wf.tasks.items():
+            if hasattr(task, 'group'):
+                grp = group.setdefault(task.group, [])
+                grp.append(tid)
+            else:
+                group[tid] = [tid]
+        return group
+
+    def get_group_cmd_lst(self, tids):
+        tasks = [self.wf.tasks[x] for x in tids]
+        cmd_lst = []
+        cmd_names = []
+        for t in tasks:
+            if t.cmd.meta.name not in cmd_names:
+                cmd_names.append(t.cmd.meta.name)
+                cmd_lst.append(t.cmd)
+        return cmd_lst
+
+    def format_call_cmds(self, cmds:List[Command], scatter=False):
+        cmd_used_times = dict()
+        lines = ''
+        if scatter:
+            lines += ' '*4 + 'scatter (each in init_array) { \n'
+            space_increase = 2
+        else:
+            lines = ''
+            space_increase = 1
+        for cmd in cmds:
+            task_name = cmd.meta.name
+            cmd_used_times.setdefault(task_name, 0)
+            cmd_used_times[task_name] += 1
+            if cmd_used_times[task_name] > 1:
+                task_name = task_name + str(cmd_used_times[task_name])
+            lines += ' '*4*space_increase + f'call {task_name} ' + '{\n'
+            lines += ' '*4*(space_increase+1) + 'input: \n'
+            for arg_name, detail in cmd.args.items():
+                if hasattr(detail, 'wdl'):
+                    if '~' in detail.wdl:
+                        lines += ' '*4*(space_increase+1) + arg_name + ' = "' + detail.wdl + '"' + ',\n'
+                    else:
+                        lines += ' '*4*(space_increase+1) + arg_name + ' = ' + detail.wdl + ',\n'
+            lines = lines[:-2] + '\n'
+            lines += ' '*4*space_increase + '}\n'
+        if scatter:
+            lines += ' '*4 + '}\n'
+
+        return lines
+
+    def format_wdl_wf(self):
+        all_cmds = []
+        wdl = 'workflow pipeline {\n'
+        for grp, tids in self.group_task().items():
+            cmd_lst = self.get_group_cmd_lst(tids)
+            wdl += self.format_call_cmds(cmd_lst, scatter=len(tids) > 1)
+            all_cmds += cmd_lst
+        wdl += '}\n\n'
+
+        # format_tasks
+        for cmd in all_cmds:
+            wdl += ToWdlTask(cmd).wdl
+            wdl += '\n'
+
+        # write wdl
+        with open('pipeline.wdl', 'w') as f:
+            f.write(wdl)
+
+
 
 
 # ---example---
+def fastp():
+    cmd = Command()
+    cmd.meta.name = 'fastp'
+    cmd.runtime.image = 'gudeqing/fastp:0.21.0'
+    cmd.runtime.tool = 'fastp'
+    cmd.args['read1'] = Argument(prefix='-i ', type='infile', level='required')
+    cmd.args['read2'] = Argument(prefix='-I ', type='infile', level='required')
+    cmd.args['out1'] = Argument(prefix='-o ', type='str', level='required')
+    cmd.args['out2'] = Argument(prefix='-O ', type='str', level='required')
+    cmd.outputs['out1'] = Output(path="~{out1}")
+    cmd.outputs['out2'] = Output(path="~{out2}")
+    return cmd
+
+
 def salmon():
     # 定义一个command
     cmd = Command()
     cmd.meta.name = 'salmon'
     cmd.meta.desc = 'transcript expression quantification'
-    cmd.runtime.image = None
+    cmd.runtime.image = "combinelab/salmon:latest"
     cmd.runtime.memory = 1024
     cmd.runtime.cpu = 2
-    cmd.runtime.tool_dir = '/usr/bin/'
     cmd.runtime.tool = 'salmon quant'
     cmd.args['indexDir'] = Argument(prefix='-i ', type='indir', level='required')
     cmd.args['read1'] = Argument(prefix='-1 ', type='infile', level='required')
     cmd.args['read2'] = Argument(prefix='-2 ', type='infile', level='required')
-    cmd.args['outDir'] = Argument(prefix='-o ', type='str', level='optional')
-    cmd.args['gcBias'] = Argument(prefix='--gcBias', type='bool', default=True)
-    cmd.outputs['trans_expr'] = Output(path="~{outdir}" + "/quant.sf", locate='quant')
+    cmd.args['outDir'] = Argument(prefix='-o ', type='str', level='optional', default='quant')
+    cmd.args['gcBias'] = Argument(prefix='--gcBias ', type='bool', default=True)
+    cmd.outputs['transcript'] = Output(path="~{outdir}" + "/quant.sf", locate='quant')
+    return cmd
+
+
+def quant_merge():
+    cmd = Command()
+    cmd.meta.name = 'quantMerge'
+    cmd.meta.desc = 'Merge multiple quantification results into a single file'
+    cmd.runtime.image = "combinelab/salmon:latest"
+    cmd.runtime.tool = 'salmon quantmerge'
+    cmd.args['quants'] = Argument(prefix="--quants ", array=True)
+    cmd.args['names'] = Argument(prefix='--names ', array=True, level='optional')
+    cmd.args['column'] = Argument(prefix='--column ', default='TPM')
+    cmd.args['genes'] = Argument(prefix='--genes ', type='bool', default=False)
+    cmd.args['out'] = Argument(prefix='--output ', default=f'merged.{cmd.args["column"].default}.txt')
+    cmd.outputs['result'] = Output(path="~{out}", locate='quant')
     return cmd
 
 
@@ -360,16 +520,67 @@ if __name__ == '__main__':
     wf = Workflow()
     wf.meta.name = 'pipeline'
     wf.meta.desc = 'rna-seq pipeline'
-    depend = ['ddd']
-    for sample in ['s1', 's2']:
-        task_name = 'quant_' + sample
-        task = Task(cmd=salmon(), depend=depend)
-        task.cmd.format_wdl_task(outfile='salmon.wdl')
-        task.cmd.args['read1'].value = sample + '.r1.fq'
-        task.cmd.args['read2'].value = sample + '.r2.fq'
+    indexDir = 'index/'
+
+    # init
+    def init_func():
+        samples = ['s1', 's2']
+        read1s = ['reads_1.fastq', 'reads_1x.fastq']
+        read2s = ['reads_2.fastq', 'reads_2x.fastq']
+        return zip(samples, read1s, read2s)
+
+    merge_depends = []
+    for sample, r1, r2 in init_func():
+        # task_name = 'quant_' + sample
+        task = Task(cmd=fastp())
+        # 带入样本信息
+        task.sample = sample
+        # 给task分组信息，用于wdl转换时的判读
+        task.group = 'batch1'
+        task_id = task.task_id
+        task.cmd.args['read1'].value = r1
+        task.cmd.args['read1'].wdl = "each[1]"
+        task.cmd.args['read2'].value = r2
+        task.cmd.args['read2'].wdl = "each[2]"
+        task.cmd.args['out1'].value = f'{sample}.clean.R1.fq'
+        task.cmd.args['out1'].wdl = "~{each[0]}.clean.R1.fq"
+        task.cmd.args['out2'].value = f'{sample}.clean.R2.fq'
+        task.cmd.args['out2'].wdl = "~{each[0]}.clean.R2.fq"
+        task.outputs['out1'] = Output(path=f'{sample}.clean.R1.fq')
+        task.outputs['out2'] = Output(path=f'{sample}.clean.R2.fq')
+        # print(task.cmd.format_cmd())
+        # update wf
+        wf.tasks[task_id] = task
+
+        depend_task = task
+        task = Task(cmd=salmon())
+        task.depends = [task_id]
+        task.sample = sample
+        task.group = 'batch1'
+        task.cmd.args['read1'].value = depend_task.outputs["out1"].path
+        task.cmd.args['read1'].wdl = f"{depend_task.cmd.meta.name}.out1"
+        task.cmd.args['read2'].value = depend_task.outputs["out2"].path
+        task.cmd.args['read2'].wdl = f"{depend_task.cmd.meta.name}.out2"
+        task.cmd.args['indexDir'].value = indexDir
         task.cmd.args['outDir'].value = sample
-        task.cmd.args['indexDir'].value = 'index/'
-        print(task.cmd.format_cmd())
-        print('task_id:', task.task_id)
-        wf.tasks[task_name] = task
+        task.cmd.args['outDir'].wdl = "each[0]"
+        task.outputs['outdir'] = Output(path=sample, type='Directory')
+        task.outputs['transcript'] = Output(path=sample + '/' + 'quant.sf')
+        wf.tasks[task.task_id] = task
+        merge_depends.append(task.task_id)
+
+    # merge
+    task = Task(cmd=quant_merge())
+    task.depends = merge_depends
+    task.cmd.args['quants'].value = [wf.tasks[task_id].outputs['outdir'].path for task_id in task.depends]
+    task.cmd.args['quants'].wdl = f'{wf.tasks[merge_depends[0]].cmd.meta.name}.outdir'
+    task.outputs['result'] = Output(path=task.cmd.args['out'].value)
+    wf.tasks[task.task_id] = task
+
     print(wf)
+    for _, task in wf.tasks.items():
+        # print(task.task_id)
+        # print(task.outputs)
+        print(task.cmd.format_cmd())
+
+    ToWdlWorkflow(wf).format_wdl_wf()
