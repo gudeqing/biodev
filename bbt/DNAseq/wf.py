@@ -3,7 +3,9 @@ import json
 from uuid import uuid4
 from dataclasses import dataclass, field
 from typing import Any, List, Dict
-
+# 导入Munch替代原生字典dict,这样可以通过属性访问数据
+from munch import Munch as dict
+__author__ = 'gdq'
 """
 设计思路
 1. 定义argument,runtime,outputs,meta
@@ -76,7 +78,7 @@ class Argument:
 class RunTime:
     image: str = None
     memory: int = None
-    cpu: int = 1
+    cpu: int = None
     tool_dir: str = ''
     tool: str = ''
 
@@ -186,6 +188,14 @@ class Workflow:
     tasks: Dict[str, Task] = field(default_factory=dict)
     outputs: Dict[str, Output] = field(default_factory=dict)
 
+    def add_task(self, cmd: Command):
+        task = Task(cmd=cmd)
+        self.tasks[task.task_id] = task
+        return task, task.cmd.args
+
+    def to_wdl(self, outfile):
+        ToWdlWorkflow(self).write_wdl(outfile)
+
 
 class ToWdlTask(object):
     def __init__(self, command: Command, outfile=None, wdl_version='development'):
@@ -199,6 +209,10 @@ class ToWdlTask(object):
 
     def get_runtime(self):
         runtime = self.cmd.runtime.__dict__.copy()
+        if self.cmd.runtime.memory is None:
+            runtime.pop('memory')
+        if self.cmd.runtime.cpu is None:
+            runtime.pop('cpu')
         runtime.pop('tool')
         runtime.pop('tool_dir')
         if self.wdl_version in ["development", "1.0"]:
@@ -211,11 +225,8 @@ class ToWdlTask(object):
             if detail.type == 'fix':
                 continue
             detail = detail.__dict__.copy()
-            detail.pop('value')
-            detail.pop('order')
-            detail.pop('format')
-            detail.pop('multi_times')
-            arg_meta[arg_name] = detail
+            keys = ['prefix', 'type', 'level', 'default', 'range', 'array', 'desc']
+            arg_meta[arg_name] = {k: v for k, v in detail.items() if k in keys}
         return arg_meta
 
     def get_inputs_and_cmd(self):
@@ -392,7 +403,7 @@ class ToWdlTask(object):
 class ToWdlWorkflow(object):
     """
     workflow的group信息依据：是否可以在同一个循环中并发
-    如何知道task输入的依赖信息：根据值是否为Output对象进行判断, 然后根据
+    如何知道task输入的依赖信息：要求写给参数赋值的时候使用wdl语法
     """
     def __init__(self, wf: Workflow):
         self.wf = wf
@@ -407,8 +418,8 @@ class ToWdlWorkflow(object):
                 group[tid] = [tid]
         return group
 
-    def get_group_cmd_lst(self, tids):
-        tasks = [self.wf.tasks[x] for x in tids]
+    def get_group_cmd_lst(self, task_ids):
+        tasks = [self.wf.tasks[x] for x in task_ids]
         cmd_lst = []
         cmd_names = []
         for t in tasks:
@@ -417,7 +428,8 @@ class ToWdlWorkflow(object):
                 cmd_lst.append(t.cmd)
         return cmd_lst
 
-    def format_call_cmds(self, cmds:List[Command], scatter=False):
+    @staticmethod
+    def format_call_cmds(cmds: List[Command], scatter=False):
         cmd_used_times = dict()
         lines = ''
         if scatter:
@@ -444,12 +456,19 @@ class ToWdlWorkflow(object):
             lines += ' '*4*space_increase + '}\n'
         if scatter:
             lines += ' '*4 + '}\n'
-
         return lines
 
-    def format_wdl_wf(self):
+    def write_wdl(self, outfile):
         all_cmds = []
-        wdl = 'workflow pipeline {\n'
+        wdl = 'version development\n\n'
+        wdl += 'workflow pipeline {\n'
+        wdl += " "*4 + "input {\n"
+        wdl += ' '*4*2 + "Array[File] read1\n"
+        wdl += ' '*4*2 + "Array[File] read2\n"
+        wdl += ' '*4*2 + "Array[String] names\n"
+        wdl += ' '*4 + '}\n\n'
+        wdl += ' '*4*1 + "Array[Pair[File, File]] reads = zip(read1, read2)\n"
+        wdl += ' '*4*1 + "Array[Pair[String, Pair[File, File]]] init_array = zip(names, reads)\n\n"
         for grp, tids in self.group_task().items():
             cmd_lst = self.get_group_cmd_lst(tids)
             wdl += self.format_call_cmds(cmd_lst, scatter=len(tids) > 1)
@@ -462,125 +481,6 @@ class ToWdlWorkflow(object):
             wdl += '\n'
 
         # write wdl
-        with open('pipeline.wdl', 'w') as f:
+        with open(outfile, 'w') as f:
             f.write(wdl)
 
-
-
-
-# ---example---
-def fastp():
-    cmd = Command()
-    cmd.meta.name = 'fastp'
-    cmd.runtime.image = 'gudeqing/fastp:0.21.0'
-    cmd.runtime.tool = 'fastp'
-    cmd.args['read1'] = Argument(prefix='-i ', type='infile', level='required')
-    cmd.args['read2'] = Argument(prefix='-I ', type='infile', level='required')
-    cmd.args['out1'] = Argument(prefix='-o ', type='str', level='required')
-    cmd.args['out2'] = Argument(prefix='-O ', type='str', level='required')
-    cmd.outputs['out1'] = Output(path="~{out1}")
-    cmd.outputs['out2'] = Output(path="~{out2}")
-    return cmd
-
-
-def salmon():
-    # 定义一个command
-    cmd = Command()
-    cmd.meta.name = 'salmon'
-    cmd.meta.desc = 'transcript expression quantification'
-    cmd.runtime.image = "combinelab/salmon:latest"
-    cmd.runtime.memory = 1024
-    cmd.runtime.cpu = 2
-    cmd.runtime.tool = 'salmon quant'
-    cmd.args['indexDir'] = Argument(prefix='-i ', type='indir', level='required')
-    cmd.args['read1'] = Argument(prefix='-1 ', type='infile', level='required')
-    cmd.args['read2'] = Argument(prefix='-2 ', type='infile', level='required')
-    cmd.args['outDir'] = Argument(prefix='-o ', type='str', level='optional', default='quant')
-    cmd.args['gcBias'] = Argument(prefix='--gcBias ', type='bool', default=True)
-    cmd.outputs['transcript'] = Output(path="~{outdir}" + "/quant.sf", locate='quant')
-    return cmd
-
-
-def quant_merge():
-    cmd = Command()
-    cmd.meta.name = 'quantMerge'
-    cmd.meta.desc = 'Merge multiple quantification results into a single file'
-    cmd.runtime.image = "combinelab/salmon:latest"
-    cmd.runtime.tool = 'salmon quantmerge'
-    cmd.args['quants'] = Argument(prefix="--quants ", array=True)
-    cmd.args['names'] = Argument(prefix='--names ', array=True, level='optional')
-    cmd.args['column'] = Argument(prefix='--column ', default='TPM')
-    cmd.args['genes'] = Argument(prefix='--genes ', type='bool', default=False)
-    cmd.args['out'] = Argument(prefix='--output ', default=f'merged.{cmd.args["column"].default}.txt')
-    cmd.outputs['result'] = Output(path="~{out}", locate='quant')
-    return cmd
-
-
-if __name__ == '__main__':
-    wf = Workflow()
-    wf.meta.name = 'pipeline'
-    wf.meta.desc = 'rna-seq pipeline'
-    indexDir = 'index/'
-
-    # init
-    def init_func():
-        samples = ['s1', 's2']
-        read1s = ['reads_1.fastq', 'reads_1x.fastq']
-        read2s = ['reads_2.fastq', 'reads_2x.fastq']
-        return zip(samples, read1s, read2s)
-
-    merge_depends = []
-    for sample, r1, r2 in init_func():
-        # task_name = 'quant_' + sample
-        task = Task(cmd=fastp())
-        # 带入样本信息
-        task.sample = sample
-        # 给task分组信息，用于wdl转换时的判读
-        task.group = 'batch1'
-        task_id = task.task_id
-        task.cmd.args['read1'].value = r1
-        task.cmd.args['read1'].wdl = "each[1]"
-        task.cmd.args['read2'].value = r2
-        task.cmd.args['read2'].wdl = "each[2]"
-        task.cmd.args['out1'].value = f'{sample}.clean.R1.fq'
-        task.cmd.args['out1'].wdl = "~{each[0]}.clean.R1.fq"
-        task.cmd.args['out2'].value = f'{sample}.clean.R2.fq'
-        task.cmd.args['out2'].wdl = "~{each[0]}.clean.R2.fq"
-        task.outputs['out1'] = Output(path=f'{sample}.clean.R1.fq')
-        task.outputs['out2'] = Output(path=f'{sample}.clean.R2.fq')
-        # print(task.cmd.format_cmd())
-        # update wf
-        wf.tasks[task_id] = task
-
-        depend_task = task
-        task = Task(cmd=salmon())
-        task.depends = [task_id]
-        task.sample = sample
-        task.group = 'batch1'
-        task.cmd.args['read1'].value = depend_task.outputs["out1"].path
-        task.cmd.args['read1'].wdl = f"{depend_task.cmd.meta.name}.out1"
-        task.cmd.args['read2'].value = depend_task.outputs["out2"].path
-        task.cmd.args['read2'].wdl = f"{depend_task.cmd.meta.name}.out2"
-        task.cmd.args['indexDir'].value = indexDir
-        task.cmd.args['outDir'].value = sample
-        task.cmd.args['outDir'].wdl = "each[0]"
-        task.outputs['outdir'] = Output(path=sample, type='Directory')
-        task.outputs['transcript'] = Output(path=sample + '/' + 'quant.sf')
-        wf.tasks[task.task_id] = task
-        merge_depends.append(task.task_id)
-
-    # merge
-    task = Task(cmd=quant_merge())
-    task.depends = merge_depends
-    task.cmd.args['quants'].value = [wf.tasks[task_id].outputs['outdir'].path for task_id in task.depends]
-    task.cmd.args['quants'].wdl = f'{wf.tasks[merge_depends[0]].cmd.meta.name}.outdir'
-    task.outputs['result'] = Output(path=task.cmd.args['out'].value)
-    wf.tasks[task.task_id] = task
-
-    print(wf)
-    for _, task in wf.tasks.items():
-        # print(task.task_id)
-        # print(task.outputs)
-        print(task.cmd.format_cmd())
-
-    ToWdlWorkflow(wf).format_wdl_wf()
