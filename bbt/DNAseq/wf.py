@@ -56,7 +56,6 @@ class Argument:
                 # 对于没有默认值的bool参数，强行赋值为false，该参数默认不参与命令行的形成
                 self.default = False
         elif self.type == 'fix':
-            self.prefix = ''
             if not self.value:
                 self.value = self.default
             else:
