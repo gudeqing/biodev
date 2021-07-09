@@ -454,9 +454,9 @@ class ToWdlWorkflow(object):
                     else:
                         lines += ' '*4*(space_increase+1) + arg_name + ' = ' + detail.wdl + ',\n'
             lines = lines[:-2] + '\n'
-            lines += ' '*4*space_increase + '}\n'
+            lines += ' '*4*space_increase + '}\n\n'
         if scatter:
-            lines += ' '*4 + '}\n'
+            lines += ' '*4 + '}\n\n'
         return lines
 
     def write_wdl(self, outfile):
