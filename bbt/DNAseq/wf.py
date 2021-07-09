@@ -2,7 +2,7 @@ import os
 import json
 from uuid import uuid4
 from dataclasses import dataclass, field
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Literal
 # 导入Munch替代原生字典dict,这样可以通过属性访问数据
 from munch import Munch as dict
 __author__ = 'gdq'
@@ -32,8 +32,8 @@ class Argument:
     prefix: str = ''
     # type is one of ['str', 'int', 'float', 'bool', 'infile', 'indir', 'fix']
     # fix 类型表示该参数并不是真正的参数，其为固定的字符串. 例如其可以用来表示管道符如‘| samtools sort’
-    type: str = 'str'
-    level: str = 'required'
+    type: Literal['str', 'int', 'float', 'bool', 'infile', 'indir', 'fix'] = 'str'
+    level: Literal['required', 'optional'] = 'required'
     # for bool type, default is one of ['false', true']
     default: Any = None
     range: Any = None
@@ -47,6 +47,7 @@ class Argument:
     desc: str = 'This is description of the argument.'
 
     def __post_init__(self):
+        # type 类型检查
         if self.type == 'bool':
             # 对于布尔参数，其一定为必要参数类型,可选范围为True或False
             self.level = 'required'

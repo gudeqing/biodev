@@ -49,6 +49,7 @@ def quant_merge():
     cmd.meta.desc = 'Merge multiple quantification results into a single file'
     cmd.runtime.image = "combinelab/salmon:latest"
     cmd.runtime.tool = 'salmon quantmerge'
+    # 下面的quants参数对应的是目录，所以type='indir'
     cmd.args['quants'] = Argument(prefix="--quants ", array=True, type='indir')
     cmd.args['names'] = Argument(prefix='--names ', array=True, level='optional')
     cmd.args['column'] = Argument(prefix='--column ', default='TPM')
