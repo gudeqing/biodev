@@ -109,14 +109,33 @@ def pipeline():
         args['indexDir'].value = indexDir
         args['outDir'].value = sample
         args['outDir'].wdl = "each.left"
-        task.outputs['outdir'] = Output(path=sample, type='Directory')
+        task.outputs['outDir'] = Output(path=sample, type='Directory')
         task.outputs['transcript'] = Output(path=sample + '/' + 'quant.sf')
+        task.outputs['gene'] = Output(path=sample + '/' + 'quant_gene.sf')
         merge_depends.append(task.task_id)
 
-    # merge
+    # merge transcript TPM
     task, args = wf.add_task(quant_merge())
+    task.cmd.meta.name = 'MergeTranscriptTPM'
     task.depends = merge_depends
-    args['quants'].value = [wf.tasks[task_id].outputs['outdir'].path for task_id in task.depends]
+    args['column'].value = 'TPM'
+    args['column'].type = 'fix'
+    args['genes'].value = False
+    args['genes'].type = 'fix'
+    args['quants'].value = [wf.tasks[task_id].outputs['outDir'].path for task_id in task.depends]
+    args['quants'].wdl = f'{wf.tasks[merge_depends[0]].cmd.meta.name}.outDir'
+    task.outputs['result'] = Output(path=args['out'].value)
+
+    # merge transcript Count
+    task, args = wf.add_task(quant_merge())
+    task.cmd.meta.name = 'MergeTranscriptCount'
+    task.depends = merge_depends
+    # 针对当前任务，column 和 genes 参数需要固定，不允许修改
+    args['column'].value = 'ReadNumber'
+    args['column'].type = 'fix'
+    args['genes'].value = False
+    args['genes'].type = 'fix'
+    args['quants'].value = [wf.tasks[task_id].outputs['outDir'].path for task_id in task.depends]
     args['quants'].wdl = f'{wf.tasks[merge_depends[0]].cmd.meta.name}.outDir'
     task.outputs['result'] = Output(path=args['out'].value)
 
