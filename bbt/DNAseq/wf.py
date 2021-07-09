@@ -129,18 +129,6 @@ class Command:
             else:
                 arg_value = arg.value
 
-            # 如果value是output对象，则需要转换
-            # if isinstance(arg_value, Output):
-            #     arg_value = arg_value.path
-            # if type(arg_value) == list:
-            #     real_values = []
-            #     for each in arg_value:
-            #         if isinstance(each, Output):
-            #             real_values.append(each.path)
-            #         else:
-            #             real_values.append(each)
-            #     arg_value = real_values
-
             if arg_value is None:
                 if arg.level == 'required':
                     raise Exception(f'No value found for {arg_name}!')
@@ -154,7 +142,7 @@ class Command:
                 else:
                     arg_value = [arg.delimiter.join([str(x) for x in v]) for v in arg_value]
             # 处理bool值参数
-            if arg.type == "bool":
+            if arg.type == "bool" or type(arg.value) == bool:
                 if arg_value:
                     cmd += ' ' + arg.prefix
                 else:
@@ -237,7 +225,9 @@ class ToWdlTask(object):
             detail = detail.__dict__
             # define type of arg
             if detail['type'] == 'fix':
-                cmd += [detail['value'] or detail['default']]
+                if detail['value'] is False:
+                    continue
+                cmd += [detail['prefix'] + (detail['value'] or detail['default'])]
                 continue
             elif detail['type'] == 'bool':
                 arg_info = 'Boolean'
