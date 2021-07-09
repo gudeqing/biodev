@@ -237,7 +237,7 @@ class ToWdlTask(object):
             detail = detail.__dict__
             # define type of arg
             if detail['type'] == 'fix':
-                cmd += [detail['value']]
+                cmd += [detail['value'] or detail['default']]
                 continue
             elif detail['type'] == 'bool':
                 arg_info = 'Boolean'
