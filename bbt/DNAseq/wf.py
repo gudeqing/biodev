@@ -463,6 +463,14 @@ class ToWdlWorkflow(object):
             cmd_lst = self.get_group_cmd_lst(tids)
             wdl += self.format_call_cmds(cmd_lst, scatter=len(tids) > 1)
             all_cmds += cmd_lst
+
+        # add workflow meta
+        wdl += ' '*4 + 'meta {\n'
+        for k, v in self.wf.meta.__dict__.items():
+            wdl += ' ' * 4*2 + f'{k}: "{v}"' + '\n'
+        wdl += ' ' * 4 + '}\n\n'
+
+        # end of workflow
         wdl += '}\n\n'
 
         # format_tasks
