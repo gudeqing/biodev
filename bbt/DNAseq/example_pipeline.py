@@ -70,8 +70,8 @@ def pipeline():
     # init
     def init_func():
         samples = ['s1', 's2']
-        read1s = ['reads_1.fastq', 'reads_1x.fastq']
-        read2s = ['reads_2.fastq', 'reads_2x.fastq']
+        read1s = ['s1.R1.fastq', 's2.R1.fastq']
+        read2s = ['s1.R2.fastq', 's2.R2.fastq']
         return zip(samples, read1s, read2s)
 
     merge_depends = []
