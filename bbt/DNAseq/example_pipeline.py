@@ -1,4 +1,4 @@
-from wf import Argument, Output, Command, Workflow
+from nestcmd import Argument, Output, Command, Workflow
 
 """
 要想生成正确的wdl:
@@ -18,6 +18,7 @@ def fastp():
     # 当然，可以直接用字典的方式添加参数
     cmd.args['out1'] = Argument(prefix='-o ', type='str', desc='clean read1 output fastq file')
     cmd.args['out2'] = Argument(prefix='-O ', type='str', level='clean read2 output fastq file')
+    # 下面的outputs设置纯粹是为了能够生成wdl设置
     cmd.outputs['out1'] = Output(path="~{out1}")
     cmd.outputs['out2'] = Output(path="~{out2}")
     return cmd

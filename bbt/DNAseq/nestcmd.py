@@ -485,13 +485,13 @@ class ToWdlWorkflow(object):
 
 
 # ----tools------
-def organise_fastq(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].fastq.gz',
-                   r1_end_with='R1.fastq.gz', link_rawdata=False, out='fastq.info',
+def organise_fastq(dir_lst: tuple, exp: str = "(.*).R1.fq.gz",
+                   r1_endswith='R1.fq.gz', link_rawdata=False, out='fastq.info.txt',
                    add_s_to_numeric_name=False, middle2underscore=False):
     """
-    :param path_lst: fastq 所在路径列表
+    :param dir_lst: fastq 所在路径列表
     :param exp: 匹配fastq名称的正则表达式, 正则表达式中必须有且只有一个小括号, 括号里面匹配到的字符串将作为样本名称，不能匹配的样本将被自动忽略。
-    :param r1_end_with: 指示read1的以什么字符结尾，用以判断哪个文件为read1还是read2
+    :param r1_endswith: 指示read1的以什么字符结尾，用以判断哪个文件为read1还是read2
     :param link_rawdata: 是否做软连接
     :param out: 输出文件名，文件内容一般是三列，第一列为样本名称，第二列为read1的绝对路径，第二列为read2的绝对路径
     :param add_s_to_numeric_name: 如果样本名以数字开头，可以指定该参数在样本名称前加上’S'
@@ -500,14 +500,14 @@ def organise_fastq(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].fastq.gz
     """
     # example: xxx._R1.fastq.gz
     result_dict = dict()
-    for path in path_lst:
+    for path in dir_lst:
         for root, dirs, files in os.walk(path):
             for each in files:
                 match = re.fullmatch(exp, each)
                 if match:
                     sample = match.groups()[0]
                     result_dict.setdefault(sample, [[], []])
-                    if each.endswith(r1_end_with):
+                    if each.endswith(r1_endswith):
                         result_dict[sample][0].append(os.path.join(root, each))
                     else:
                         result_dict[sample][1].append(os.path.join(root, each))
