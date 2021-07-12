@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from uuid import uuid4
 from dataclasses import dataclass, field
@@ -482,3 +483,53 @@ class ToWdlWorkflow(object):
         with open(outfile, 'w') as f:
             f.write(wdl)
 
+
+# ----tools------
+def organise_fastq(path_lst: tuple, exp: str = '.*-(.*?)_combined_R[12].fastq.gz',
+                   r1_end_with='R1.fastq.gz', link_rawdata=False, out='fastq.info',
+                   add_s_to_numeric_name=False, middle2underscore=False):
+    """
+    :param path_lst: fastq 所在路径列表
+    :param exp: 匹配fastq名称的正则表达式, 正则表达式中必须有且只有一个小括号, 括号里面匹配到的字符串将作为样本名称，不能匹配的样本将被自动忽略。
+    :param r1_end_with: 指示read1的以什么字符结尾，用以判断哪个文件为read1还是read2
+    :param link_rawdata: 是否做软连接
+    :param out: 输出文件名，文件内容一般是三列，第一列为样本名称，第二列为read1的绝对路径，第二列为read2的绝对路径
+    :param add_s_to_numeric_name: 如果样本名以数字开头，可以指定该参数在样本名称前加上’S'
+    :param middle2underscore: 如果样本名称中有‘-’，可以指定该参数将‘-’替换为'_'
+    :return: result_dict： {sample:[[r1, r1'],[r2, r2']], ...}
+    """
+    # example: xxx._R1.fastq.gz
+    result_dict = dict()
+    for path in path_lst:
+        for root, dirs, files in os.walk(path):
+            for each in files:
+                match = re.fullmatch(exp, each)
+                if match:
+                    sample = match.groups()[0]
+                    result_dict.setdefault(sample, [[], []])
+                    if each.endswith(r1_end_with):
+                        result_dict[sample][0].append(os.path.join(root, each))
+                    else:
+                        result_dict[sample][1].append(os.path.join(root, each))
+
+    with open(out, 'w') as f:
+        if link_rawdata:
+            os.mkdir('rawdata')
+            os.chdir('rawdata')
+        for sample, lst in result_dict.items():
+            read1 = sorted(lst[0])
+            read2 = sorted(lst[1])
+            if middle2underscore:
+                sample = sample.replace('-', '_')
+            if add_s_to_numeric_name:
+                if sample.startswith(('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')):
+                    sample = 'S' + sample
+            f.write('{}\t{}\t{}\n'.format(sample, ';'.join(read1), ';'.join(read2)))
+            if link_rawdata:
+                # make link
+                os.mkdir(sample)
+                for each in read1:
+                    os.symlink(each, os.path.join(sample, os.path.basename(each)))
+                for each in read2:
+                    os.symlink(each, os.path.join(sample, os.path.basename(each)))
+    return result_dict
