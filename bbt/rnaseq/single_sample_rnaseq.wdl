@@ -1,5 +1,5 @@
 version development
-
+# 这是一个完整的单样本rnaseq分析流程
 
 workflow rnaseq_pipeline {
     input {
@@ -43,7 +43,6 @@ workflow rnaseq_pipeline {
             input:
                 sample_name = sample_id,
                 input_is_bam = true,
-                aligner = "--star",
                 bam = align.transcript_bam
         }
     }
@@ -52,7 +51,7 @@ workflow rnaseq_pipeline {
         call star_fusion as fusion {
             input:
                 sample = sample_id,
-                chimeric_junction = align.chimeric_out,
+                chimeric_junction = align.chimeric_out
         }
     }
 
@@ -172,7 +171,7 @@ task fastp{
 task star_alignment{
     input {
         String? other_parameters
-        Int runThreadN = 8
+        Int runThreadN = 6
         # https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/
         Directory indexDir
         Array[File] read1
@@ -194,9 +193,9 @@ task star_alignment{
         String quantMode = "TranscriptomeSAM"
         String outSAMattrRGline = "ID:~{sample} SM:~{sample} PL:~{platform}"
 #        Int limitBAMsortRAM = 35000000000
-        Int limitBAMsortRAM = 350000000
+        Int limitBAMsortRAM = 1500000000
 #        Int limitIObufferSize = 150000000
-        Int limitIObufferSize = 30000000
+        Int limitIObufferSize = 100000000
         Int outSAMattrIHstart = 0
         Int alignMatesGapMax = 500000
         Int alignIntronMax = 500000
@@ -208,7 +207,7 @@ task star_alignment{
         Int chimOutJunctionFormat = 1
         Int peOverlapNbasesMin = 12
         Float peOverlapMMp = 0.1
-        String chimOutType = "WithinBAM"
+        String chimOutType = "Junctions WithinBAM"
         String alignInsertionFlush = "Right"
         Int chimScoreJunctionNonGTAG = -4
         Float alignSplicedMateMapLminOverLmate = 0
@@ -216,7 +215,7 @@ task star_alignment{
         String quantTranscriptomeBan = "IndelSoftclipSingleend"
         # for runtime
         String docker = "trinityctat/starfusion:1.10.0"
-        String memory = "32 GiB"
+        String memory = "40 GiB"
         Int cpu = 1
         String disks = "50 GiB"
         Int time_minutes = 10080
@@ -269,7 +268,7 @@ task star_alignment{
         File transcript_bam = glob("*.Aligned.toTranscriptome.out.bam")[0]
         File align_log = glob("*Log.final.out")[0]
         File chimeric_out = glob("*Chimeric.out.junction")[0]
-        File sj = glob("SJ.out.tab")[0]
+        File sj = glob("*SJ.out.tab")[0]
     }
 
     runtime {
@@ -343,7 +342,7 @@ task rnaseqc{
         File? bed
         String? strand
         # for runtime
-        String docker = "gcr.io/broad-cga-aarong-gtex/rnaseqc:latest"
+        String docker = "gudeqing/rnaseqc:2.4.2"
         String memory = "6 GiB"
         Int cpu = 2
         String disks = "6 GiB"
@@ -367,7 +366,7 @@ task rnaseqc{
         File gene_counts =  "${sample_id}.gene_reads.gct"
         File exon_counts =  "${sample_id}.exon_reads.gct"
         File metrics = "${sample_id}.metrics.tsv"
-        File insertsize_distr =  "${sample_id}.fragmentSizes.txt"
+        File? insertsize_distr =  "${sample_id}.fragmentSizes.txt"
     }
 
     runtime {
@@ -380,7 +379,7 @@ task rnaseqc{
 
     meta {
         name: "rnaseqc"
-        image: "gcr.io/broad-cga-aarong-gtex/rnaseqc:latest"
+        image: "gudeqing/rnaseqc:2.4.2"
         desc: "Fast efficient RNA-Seq metrics for quality control and process optimization"
         version: "2.4.2"
         source: "https://github.com/getzlab/rnaseqc"
@@ -401,7 +400,7 @@ task rnaseqc{
 task rsem_quant{
     input {
         String? other_parameters
-        Int threads = 8
+        Int threads = 6
         String strandness = "none"
         Boolean estimate_rspd = true
         Boolean append_names = true
@@ -443,7 +442,7 @@ task rsem_quant{
     output {
         File genes = "${sample_name}.genes.results"
         File isoforms = "${sample_name}.isoforms.results"
-        File alleles = "${sample_name}.alleles.results"
+        File? alleles = "${sample_name}.alleles.results"
     }
 
     runtime {
@@ -571,16 +570,17 @@ task salmon_quant{
 task star_fusion{
     input {
         String? other_parameters
-        Int CPU = 8
+        Int CPU = 5
         Array[File]? left_fq
         Array[File]? right_fq
         File? chimeric_junction
         # 文件太多, 只能先用压缩文件作为输入,然后再解压了
         Directory genome_lib_dir
         String sample = "fusion"
-        String FusionInspector = "inspect"
-        Boolean examine_coding_effect = true
-        Boolean denovo_reconstruct = true
+        # 如果要使用FusionInspector和denovo_reconstruct功能，必须提供read1和read2
+        String? FusionInspector
+        Boolean examine_coding_effect = false
+        Boolean denovo_reconstruct = false
         # for runtime
         String docker = "trinityctat/starfusion:1.10.0"
         String memory = "32 GiB"
@@ -609,14 +609,14 @@ task star_fusion{
         Array[File] extract_fusion_reads =  glob("${sample}/star-fusion.fusion_evidence_*.fq")
         File fusion_predictions = "${sample}/star-fusion.fusion_predictions.tsv"
         File fusion_predictions_abridged = "${sample}/star-fusion.fusion_predictions.abridged.tsv"
-        File bam = "${sample}/Aligned.out.bam"
-        File star_log_final = "${sample}/Log.final.out"
-        File junction = "${sample}/Chimeric.out.junction"
-        File sj = "${sample}/SJ.out.tab"
-        Array[File] fusion_inspector_validate_fusions_abridged = glob("${sample}/FusionInspector-validate/finspector.FusionInspector.fusions.abridged.tsv")
-        Array[File] fusion_inspector_validate_web = glob("${sample}/FusionInspector-validate/finspector.fusion_inspector_web.html")
-        Array[File] fusion_inspector_inspect_web = glob("${sample}/FusionInspector-inspect/finspector.fusion_inspector_web.html")
-        Array[File] fusion_inspector_inspect_fusions_abridged = glob("${sample}/FusionInspector-inspect/finspector.FusionInspector.fusions.abridged.tsv")
+        File? bam = "${sample}/Aligned.out.bam"
+        File? star_log_final = "${sample}/Log.final.out"
+        File? junction = "${sample}/Chimeric.out.junction"
+        File? sj = "${sample}/SJ.out.tab"
+        Array[File]? fusion_inspector_validate_fusions_abridged = glob("${sample}/FusionInspector-validate/finspector.FusionInspector.fusions.abridged.tsv")
+        Array[File]? fusion_inspector_validate_web = glob("${sample}/FusionInspector-validate/finspector.fusion_inspector_web.html")
+        Array[File]? fusion_inspector_inspect_web = glob("${sample}/FusionInspector-inspect/finspector.fusion_inspector_web.html")
+        Array[File]? fusion_inspector_inspect_fusions_abridged = glob("${sample}/FusionInspector-inspect/finspector.FusionInspector.fusions.abridged.tsv")
     }
 
     runtime {
@@ -659,7 +659,7 @@ task geneBodyCoverage{
         File refGene
         String sample_id = "sample_name"
         # for runtime
-        String docker = "cdiasgurjao/rseqc:latest"
+        String docker = "gudeqing/rseqc:4.0.0"
         String memory = "10 GiB"
         Int cpu = 2
         String disks = "10 GiB"
@@ -725,21 +725,21 @@ task markDuplicates{
 
     command <<<
         set -e
-        java -jar /usr/picard/picard.jar MarkDuplicates \
+        java -jar /usr/local/src/picard.jar MarkDuplicates \
         ~{other_parameters} \
-        ~{"-I " + input_bam} \
-        ~{"-O " + sample_id + ".markdup.bam"} \
-        ~{"--METRICS_FILE " + sample_id + ".markdup.metrics.txt"} \
-        ~{"--ASSUME_SORT_ORDER " + assume_sort_order} \
-        ~{"--OPTICAL_DUPLICATE_PIXEL_DISTANCE " + optical_dup_pixel_distance} \
-        ~{"--PROGRAM_RECORD_ID " + program_record_id} \
-        ~{"--TAGGING_POLICY " + tagging_policy} \
-        ~{"--CREATE_INDEX " + create_index}
+        ~{"I=" + input_bam} \
+        ~{"O=" + sample_id + ".markdup.bam"} \
+        ~{"METRICS_FILE=" + sample_id + ".markdup.metrics.txt"} \
+        ~{"ASSUME_SORT_ORDER=" + assume_sort_order} \
+        ~{"OPTICAL_DUPLICATE_PIXEL_DISTANCE=" + optical_dup_pixel_distance} \
+        ~{"PROGRAM_RECORD_ID=" + program_record_id} \
+        ~{"TAGGING_POLICY=" + tagging_policy} \
+        ~{"CREATE_INDEX=" + create_index}
     >>>
 
     output {
         File bam_file = "${sample_id}.markdup.bam"
-        File bam_index = "${sample_id}.markdup.bam.bai"
+        File bam_index = "${sample_id}.markdup.bai"
         File metrics = "${sample_id}.markdup.metrics.txt"
     }
 
@@ -756,7 +756,7 @@ task markDuplicates{
         docker: "broadinstitute/picard:latest"
         desc: "This tool locates and tags duplicate reads in a BAM or SAM file, where duplicate reads are defined as originating from a single fragment of DNA. Duplicates can arise during sample preparation e.g. library construction using PCR"
         version: "2.23.3-1-g4ac48fc-SNAPSHOT"
-        basecmd: "java -jar /usr/picard/picard.jar MarkDuplicates"
+        basecmd: "java -jar /usr/local/src/picard.jar MarkDuplicates"
     }
 
     parameter_meta {
@@ -778,7 +778,7 @@ task read_distribution{
         File refGene
         String sample_id = "sample_name"
         # for runtime
-        String docker = "cdiasgurjao/rseqc:latest"
+        String docker = "gudeqing/rseqc:4.0.0"
         String memory = "10 GiB"
         Int cpu = 2
         String disks = "10 GiB"
@@ -830,7 +830,7 @@ task read_duplication{
         File bam
         String sample_id
         # for runtime
-        String docker = "cdiasgurjao/rseqc:latest"
+        String docker = "gudeqing/rseqc:4.0.0"
         String memory = "6 GiB"
         Int cpu = 2
         String disks = "6 GiB"
@@ -892,19 +892,19 @@ task CollectRnaSeqMetrics{
 
     command <<<
         set -e
-        jar -jar /usr/local/src/picard.jar CollectRnaSeqMetrics \
+        java -jar /usr/local/src/picard.jar CollectRnaSeqMetrics \
         ~{other_parameters} \
-        ~{"-I " + input_bam} \
-        ~{"-O " + sample_id + ".RnaSeqMetrics.txt"} \
-        ~{"--STRAND_SPECIFICITY " + strand} \
-        ~{"--REF_FLAT " + ref_flat} \
-        ~{"--RIBOSOMAL_INTERVALS " + ribosomal_intervals} \
-        ~{"--CHART_OUTPUT " + sample_id + ".coverage.pdf"}
+        ~{"I=" + input_bam} \
+        ~{"O=" + sample_id + ".RnaSeqMetrics.txt"} \
+        ~{"STRAND_SPECIFICITY=" + strand} \
+        ~{"REF_FLAT=" + ref_flat} \
+        ~{"RIBOSOMAL_INTERVALS=" + ribosomal_intervals} \
+#        ~{"CHART_OUTPUT=" + sample_id + ".coverage.pdf"}
     >>>
 
     output {
         File rnaseq_metrics = "~{sample_id}.RnaSeqMetrics.txt"
-        File coverage_pdf = "~{sample_id}.coverage.pdf"
+#        File coverage_pdf = "~{sample_id}.coverage.pdf"
     }
 
     runtime {
@@ -921,7 +921,7 @@ task CollectRnaSeqMetrics{
         desc: "Produces RNA alignment metrics for a SAM or BAM file"
         logo: "none"
         version: "2.23.3-1-g4ac48fc-SNAPSHOT"
-        basecmd: "java -jar /usr/picard/picard.jar CollectRnaSeqMetrics"
+        basecmd: "java -jar /usr/local/src/picard.jar CollectRnaSeqMetrics"
     }
 
     parameter_meta {
