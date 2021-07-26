@@ -6,7 +6,6 @@
         <option name="customName" value="dunwill132" />
       </sshConfig>
       <sshConfig authType="PASSWORD" host="10.60.2.133" id="491cd626-7fd8-4a38-9397-87d998957e26" port="22" nameFormat="DESCRIPTIVE" username="dqgu" />
-      <sshConfig host="172.18.0.250" id="569a92d7-4fad-4418-ade6-bb88f2e0b41c" keyPath="$USER_HOME$/.ssh/id_rsa" port="22" nameFormat="DESCRIPTIVE" username="danny.gu" />
     </configs>
   </component>
 </project>

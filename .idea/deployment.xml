@@ -5,8 +5,7 @@
       <paths name="bbt">
         <serverdata>
           <mappings>
-            <mapping deploy="/" local="$PROJECT_DIR$/../" web="/" />
-            <mapping local="$PROJECT_DIR$/.idea" web="/" />
+            <mapping deploy="PycharmProjects/bioscripts/" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

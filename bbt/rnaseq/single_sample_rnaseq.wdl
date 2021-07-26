@@ -1,5 +1,8 @@
 version development
 # 这是一个完整的单样本rnaseq分析流程
+# 如果原始输入数据是cleandata，则可跳过fastp
+# 如果不关心转录本定量结果，则可跳过rsem_quant步骤
+# 如果不需要fusion分析，则可跳过fusion步骤
 
 workflow rnaseq_pipeline {
     input {
@@ -10,7 +13,6 @@ workflow rnaseq_pipeline {
         # for skip steps
         Boolean skip_fastp = false
         Boolean skip_rsem_quant = false
-        Boolean skip_salmon_quant = true
         Boolean skip_fusion = false
     }
 
@@ -29,14 +31,6 @@ workflow rnaseq_pipeline {
             read1 = [select_first([fastp.out_read1_file, read1])],
             read2 = [select_first([fastp.out_read2_file, read2])]
         }
-
-    if (!skip_salmon_quant) {
-        call salmon_quant {
-            input:
-                transcript_bam = [align.transcript_bam],
-                outdir = sample_id
-        }
-    }
 
     if (!skip_rsem_quant) {
         call rsem_quant {
@@ -91,10 +85,28 @@ workflow rnaseq_pipeline {
             bam = [align.bam]
     }
 
+    call CIRCexplorer2 {
+        input:
+            sample = sample_id,
+            chimeric_junction = align.chimeric_out
+    }
+
     output {
+        File align_log = align.align_log
+        File chimeric_out = align.chimeric_out
         File? fastq_html_qc = fastp.html_report_file
+        File? fastq_json_qc = fastp.json_report_file
         File? fusion_file = fusion.fusion_predictions_abridged
-        File? genome_bam = align.bam
+        File? genome_mdbam = markdup.bam_file
+        File? genome_mdbam_bai = markdup.bam_index
+        File? rnaseqc_gene_tpm = rnaseqc.gene_tpm
+        File? rnaseqc_gene_counts = rnaseqc.gene_counts
+        File? rnaseqc_metrics = rnaseqc.metrics
+        File? rsem_gene_quant = rsem_quant.genes
+        File? rsem_trans_quant = rsem_quant.isoforms
+        File? read_distr = read_distribution.read_distr
+        File? picard_metrics = CollectRnaSeqMetrics.rnaseq_metrics
+        File? circRNA = CIRCexplorer2.circRNA
     }
 
 }
@@ -216,7 +228,7 @@ task star_alignment{
         # for runtime
         String docker = "trinityctat/starfusion:1.10.0"
         String memory = "40 GiB"
-        Int cpu = 1
+        Int cpu = 6
         String disks = "50 GiB"
         Int time_minutes = 10080
     }
@@ -261,6 +273,8 @@ task star_alignment{
         ~{"--alignSplicedMateMapLminOverLmate " + alignSplicedMateMapLminOverLmate} \
         ~{"--alignSplicedMateMapLmin " + alignSplicedMateMapLmin} \
         ~{"--quantTranscriptomeBan " + quantTranscriptomeBan}
+        samtools index ~{sample}.Aligned.sortedByCoord.out.bam
+        samtools index ~{sample}.Aligned.toTranscriptome.out.bam
     >>>
 
     output {
@@ -481,92 +495,6 @@ task rsem_quant{
 
 }
 
-task salmon_quant{
-    input {
-        String? other_parameters
-        Int threads = 8
-        # 后续先对tar解压
-        File? indexFiles_tar
-        # 告诉我解压后的目录名称
-        File? transcripts
-        Array[File]+ transcript_bam
-        Array[File]? read1
-        Array[File]? read2
-        Array[File]? single_end_reads
-        File? geneMap
-        String outdir = "salmon_quant"
-        Boolean seqBias = true
-        Boolean gcBias = true
-        Boolean posBias = true
-        # for runtime
-        String docker = "combinelab/salmon:latest"
-        String memory = "1 GiB"
-        Int cpu = 1
-        String disks = "1 GiB"
-        Int time_minutes = 10080
-    }
-
-    command <<<
-        set -e
-        tar -xf ~{indexFiles_tar+".tar"}
-        salmon quant \
-        -l a \
-        ~{other_parameters} \
-        ~{"-p " + threads} \
-        ~{"-i " + indexFiles_tar} \
-        ~{"-t " + transcripts} \
-        ~{if defined(transcript_bam) then "-a " else ""}~{sep=" " transcript_bam} \
-        ~{if defined(read1) then "-1 " else ""}~{sep=" " read1} \
-        ~{if defined(read2) then "-2 " else ""}~{sep=" " read2} \
-        ~{if defined(single_end_reads) then "-r " else ""}~{sep=" " single_end_reads} \
-        ~{"-g " + geneMap} \
-        ~{"-o " + outdir} \
-        ~{if seqBias then "--seqBias " else ""} \
-        ~{if gcBias then "--gcBias " else ""} \
-        ~{if posBias then "--posBias " else ""} 
-    >>>
-
-    output {
-        File outfile = outdir + "/quant.sf"
-        File outfile2 = outdir + "/quant.genes.sf"
-    }
-
-    runtime {
-        docker: docker
-        memory: memory
-        cpu: cpu
-        disks: disks
-        time_minutes: time_minutes
-    }
-
-    meta {
-        name: "salmon"
-        docker: "docker pull combinelab/salmon"
-        source: "https://github.com/COMBINE-lab/salmon"
-        desc: "Salmon is a wicked-fast program to produce a highly-accurate, transcript-level quantification estimates from RNA-seq data. Salmon achieves its accuracy and speed via a number of different innovations, including the use of selective-alignment (accurate but fast-to-compute proxies for traditional read alignments), and massively-parallel stochastic collapsed variational inference. The result is a versatile tool that fits nicely into many different pipelines. For example, you can choose to make use of our selective-alignment algorithm by providing Salmon with raw sequencing reads, or, if it is more convenient, you can provide Salmon with regular alignments (e.g. an unsorted BAM file with alignments to the transcriptome produced with your favorite aligner), and it will use the same wicked-fast, state-of-the-art inference algorithm to estimate transcript-level abundances for your experiment. For more detail please refer to https://github.com/COMBINE-lab/salmon"
-        logo: "salmon.png"
-        version: "1.4.0"
-        basecmd: "salmon quant"
-    }
-
-    parameter_meta {
-        other_parameters: {desc: "其他参数，你可以通过该参数输入一个或多个任何其他当前软件支持的参数，例如'-i x -j y'", level: "optional", type: "str", range: "", default: ""}
-        threads: {desc: "Number of threads to use during indexing or quantification", level: "required", type: "int", range: "", default: "8"}
-        indexFiles_tar: {desc: "Existing directory containing transcripts indexing files for salmon quantification", level: "optional", type: "indir", range: "", default: ""}
-        transcripts: {desc: "Transcript fasta file.", level: "optional", type: "infile", range: "", default: ""}
-        transcript_bam: {desc: "input transcript based alignment (BAM) file(s)", level: "optional", type: "infile", range: "", default: ""}
-        read1: {desc: "read1对应的fastq路径，支持用空格分隔多个文件路径的输入", level: "optional", type: "infile", range: "", default: ""}
-        read2: {desc: "read2对应的fastq路径，支持用空格分隔多个文件路径的输入", level: "optional", type: "infile", range: "", default: ""}
-        single_end_reads: {desc: "sing-end read对应的fastq路径, 支持输入多个文件, 空格分隔", level: "optional", type: "infile", range: "", default: ""}
-        geneMap: {desc: "File containing a mapping of transcripts to genes. If this file is provided salmon will output both quant.sf and quant.genes.sf files, where the latter contains aggregated gene-level abundance estimates. The transcript to gene mapping should be provided as either a GTF file, or a in a simple tab-delimited format where each line contains the name of a transcript and the gene to which it belongs separated by a tab.", level: "optional", type: "infile", range: "", default: ""}
-        outdir: {desc: "Output quantification directory.", level: "required", type: "str", range: "", default: "salmon_quant"}
-        seqBias: {desc: "Bool argument，Perform sequence-specific bias correction.", level: "optional", type: "bool", range: "no, yes", default: "yes"}
-        gcBias: {desc: "Bool argument. Perform fragment GC bias correction.", level: "optional", type: "bool", range: "no, yes", default: "yes"}
-        posBias: {desc: "Bool argument. Perform positional bias correction.", level: "optional", type: "bool", range: "no, yes", default: "yes"}
-    }
-
-}
-
 task star_fusion{
     input {
         String? other_parameters
@@ -712,7 +640,6 @@ task markDuplicates{
         String sample_id
         String assume_sort_order = "coordinate"
         String optical_dup_pixel_distance = "2500"
-        String program_record_id = "null"
         String tagging_policy = "DontTag"
         String create_index = "true"
         # for runtime
@@ -732,7 +659,6 @@ task markDuplicates{
         ~{"METRICS_FILE=" + sample_id + ".markdup.metrics.txt"} \
         ~{"ASSUME_SORT_ORDER=" + assume_sort_order} \
         ~{"OPTICAL_DUPLICATE_PIXEL_DISTANCE=" + optical_dup_pixel_distance} \
-        ~{"PROGRAM_RECORD_ID=" + program_record_id} \
         ~{"TAGGING_POLICY=" + tagging_policy} \
         ~{"CREATE_INDEX=" + create_index}
     >>>
@@ -764,7 +690,6 @@ task markDuplicates{
         input_bam: {desc: "One or more input SAM or BAM files to analyze. Must be coordinate sorted", level: "required", type: "infile", range: "", default: ""}
         assume_sort_order: {desc: "Assume that the input file has this order even if the header says otherwise.", level: "required", type: "str", range: "unsorted, queryname, coordinate, duplicate,", default: "coordinate"}
         optical_dup_pixel_distance: {desc: "The maximum offset between two duplicate clusters in order to consider them optical duplicates. The default is appropriate for unpatterned versions of the Illumina platform. For the patterned flowcell models, 2500 is moreappropriate. For other platforms and models, users should experiment to find what works best.  Default value: 100.", level: "required", type: "str", range: "unsorted, queryname, coordinate, duplicate,", default: "2500"}
-        program_record_id: {desc: "The program record ID for the @PG record(s) created by this program. Set to null to disable PG record creation.", level: "required", type: "str", range: "", default: "null"}
         tagging_policy: {desc: "Determines how duplicate types are recorded in the DT optional attribute. Possible values: {DontTag, OpticalOnly, All}", level: "required", type: "str", range: "DontTag, OpticalOnly, All", default: "DontTag"}
         create_index: {desc: "Whether to create a BAM index when writing a coordinate-sorted BAM file.", level: "required", type: "str", range: "true,false", default: "true"}
     }
@@ -929,6 +854,35 @@ task CollectRnaSeqMetrics{
         strand: {desc: "For strand-specific library prep. For unpaired reads, use FIRST_READ_TRANSCRIPTION_STRAND if the reads are expected to be on the transcription strand.  Required. Possible values: {NONE, FIRST_READ_TRANSCRIPTION_STRAND, SECOND_READ_TRANSCRIPTION_STRAND}", level: "required", type: "str", range: "NONE, FIRST_READ_TRANSCRIPTION_STRAND, SECOND_READ_TRANSCRIPTION_STRAND", default: "NONE"}
         ref_flat: {desc: "Gene annotations in refFlat form.  Format described here: http://genome.ucsc.edu/goldenPath/gbdDescriptionsOld.html#RefFlat  Required.", level: "required", type: "infile", range: "", default: ""}
         ribosomal_intervals: {desc: "Location of rRNA sequences in genome, in interval_list format.  If not specified no bases will be identified as being ribosomal.", level: "optional", type: "infile", range: "", default: ""}
+    }
+
+}
+
+task CIRCexplorer2{
+    input {
+        String sample
+        File genome
+        File genome_annot
+        File chimeric_junction
+         # for runtime
+        String docker = "gudeqing/rseqc:4.0.0"
+    }
+
+    command <<<
+        set -e
+        grep -v '#' ~{chimeric_junction} > clean.chimeric_junction.txt
+        CIRCexplorer2 parse -t STAR clean.chimeric_junction.txt -b ~{sample}.back_spliced_junction.bed
+        CIRCexplorer2 annotate -r ~{genome_annot} \
+        -g ~{genome} -b ~{sample}.back_spliced_junction.bed \
+        -o ~{sample}.detected.circRNA.txt
+    >>>
+
+    output {
+        File circRNA = "~{sample}.detected.circRNA.txt"
+    }
+
+    runtime {
+        docker: docker
     }
 
 }
