@@ -870,7 +870,7 @@ task CIRCexplorer2{
 
     command <<<
         set -e
-        grep -v '#' ~{chimeric_junction} > clean.chimeric_junction.txt
+        grep -v '#' ~{chimeric_junction} | sed 1d > clean.chimeric_junction.txt
         CIRCexplorer2 parse -t STAR clean.chimeric_junction.txt -b ~{sample}.back_spliced_junction.bed
         CIRCexplorer2 annotate -r ~{genome_annot} \
         -g ~{genome} -b ~{sample}.back_spliced_junction.bed \
