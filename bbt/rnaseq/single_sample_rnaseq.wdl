@@ -82,7 +82,8 @@ workflow rnaseq_pipeline {
     call geneBodyCoverage {
         input:
             sample_id = sample_id,
-            bam = [align.bam]
+            bam = [align.bam],
+            bam_bai = [align.bam_bai]
     }
 
     call CIRCexplorer2 {
@@ -274,11 +275,13 @@ task star_alignment{
         ~{"--alignSplicedMateMapLmin " + alignSplicedMateMapLmin} \
         ~{"--quantTranscriptomeBan " + quantTranscriptomeBan}
         samtools index ~{sample}.Aligned.sortedByCoord.out.bam
-        samtools index ~{sample}.Aligned.toTranscriptome.out.bam
+        samtools flagstat ~{sample}.Aligned.sortedByCoord.out.bam > ~{sample}.align.flagstat.txt
+        samtools idxstats ~{sample}.Aligned.sortedByCoord.out.bam > ~{sample}.align.idxstats.txt
     >>>
 
     output {
         File bam = glob("*.Aligned.sortedByCoord.out.bam")[0]
+        File bam_bai = glob("*.Aligned.sortedByCoord.out.bam.bai")[0]
         File transcript_bam = glob("*.Aligned.toTranscriptome.out.bam")[0]
         File align_log = glob("*Log.final.out")[0]
         File chimeric_out = glob("*Chimeric.out.junction")[0]
@@ -584,6 +587,7 @@ task geneBodyCoverage{
     input {
         String? other_parameters
         Array[File] bam
+        Array[File] bam_bai
         File refGene
         String sample_id = "sample_name"
         # for runtime
@@ -604,7 +608,8 @@ task geneBodyCoverage{
     >>>
 
     output {
-        Array[File] outputs = glob("*")
+        File cov_txt = "~{sample_id}.geneBodyCoverage.txt"
+        File cov_pdf = "~{sample_id}.geneBodyCoverage.curves.pdf"
     }
 
     runtime {
