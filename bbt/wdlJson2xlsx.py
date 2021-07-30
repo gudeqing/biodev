@@ -9,7 +9,7 @@ with open(infile) as f:
     arg_dict = json.load(f)
     result = dict()
     for key, value in arg_dict.items():
-        if key.endswith(('.cpu', '.memory', '.disks', '.other_parameters')):
+        if key.endswith(('.cpu', '.memory', '.disks', '.other_parameters', '.time_minutes')):
             continue
         tmp = result.setdefault(key, dict())
         tmp['name'] = key.split('.', 1)[1]
