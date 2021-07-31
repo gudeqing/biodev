@@ -644,7 +644,7 @@ task markDuplicates{
 
     command <<<
         set -e
-        java -jar /usr/local/src/picard.jar MarkDuplicates \
+        java -jar /usr/picard/picard.jar MarkDuplicates \
         ~{other_parameters} \
         ~{"I=" + input_bam} \
         ~{"O=" + sample_id + ".markdup.bam"} \
