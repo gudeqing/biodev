@@ -1,5 +1,4 @@
 version development
-# 这是一个完整的单样本rnaseq分析流程
 # 如果原始输入数据是cleandata，则可跳过fastp
 # 如果不关心转录本定量结果，则可跳过rsem_quant步骤
 # 如果不需要fusion分析，则可跳过fusion步骤
