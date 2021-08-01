@@ -133,7 +133,6 @@ task getFastqInfo{
     >>>
 
     output {
-#        Array[Array[String]] fastq_info = read_tsv("~{out}")
         Map[String, Array[Array[File]]] fastq_info = read_json("~{out}")
     }
 
@@ -214,7 +213,8 @@ task star_alignment{
         String? other_parameters
         Int runThreadN = 6
         # https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/
-        Directory indexDir
+#        Directory indexDir
+        Array[File] indexFiles
         Array[File] read1
         # 下面得如果不默认为[],则cromwell会报错
         Array[File] read2 = []
@@ -267,7 +267,7 @@ task star_alignment{
         STAR \
         ~{other_parameters} \
         ~{"--runThreadN " + runThreadN} \
-        ~{"--genomeDir " + indexDir} \
+        --genomeDir ~{sub(indexFiles[0], basename(indexFiles[0]), "")} \
         --readFilesIn ~{sep="," read1}  ~{sep="," read2} \
         ~{"--outFileNamePrefix " + sample + "."} \
         --outSAMtype ~{outSAMtype} \
@@ -336,7 +336,7 @@ task star_alignment{
     parameter_meta {
         other_parameters: {desc: "other arguments, you could set any other argument with a string such as '-i x -j y'", level: "optional", type: "str", range: "", default: ""}
         runThreadN: {desc: "Number of threads to use", level: "required", type: "int", range: "", default: "8"}
-        indexDir: {desc: "reference index directory", level: "required", type: "indir", range: "", default: ""}
+        indexFiles: {desc: "reference index files", level: "required", type: "indir", range: "", default: ""}
         read1: {desc: "read1 fastq files", level: "required", type: "infile", range: "", default: ""}
         read2: {desc: "read2 fastq files", level: "required", type: "infile", range: "", default: ""}
         sample: {desc: "prefix for outfile name", level: "required", type: "str", range: "", default: ""}
@@ -452,8 +452,9 @@ task rsem_quant{
         File? bam
         Array[File]? read1
         Array[File]? read2
-        Directory indexDir
-        String index_name = 'rsem'
+#        Directory indexDir
+        Array[File] indexFiles
+        String index_prefix = 'rsem'
         String sample_name = "sample_name"
         # for runtime
         String docker = "gudeqing/rsem:1.3.3"
@@ -477,7 +478,7 @@ task rsem_quant{
         ~{bam} \
         ~{sep="," read1} \
         ~{sep="," read2} \
-        ~{indexDir+"/"+index_name} \
+        ~{sub(indexFiles[0], basename(indexFiles[0]), "")}/~{index_prefix} \
         ~{sample_name} 
     >>>
 
@@ -516,7 +517,7 @@ task rsem_quant{
         bam: {desc: "input alignment file", level: "optional", type: "infile", range: "", default: ""}
         read1: {desc: "input read1 fastq file", level: "optional", type: "infile", range: "", default: ""}
         read2: {desc: "input read2 fastq file", level: "optional", type: "infile", range: "", default: ""}
-        indexDir: {desc: "reference index files", level: "required", type: "infile", range: "", default: ""}
+        indexFiles: {desc: "reference index files", level: "required", type: "infile", range: "", default: ""}
         sample_name: {desc: "prefix for output file name", level: "required", type: "str", range: "", default: "sample_name"}
     }
 
@@ -529,8 +530,8 @@ task star_fusion{
         Array[File]? left_fq
         Array[File]? right_fq
         File? chimeric_junction
-        # 文件太多, 只能先用压缩文件作为输入,然后再解压了
-        Directory genome_lib_dir
+#        Directory genome_lib_dir
+        Array[File] indexFiles
         String sample = "fusion"
         # 如果要使用FusionInspector和denovo_reconstruct功能，必须提供read1和read2
         String? FusionInspector
@@ -553,7 +554,7 @@ task star_fusion{
         ~{if defined(left_fq) then "--left_fq " else ""}~{sep=" " left_fq} \
         ~{if defined(right_fq) then "--right_fq " else ""}~{sep=" " right_fq} \
         ~{"-J " + chimeric_junction} \
-        ~{"--genome_lib_dir " + genome_lib_dir} \
+        --genome_lib_dir ~{sub(indexFiles[0], basename(indexFiles[0]), "")} \
         ~{"--output_dir " + sample} \
         ~{"--FusionInspector " + FusionInspector} \
         ~{if examine_coding_effect then "--examine_coding_effect " else ""} \
@@ -597,7 +598,7 @@ task star_fusion{
         left_fq: {desc: "read1 fastq files, separate by white space", level: "optional", type: "infile", range: "", default: ""}
         right_fq: {desc: "read1 fastq files, separate by white space", level: "optional", type: "infile", range: "", default: ""}
         chimeric_junction: {desc: "generated file called 'Chimeric.out.junction' by STAR alignment", level: "optional", type: "infile", range: "", default: ""}
-        genome_lib_dir: {desc: "ctat_genome_lib_build_dir", level: "required", type: "indir", range: "", default: ""}
+        indexFiles: {desc: "index files in ctat_genome_lib_build_dir", level: "required", type: "indir", range: "", default: ""}
         sample: {desc: "output directory", level: "required", type: "str", range: "", default: "fusion"}
         FusionInspector: {desc: "FusionInspector that provides a more in-depth view of the evidence supporting the predicted fusions.", level: "required", type: "str", range: "inspect, validate", default: "inspect"}
         examine_coding_effect: {desc: "explore impact of fusions on coding sequences", level: "required", type: "bool", range: "yes, no", default: "yes"}
