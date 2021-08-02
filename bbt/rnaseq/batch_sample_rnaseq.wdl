@@ -13,6 +13,7 @@ workflow rnaseq_pipeline {
         Boolean skip_fastp = false
         Boolean skip_rsem_quant = false
         Boolean skip_fusion = false
+        Boolean skip_circRNA = false
     }
 
     call getFastqInfo{
@@ -91,10 +92,12 @@ workflow rnaseq_pipeline {
                 bam_bai = [align.bam_bai]
         }
 
-        call CIRCexplorer2 {
-            input:
-                sample = sample_id,
-                chimeric_junction = align.chimeric_out
+        if (! skip_circRNA) {
+            call CIRCexplorer2 {
+                input:
+                    sample = sample_id,
+                    chimeric_junction = align.chimeric_out
+            }
         }
     }
 
@@ -123,17 +126,16 @@ task getFastqInfo{
         Array[Directory] fastq_dir
         String r1_name = '(.*).read1.fastq.gz'
         String r2_name = '(.*).read2.fastq.gz'
-        String out = 'fastq.info.json'
         String docker = 'gudeqing/getfastqinfo:1.0'
     }
 
     command <<<
         set -e
-        python /get_fastq_info.py -dirs ~{sep=" " fastq_dir} -r1 '~{r1_name}' -r2 '~{r2_name}' -out ~{out}
+        python /get_fastq_info.py -dirs ~{sep=" " fastq_dir} -r1 '~{r1_name}' -r2 '~{r2_name}' -out fastq.info.json
     >>>
 
     output {
-        Map[String, Array[Array[File]]] fastq_info = read_json("~{out}")
+        Map[String, Array[Array[File]]] fastq_info = read_json("fastq.info.json")
     }
 
     runtime {
@@ -213,7 +215,7 @@ task star_alignment{
         String? other_parameters
         Int runThreadN = 6
         # https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/
-#        Directory indexDir
+        # Directory indexDir
         Array[File] indexFiles
         Array[File] read1
         # 下面得如果不默认为[],则cromwell会报错
@@ -233,10 +235,8 @@ task star_alignment{
         String outSAMstrandField = "intronMotif"
         String quantMode = "TranscriptomeSAM"
         String outSAMattrRGline = "ID:~{sample} SM:~{sample} PL:~{platform}"
-#        Int limitBAMsortRAM = 35000000000
-        Int limitBAMsortRAM = 1500000000
-#        Int limitIObufferSize = 150000000
-        Int limitIObufferSize = 100000000
+        String limitBAMsortRAM =  "35000000000"
+        String limitIObufferSize = "150000000"
         Int outSAMattrIHstart = 0
         Int alignMatesGapMax = 500000
         Int alignIntronMax = 500000
@@ -256,7 +256,7 @@ task star_alignment{
         String quantTranscriptomeBan = "IndelSoftclipSingleend"
         # for runtime
         String docker = "trinityctat/starfusion:1.10.0"
-        String memory = "40 GiB"
+        String memory = "35 GiB"
         Int cpu = 6
         String disks = "50 GiB"
         Int time_minutes = 10080
@@ -308,12 +308,12 @@ task star_alignment{
     >>>
 
     output {
-        File bam = glob("*.Aligned.sortedByCoord.out.bam")[0]
-        File bam_bai = glob("*.Aligned.sortedByCoord.out.bam.bai")[0]
-        File transcript_bam = glob("*.Aligned.toTranscriptome.out.bam")[0]
-        File align_log = glob("*Log.final.out")[0]
-        File chimeric_out = glob("*Chimeric.out.junction")[0]
-        File sj = glob("*SJ.out.tab")[0]
+        File bam = "~{sample}.Aligned.sortedByCoord.out.bam"
+        File bam_bai = "~{sample}.Aligned.sortedByCoord.out.bam.bai"
+        File transcript_bam = "~{sample}.Aligned.toTranscriptome.out.bam"
+        File align_log = "~{sample}.Log.final.out"
+        File chimeric_out = "~{sample}.Chimeric.out.junction"
+        File sj = "~{sample}.SJ.out.tab"
     }
 
     runtime {
@@ -353,7 +353,7 @@ task star_alignment{
         outSAMstrandField: {desc: "include for potential use with StringTie for assembly", level: "required", type: "str", range: "", default: "intronMotif"}
         quantMode: {desc: "output transcriptome bam for expression quantification", level: "required", type: "str", range: "", default: "TranscriptomeSAM"}
         outSAMattrRGline: {desc: "SAM/BAM read group line. The first word contains the read group identifier and must start with 'ID:'", level: "required", type: "str", range: "", default: "ID:sample SM:sample PL:Illumina"}
-        limitBAMsortRAM: {desc: "int>=0: maximum available RAM (bytes) for sorting BAM. If =0, it will be set to the genome index size. 0 value can only be used with –genomeLoad NoSharedMemory option.", level: "required", type: "int", range: "", default: "35000000000"}
+        limitBAMsortRAM: {desc: "int>=0: maximum available RAM (bytes) for sorting BAM. If =0, it will be set to the genome index size. 0 value can only be used with –genomeLoad NoSharedMemory option.", level: "required", type: "int", range: "", default: "25000000000"}
         limitIObufferSize: {desc: "int>0: max available buffers size (bytes) for input/output, per thread", level: "required", type: "int", range: "", default: "150000000"}
         outSAMattrIHstart: {desc: "start value for the IH attribute. 0 may be required by some downstream software, such as Cufflinks or StringTie.", level: "required", type: "int", range: "", default: "0"}
         alignMatesGapMax: {desc: "maximum gap between two mates", level: "required", type: "int", range: "", default: "500000"}
@@ -562,17 +562,17 @@ task star_fusion{
     >>>
 
     output {
-        Array[File] extract_fusion_reads =  glob("${sample}/star-fusion.fusion_evidence_*.fq")
+#        Array[File] extract_fusion_reads =  glob("${sample}/star-fusion.fusion_evidence_*.fq")
         File fusion_predictions = "${sample}/star-fusion.fusion_predictions.tsv"
         File fusion_predictions_abridged = "${sample}/star-fusion.fusion_predictions.abridged.tsv"
         File? bam = "${sample}/Aligned.out.bam"
         File? star_log_final = "${sample}/Log.final.out"
         File? junction = "${sample}/Chimeric.out.junction"
         File? sj = "${sample}/SJ.out.tab"
-        Array[File]? fusion_inspector_validate_fusions_abridged = glob("${sample}/FusionInspector-validate/finspector.FusionInspector.fusions.abridged.tsv")
-        Array[File]? fusion_inspector_validate_web = glob("${sample}/FusionInspector-validate/finspector.fusion_inspector_web.html")
-        Array[File]? fusion_inspector_inspect_web = glob("${sample}/FusionInspector-inspect/finspector.fusion_inspector_web.html")
-        Array[File]? fusion_inspector_inspect_fusions_abridged = glob("${sample}/FusionInspector-inspect/finspector.FusionInspector.fusions.abridged.tsv")
+        File? fusion_inspector_validate_fusions_abridged = "${sample}/FusionInspector-validate/finspector.FusionInspector.fusions.abridged.tsv"
+        File? fusion_inspector_validate_web = "${sample}/FusionInspector-validate/finspector.fusion_inspector_web.html"
+        File? fusion_inspector_inspect_web = "${sample}/FusionInspector-inspect/finspector.fusion_inspector_web.html"
+        File? fusion_inspector_inspect_fusions_abridged = "${sample}/FusionInspector-inspect/finspector.FusionInspector.fusions.abridged.tsv"
     }
 
     runtime {
@@ -598,7 +598,7 @@ task star_fusion{
         left_fq: {desc: "read1 fastq files, separate by white space", level: "optional", type: "infile", range: "", default: ""}
         right_fq: {desc: "read1 fastq files, separate by white space", level: "optional", type: "infile", range: "", default: ""}
         chimeric_junction: {desc: "generated file called 'Chimeric.out.junction' by STAR alignment", level: "optional", type: "infile", range: "", default: ""}
-        indexFiles: {desc: "index files in ctat_genome_lib_build_dir", level: "required", type: "indir", range: "", default: ""}
+        indexFiles: {desc: "all files in ctat_genome_lib_build_dir", level: "required", type: "indir", range: "", default: ""}
         sample: {desc: "output directory", level: "required", type: "str", range: "", default: "fusion"}
         FusionInspector: {desc: "FusionInspector that provides a more in-depth view of the evidence supporting the predicted fusions.", level: "required", type: "str", range: "inspect, validate", default: "inspect"}
         examine_coding_effect: {desc: "explore impact of fusions on coding sequences", level: "required", type: "bool", range: "yes, no", default: "yes"}
@@ -784,7 +784,7 @@ task CollectRnaSeqMetrics{
         File ref_flat
         File? ribosomal_intervals
         # for runtime
-        String docker = "trinityctat/starfusion:1.10.0"
+        String docker = "broadinstitute/picard:latest"
         String memory = "6 GiB"
         Int cpu = 2
         String disks = "6 GiB"
@@ -793,19 +793,19 @@ task CollectRnaSeqMetrics{
 
     command <<<
         set -e
-        java -jar /usr/local/src/picard.jar CollectRnaSeqMetrics \
+        java -jar /usr/picard/picard.jar CollectRnaSeqMetrics \
         ~{other_parameters} \
         ~{"I=" + input_bam} \
         ~{"O=" + sample_id + ".RnaSeqMetrics.txt"} \
         ~{"STRAND_SPECIFICITY=" + strand} \
         ~{"REF_FLAT=" + ref_flat} \
         ~{"RIBOSOMAL_INTERVALS=" + ribosomal_intervals} \
-#        ~{"CHART_OUTPUT=" + sample_id + ".coverage.pdf"}
+        ~{"CHART_OUTPUT=" + sample_id + ".coverage.pdf"}
     >>>
 
     output {
         File rnaseq_metrics = "~{sample_id}.RnaSeqMetrics.txt"
-#        File coverage_pdf = "~{sample_id}.coverage.pdf"
+        File coverage_pdf = "~{sample_id}.coverage.pdf"
     }
 
     runtime {
