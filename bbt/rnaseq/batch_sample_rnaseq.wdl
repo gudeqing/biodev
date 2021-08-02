@@ -85,12 +85,12 @@ workflow rnaseq_pipeline {
                 bam = align.bam
         }
 
-        call geneBodyCoverage {
-            input:
-                sample_id = sample_id,
-                bam = [align.bam],
-                bam_bai = [align.bam_bai]
-        }
+#        call geneBodyCoverage {
+#            input:
+#                sample_id = sample_id,
+#                bam = [align.bam],
+#                bam_bai = [align.bam_bai]
+#        }
 
         if (! skip_circRNA) {
             call CIRCexplorer2 {
