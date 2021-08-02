@@ -469,6 +469,7 @@ task rsem_quant{
         rsem-calculate-expression \
         ~{other_parameters} \
         ~{"-p " + threads} \
+        --no-bam-output \
         ~{"--strandedness " + strandness} \
         ~{if estimate_rspd then "--estimate-rspd " else ""} \
         ~{if append_names then "--append-names " else ""} \
