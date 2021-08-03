@@ -138,6 +138,13 @@ task getFastqInfo{
     runtime {
         docker: docker
     }
+
+    parameter_meta {
+        fastq_dirs: {desc: "directory list, target fastq files should be in these directories. All target files in 'fastq_files' or 'fastq_dirs' will be used", level: "optional", type: "indir", range: "", default: ""}
+        fastq_files: {desc: "target fastq file list. 'fastq_files' or 'fastq_dirs' must be provided.", level: "optional", type: "infile", range: "", default: ""}
+        r1_name: {desc: "python regExp that describes the full name of read1 fastq file name. It requires at least one pair of small brackets, and the string matched in the first pair brackets will be used as sample name. Example: '(.*).R1.fq.gz'", level: "required", type: "str", range: "", default: ""}
+        r2_name: {desc: "python regExp that describes the full name of read2 fastq file name. It requires at least one pair of small brackets, and the string matched in the first pair brackets will be used as sample name. Example: '(.*).R2.fq.gz'", level: "required", type: "str", range: "", default: ""}
+    }
 }
 
 task fastp{
@@ -364,7 +371,7 @@ task star_alignment{
         peOverlapNbasesMin: {desc: "minimum number of overlap bases to trigger mates merging and realignment", level: "required", type: "int", range: "", default: "12"}
         peOverlapMMp: {desc: "maximum proportion of mismatched bases in the overlap area", level: "required", type: "float", range: "", default: "0.1"}
         chimOutType: {desc: "type of chimeric output", level: "required", type: "str", range: "", default: "WithinBAM"}
-        alignInsertionFlush: {desc: "how to ush ambiguous insertion positions", level: "required", type: "str", range: "", default: "Right"}
+        alignInsertionFlush: {desc: "how to flush ambiguous insertion positions", level: "required", type: "str", range: "", default: "Right"}
         chimScoreJunctionNonGTAG: {desc: "penalty for a non-GT/AG chimeric junction", level: "required", type: "int", range: "", default: "-4"}
         alignSplicedMateMapLminOverLmate: {desc: "alignSplicedMateMapLmin normalized to mate length", level: "required", type: "float", range: "", default: "0"}
         alignSplicedMateMapLmin: {desc: "minimum mapped length for a read mate that is spliced", level: "required", type: "int", range: "", default: "30"}
@@ -516,6 +523,7 @@ task rsem_quant{
         read1: {desc: "input read1 fastq file", level: "optional", type: "infile", range: "", default: ""}
         read2: {desc: "input read2 fastq file", level: "optional", type: "infile", range: "", default: ""}
         indexFiles: {desc: "reference index files", level: "required", type: "infile", range: "", default: ""}
+        index_prefix: {desc: "prefix for index files, default to 'rsem'", level: "required", type: "str", range: "", default: "rsem"}
         sample_name: {desc: "prefix for output file name", level: "required", type: "str", range: "", default: "sample_name"}
     }
 
@@ -823,6 +831,7 @@ task CollectRnaSeqMetrics{
     }
 
     parameter_meta {
+        other_parameters: {desc: "other arguments, you could set any other argument with a string such as '-i x -j y'", level: "optional", type: "str", range: "", default: ""}
         input_bam: {desc: "One or more input SAM or BAM files to analyze. Must be coordinate sorted", level: "required", type: "infile", range: "", default: ""}
         strand: {desc: "For strand-specific library prep. For unpaired reads, use FIRST_READ_TRANSCRIPTION_STRAND if the reads are expected to be on the transcription strand.  Required. Possible values: {NONE, FIRST_READ_TRANSCRIPTION_STRAND, SECOND_READ_TRANSCRIPTION_STRAND}", level: "required", type: "str", range: "NONE, FIRST_READ_TRANSCRIPTION_STRAND, SECOND_READ_TRANSCRIPTION_STRAND", default: "NONE"}
         ref_flat: {desc: "Gene annotations in refFlat form.  Format described here: http://genome.ucsc.edu/goldenPath/gbdDescriptionsOld.html#RefFlat  Required.", level: "required", type: "infile", range: "", default: ""}
@@ -856,6 +865,13 @@ task CIRCexplorer2{
 
     runtime {
         docker: docker
+    }
+
+    parameter_meta {
+        sample: {desc: "sample name"}
+        genome: {desc: "genome fasta file"}
+        genome_annot: {desc: "genome annotation file, special formated by CIRCexplore2"}
+        chimeric_junction: {desc: "chimeric_junction file generated during star alignment"}
     }
 
 }
