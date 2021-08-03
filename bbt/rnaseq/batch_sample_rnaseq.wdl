@@ -190,7 +190,7 @@ task fastp{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/fastp:0.21.0"
         memory: memory
         cpu: cpu
         disks: disks
@@ -324,7 +324,7 @@ task star_alignment{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/starfusion:1.10.0"
         memory: memory
         cpu: cpu
         disks: disks
@@ -400,7 +400,7 @@ task rnaseqc{
     }
 
     command <<<
-        set -e 
+        set -e
         rnaseqc \
         ~{other_parameters} \
         ~{collapsed_gtf} \
@@ -408,7 +408,7 @@ task rnaseqc{
         ./ \
         ~{"--sample " + sample_id} \
         ~{"--bed " + bed} \
-        ~{"--stranded " + strand} 
+        ~{"--stranded " + strand}
     >>>
 
     output {
@@ -420,7 +420,7 @@ task rnaseqc{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/rnaseqc:2.4.2"
         memory: memory
         cpu: cpu
         disks: disks
@@ -487,7 +487,7 @@ task rsem_quant{
         ~{sep="," read1} \
         ~{sep="," read2} \
         ~{sub(indexFiles[0], basename(indexFiles[0]), "")}/~{index_prefix} \
-        ~{sample_name} 
+        ~{sample_name}
     >>>
 
     output {
@@ -497,7 +497,7 @@ task rsem_quant{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/rsem:1.3.3"
         memory: memory
         cpu: cpu
         disks: disks
@@ -567,7 +567,7 @@ task star_fusion{
         ~{"--output_dir " + sample} \
         ~{"--FusionInspector " + FusionInspector} \
         ~{if examine_coding_effect then "--examine_coding_effect " else ""} \
-        ~{if denovo_reconstruct then "--denovo_reconstruct " else ""} 
+        ~{if denovo_reconstruct then "--denovo_reconstruct " else ""}
     >>>
 
     output {
@@ -585,7 +585,7 @@ task star_fusion{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/starfusion:1.10.0"
         memory: memory
         cpu: cpu
         disks: disks
@@ -646,7 +646,7 @@ task geneBodyCoverage{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/rseqc:4.0.0"
         memory: memory
         cpu: cpu
         disks: disks
@@ -707,7 +707,7 @@ task markDuplicates{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/picard:latest"
         memory: memory
         cpu: cpu
         disks: disks
@@ -760,7 +760,7 @@ task read_distribution{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/rseqc:4.0.0"
         memory: memory
         cpu: cpu
         disks: disks
@@ -818,7 +818,7 @@ task CollectRnaSeqMetrics{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/picard:latest"
         memory: memory
         cpu: cpu
         disks: disks
@@ -867,13 +867,13 @@ task CIRCexplorer2{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/rseqc:4.0.0"
     }
 
     parameter_meta {
         sample: {desc: "sample name"}
         genome: {desc: "genome fasta file"}
-        genome_annot: {desc: "genome annotation file, special formated by CIRCexplore2"}
+        genome_annot: {desc: "genome annotation file, specially formated by CIRCexplore2"}
         chimeric_junction: {desc: "chimeric_junction file generated during star alignment"}
     }
 
