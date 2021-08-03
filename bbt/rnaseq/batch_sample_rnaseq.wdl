@@ -5,11 +5,6 @@ version development
 
 workflow rnaseq_pipeline {
     input {
-        Array[Directory]? fastq_dirs
-        Array[File]? fastq_files
-        String r1_name = '(H.*).read1.fastq.gz'
-        String r2_name = '(H.*).read2.fastq.gz'
-
         # for skip steps
         Boolean skip_fastp = false
         Boolean skip_rsem_quant = false
@@ -17,13 +12,7 @@ workflow rnaseq_pipeline {
         Boolean skip_circRNA = false
     }
 
-    call getFastqInfo{
-        input:
-            fastq_dirs = fastq_dirs,
-            fastq_files = fastq_files,
-            r1_name = r1_name,
-            r2_name = r2_name
-    }
+    call getFastqInfo{}
 
     scatter (each in keys(getFastqInfo.fastq_info)) {
         String sample_id = each

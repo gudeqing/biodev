@@ -9,7 +9,7 @@ with open(infile) as f:
     arg_dict = json.load(f)
     result = dict()
     for key, value in arg_dict.items():
-        if key.endswith(('.cpu', '.memory', '.disks', '.other_parameters', '.time_minutes')):
+        if key.endswith(('.cpu', '.memory', '.disks', '.other_parameters', '.time_minutes', '.docker')):
             continue
         tmp = result.setdefault(key, dict())
         tmp['name'] = key.split('.', 1)[1]
@@ -59,4 +59,10 @@ result = {x: result[x] for x in sorted(result.keys())}
 data = pd.DataFrame(result).T
 data.index.name = 'key'
 data.to_excel('args.detail.xlsx')
+
+with open('wdl') as f:
+    while True:
+        line = f.readline()
+        if line.startswith('task'):
+            task_name = re.match(r'task\s+(.*)\{', line).groups()[0]
 
