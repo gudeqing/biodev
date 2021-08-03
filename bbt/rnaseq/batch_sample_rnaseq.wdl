@@ -2,6 +2,7 @@ version development
 # 如果原始输入数据是cleandata，则可跳过fastp
 # 如果不关心转录本定量结果，则可跳过rsem_quant步骤
 # 如果不需要fusion分析，则可跳过fusion步骤
+# 如果不关心circRNA的分析，则可以跳过circRNA步骤
 
 workflow rnaseq_pipeline {
     input {
@@ -48,7 +49,9 @@ workflow rnaseq_pipeline {
             call star_fusion as fusion {
                 input:
                     sample = sample_id,
-                    chimeric_junction = align.chimeric_out
+                    chimeric_junction = align.chimeric_out,
+                    left_fq = [select_first([fastp.out_read1_file, read1_file])],
+                    right_fq = [select_first([fastp.out_read2_file, read2_file])]
             }
         }
 
@@ -540,13 +543,13 @@ task star_fusion{
         Array[File] indexFiles
         String sample = "fusion"
         # 如果要使用FusionInspector和denovo_reconstruct功能，必须提供read1和read2
-        String? FusionInspector
-        Boolean examine_coding_effect = false
-        Boolean denovo_reconstruct = false
+        String? FusionInspector = "inspect"
+        Boolean examine_coding_effect = true
+        Boolean denovo_reconstruct = true
         # for runtime
         String docker = "trinityctat/starfusion:1.10.0"
         String memory = "32 GiB"
-        Int cpu = 1
+        Int cpu = 5
         String disks = "50 GiB"
         Int time_minutes = 10080
     }
@@ -568,13 +571,13 @@ task star_fusion{
     >>>
 
     output {
-#        Array[File] extract_fusion_reads =  glob("${sample}/star-fusion.fusion_evidence_*.fq")
         File fusion_predictions = "${sample}/star-fusion.fusion_predictions.tsv"
         File fusion_predictions_abridged = "${sample}/star-fusion.fusion_predictions.abridged.tsv"
         File? bam = "${sample}/Aligned.out.bam"
         File? star_log_final = "${sample}/Log.final.out"
         File? junction = "${sample}/Chimeric.out.junction"
         File? sj = "${sample}/SJ.out.tab"
+        Array[File]? extract_fusion_reads =  ["${sample}/star-fusion.fusion_evidence_reads_1.fq", "${sample}/star-fusion.fusion_evidence_reads_2.fq"]
         File? fusion_inspector_validate_fusions_abridged = "${sample}/FusionInspector-validate/finspector.FusionInspector.fusions.abridged.tsv"
         File? fusion_inspector_validate_web = "${sample}/FusionInspector-validate/finspector.fusion_inspector_web.html"
         File? fusion_inspector_inspect_web = "${sample}/FusionInspector-inspect/finspector.fusion_inspector_web.html"
