@@ -5,7 +5,8 @@ version development
 
 workflow rnaseq_pipeline {
     input {
-        Array[Directory] fastq_dir
+        Array[Directory]? fastq_dirs
+        Array[File]? fastq_files
         String r1_name = '(H.*).read1.fastq.gz'
         String r2_name = '(H.*).read2.fastq.gz'
 
@@ -18,7 +19,8 @@ workflow rnaseq_pipeline {
 
     call getFastqInfo{
         input:
-            fastq_dir = fastq_dir,
+            fastq_dirs = fastq_dirs,
+            fastq_files = fastq_files,
             r1_name = r1_name,
             r2_name = r2_name
     }
@@ -123,7 +125,8 @@ workflow rnaseq_pipeline {
 # following are tasks
 task getFastqInfo{
     input {
-        Array[Directory] fastq_dir
+        Array[Directory]? fastq_dirs
+        Array[File]? fastq_files
         String r1_name = '(.*).read1.fastq.gz'
         String r2_name = '(.*).read2.fastq.gz'
         String docker = 'gudeqing/getfastqinfo:1.0'
@@ -131,7 +134,12 @@ task getFastqInfo{
 
     command <<<
         set -e
-        python /get_fastq_info.py -dirs ~{sep=" " fastq_dir} -r1 '~{r1_name}' -r2 '~{r2_name}' -out fastq.info.json
+        python /get_fastq_info.py \
+            ~{if defined(fastq_dirs) then "-fastq_dirs " else ""}~{sep=" " fastq_dirs} \
+            ~{if defined(fastq_files) then "-fastq_files " else ""}~{sep=" " fastq_files} \
+            -r1_name '~{r1_name}' \
+            -r2_name '~{r2_name}' \
+            -out fastq.info.json
     >>>
 
     output {
