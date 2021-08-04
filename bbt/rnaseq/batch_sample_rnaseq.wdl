@@ -139,7 +139,7 @@ task getFastqInfo{
     }
 
     runtime {
-        docker: docker
+        docker: "registry-xdp-v3-pre-yifang.basebit.me/basebitai/getfastqinfo:1.0"
     }
 
     parameter_meta {
