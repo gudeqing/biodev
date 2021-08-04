@@ -19,7 +19,7 @@ attr_annot = {
     "desc": "表示参数说明，不填则默认显示key填写的内容",
 }
 
-key_annot = "表示参数ID, 必填项，需要跟流程中定义的保持一致，如pipeline.star.index_dir, 我们有一个脚本可以解析womtool生成的参数json文件从而生成当前文档的初稿"
+key_annot = "表示参数ID,必填项，需跟流程中定义的保持一致,如pipeline.star.index_dir"
 
 with open(infile) as f:
     arg_dict = json.load(f)
