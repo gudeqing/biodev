@@ -4,7 +4,8 @@ import json
 import pandas as pd
 
 # infile是womtool生成的wdl输入参数json文件，本脚本将其转化成excel说明。
-print('usage: python wdlJson2xlsx.py <input.json> [wf.wdl] ')
+if len(sys.argv) < 3:
+    print('usage: python wdlJson2xlsx.py <input.json> [wf.wdl] ')
 
 infile = sys.argv[1]
 attr_annot = {
@@ -20,7 +21,7 @@ attr_annot = {
 }
 
 key_annot = "表示参数ID,必填项，需跟流程中定义的保持一致,如pipeline.star.index_dir"
-
+new_arg_dict = dict()
 with open(infile) as f:
     arg_dict = json.load(f)
     result = dict()
@@ -28,7 +29,10 @@ with open(infile) as f:
         if key.endswith(('.cpu', '.memory', '.disks', '.other_parameters', '.time_minutes', '.docker')):
             continue
         tmp = result.setdefault(key, dict())
-        tmp['name'] = key.split('.', 1)[1]
+        if len(key.split('.')) > 2:
+            tmp['name'] = key.split('.', 1)[1]
+        else:
+            tmp['name'] = key
         if 'File' in value:
             tmp['type'] = 'infile'
         elif 'Directory' in value:
@@ -60,16 +64,24 @@ with open(infile) as f:
 
         if 'default' in value:
             default = re.search(r'default =(.*)\)', value).groups()[0].replace('"', '').strip()
+            # default = re.search(r'default =(.*)\)', value).groups()[0].strip()
             tmp['default'] = default
         else:
-            tmp['default'] = ''
+            if tmp['array'] == 'yes' and tmp['level'] == 'required':
+                tmp['default'] = '[]'
+            else:
+                tmp['default'] = ''
         if '-(' in tmp['default']:
             tmp['default'] = tmp['default'].replace('(', '').replace(')', '')
-
+        new_arg_dict[key] = tmp['default']
         tmp['format'] = ''
-
         tmp['order'] = 1
         tmp['desc'] = key
+    pipeline_name = key.split('.')[0]
+
+# output new json
+with open(infile[:-4] + 'detailed.json', 'w') as f:
+    json.dump(new_arg_dict, f, indent=2, sort_keys=True)
 
 result[key_annot] = attr_annot
 result = {x: result[x] for x in [key_annot] + sorted(set(result.keys()) - {key_annot})}
@@ -88,7 +100,6 @@ if len(sys.argv) >= 3:
     # 获取task别名和task本名的映射信息
     with open(wdl_file) as f:
         match = re.findall(r'call\s+(.*)\s+as\s+(.*)\s+\{', f.read())
-        print(match)
         if match:
             task_mapping = dict(match)
         else:
@@ -111,6 +122,8 @@ if len(sys.argv) >= 3:
         if k == key_annot:
             continue
         name = v['name']
+        if name.split('.')[0] == pipeline_name:
+            continue
         if len(name.split('.', 1)) == 1:
             continue
         task = name.split('.', 1)[0]
@@ -125,6 +138,7 @@ if len(sys.argv) >= 3:
 
 # 生成最后的xlsx格式的参数说明文件，用于XDP
 data = pd.DataFrame(result).T
+data['order'] = [data['order'][0]] + list(range(data.shape[0]-1))
 data.index.name = 'key'
 data.to_excel('args.detail.xlsx')
 
