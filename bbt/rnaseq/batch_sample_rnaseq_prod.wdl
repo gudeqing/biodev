@@ -73,11 +73,11 @@ workflow rnaseq_pipeline {
                 input_bam = markdup.bam_file
         }
 
-        call read_distribution {
-            input:
-                sample_id = sample_id,
-                bam = align.bam
-        }
+#        call read_distribution {
+#            input:
+#                sample_id = sample_id,
+#                bam = align.bam
+#        }
 
 #        call geneBodyCoverage {
 #            input:
@@ -119,7 +119,7 @@ workflow rnaseq_pipeline {
         Array[File?] rnaseqc_metrics = rnaseqc.metrics
         Array[File?] rsem_gene_quant = rsem_quant.genes
         Array[File?] rsem_trans_quant = rsem_quant.isoforms
-        Array[File?] read_distr = read_distribution.read_distr
+#        Array[File?] read_distr = read_distribution.read_distr
         Array[File?] picard_metrics = CollectRnaSeqMetrics.rnaseq_metrics
         Array[File?] circRNA = CIRCexplorer2.circRNA
     }
