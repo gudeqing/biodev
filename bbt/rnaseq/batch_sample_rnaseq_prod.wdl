@@ -96,15 +96,26 @@ workflow rnaseq_pipeline {
     }
 
     output {
-        Array[File] align_log = align.align_log
-        Array[File] chimeric_out = align.chimeric_out
+        File fastq_info_json = getFastqInfo.fastq_info_json
         Array[File?] fastq_html_qc = fastp.html_report_file
         Array[File?] fastq_json_qc = fastp.json_report_file
-        Array[File?] fusion_file = fusion.fusion_predictions_abridged
-        Array[File?] genome_mdbam = markdup.bam_file
-        Array[File?] genome_mdbam_bai = markdup.bam_index
+        Array[File] align_log = align.align_log
+        Array[File] align_chimeric_out = align.chimeric_out
+        Array[File] align_sj = align.sj
+        Array[File] align_flagstat = align.flagstat
+        Array[File] align_idxstats = align.idxstats
+        Array[File] align_transcript_bam = align.transcript_bam
+        Array[File?] fusion_abridged = fusion.fusion_predictions_abridged
+        Array[File?] fusion_predict = fusion.fusion_predictions
+        Array[File?] fusion_inspector_validate_fusions_abridged = fusion.fusion_inspector_validate_fusions_abridged
+        Array[File?] fusion_inspector_validate_web = fusion.fusion_inspector_validate_web
+        Array[File?] fusion_inspector_inspect_web = fusion.fusion_inspector_inspect_web
+        Array[File?] fusion_inspector_inspect_fusions_abridged = fusion.fusion_inspector_inspect_fusions_abridged
+        Array[File?] markdup_bam = markdup.bam_file
+        Array[File?] markdup_bam_bai = markdup.bam_index
         Array[File?] rnaseqc_gene_tpm = rnaseqc.gene_tpm
         Array[File?] rnaseqc_gene_counts = rnaseqc.gene_counts
+        Array[File?] rnaseqc_exon_counts = rnaseqc.exon_counts
         Array[File?] rnaseqc_metrics = rnaseqc.metrics
         Array[File?] rsem_gene_quant = rsem_quant.genes
         Array[File?] rsem_trans_quant = rsem_quant.isoforms
@@ -136,6 +147,7 @@ task getFastqInfo{
 
     output {
         Map[String, Array[Array[File]]] fastq_info = read_json("fastq.info.json")
+        File fastq_info_json = "fastq.info.json"
     }
 
     runtime {
@@ -321,6 +333,8 @@ task star_alignment{
         File align_log = "~{sample}.Log.final.out"
         File chimeric_out = "~{sample}.Chimeric.out.junction"
         File sj = "~{sample}.SJ.out.tab"
+        File flagstat = "~{sample}.align.flagstat.txt"
+        File idxstats = "~{sample}.align.idxstats.txt"
     }
 
     runtime {
