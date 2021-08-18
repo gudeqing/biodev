@@ -11,7 +11,13 @@ workflow rnaseq_pipeline {
         Boolean skip_rsem_quant = false
         Boolean skip_fusion = false
         Boolean skip_circRNA = false
+        # strandness ['none', 'rf', 'fr']
+        String strandness = 'none'
     }
+
+    Map[String, String] rsem_strandness = {'none': 'none', 'rf': 'reverse', 'fr': 'forward'}
+    Map[String, String] rnaseqc_strandness = {'none': 'no', 'rf': 'rf', 'fr': 'fr'}
+    Map[String, String] picard_strandness = {'none': 'NONE', 'rf': 'SECOND_READ_TRANSCRIPTION_STRAND', 'fr': 'FIRST_READ_TRANSCRIPTION_STRAND'}
 
     call getFastqInfo{}
 
@@ -41,7 +47,8 @@ workflow rnaseq_pipeline {
                 input:
                     sample_name = sample_id,
                     input_is_bam = true,
-                    bam = align.transcript_bam
+                    bam = align.transcript_bam,
+                    strandness = rsem_strandness[strandness]
             }
         }
 
@@ -65,12 +72,14 @@ workflow rnaseq_pipeline {
             input:
                 sample_id = sample_id,
                 bam = markdup.bam_file,
+                strand = rnaseqc_strandness[strandness]
         }
 
         call CollectRnaSeqMetrics {
             input:
                 sample_id = sample_id,
-                input_bam = markdup.bam_file
+                input_bam = markdup.bam_file,
+                strand = picard_strandness[strandness]
         }
 
 #        call read_distribution {
@@ -404,7 +413,7 @@ task rnaseqc{
         File bam
         String sample_id
         File? bed
-        String? strand
+        String strand
         # for runtime
         String docker = "gudeqing/rnaseqc:2.4.2"
         String memory = "6 GiB"
@@ -422,7 +431,7 @@ task rnaseqc{
         ./ \
         ~{"--sample " + sample_id} \
         ~{"--bed " + bed} \
-        ~{"--stranded " + strand}
+        ~{if strand != "no" then  "--stranded " + strand else ''}
     >>>
 
     output {
