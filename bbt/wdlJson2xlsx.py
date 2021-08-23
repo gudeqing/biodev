@@ -6,6 +6,10 @@ import pandas as pd
 # infile是womtool生成的wdl输入参数json文件，本脚本将其转化成excel说明。
 if len(sys.argv) < 3:
     print('usage: python wdlJson2xlsx.py <input.json> [wf.wdl] ')
+    #  获取参数注释, 要求wdl文件中每一个task定义时都定义parameter_meta，而且parameter_meta中参数的描述中必需包含desc字段，如下：
+    #  parameter_meta {
+    #         sample: {desc: "sample name", type='xx', other='xxx'}
+    #         genome: {desc: "genome fasta file"}
 
 infile = sys.argv[1]
 attr_annot = {
@@ -102,11 +106,9 @@ if len(sys.argv) >= 3:
         match = re.findall(r'call\s+(.*)\s+as\s+(.*)\s+\{', f.read())
         if match:
             task_mapping = dict(match)
+            task_mapping = {v: k for k, v in task_mapping.items()}
         else:
             task_mapping = dict()
-
-    # 将别名转化为本名
-    task_names = [task_mapping[x] if x in task_mapping else x for x in task_names]
 
     # 提取每个task对应的parameter_meta
     with open(wdl_file) as f:
@@ -114,7 +116,7 @@ if len(sys.argv) >= 3:
         arg_desc = re.findall(r'parameter_meta\s+\{(.*?)\s+\}\n', f.read(), flags=re.S)
         arg_desc = [x.strip() for x in arg_desc]
 
-    # 将task和parameter_meta按照顺序对应起来, 因为时按序对应，因此要求每个task都有parameter_meta部分，否则容易错配
+    # 将task和parameter_meta按照顺序对应起来, 因为是按序对应，因此要求每个task都有parameter_meta部分，否则容易错配
     desc_dict = dict(zip(task_names, arg_desc))
 
     # 获取desc信息
@@ -127,6 +129,8 @@ if len(sys.argv) >= 3:
         if len(name.split('.', 1)) == 1:
             continue
         task = name.split('.', 1)[0]
+        if task in task_mapping:
+            task = task_mapping[task]
         para = name.split('.', 1)[1]
         task_para_desc = [x.strip() for x in desc_dict[task].split('\n')]
         target_desc_detail = [x for x in task_para_desc if x.startswith(para+':')]
