@@ -6,10 +6,12 @@ import pandas as pd
 # infile是womtool生成的wdl输入参数json文件，本脚本将其转化成excel说明。
 if len(sys.argv) < 3:
     print('usage: python wdlJson2xlsx.py <input.json> [wf.wdl] ')
-    #  获取参数注释, 要求wdl文件中每一个task定义时都定义parameter_meta，而且parameter_meta中参数的描述中必需包含desc字段，如下：
+    print("""
+    #  获取参数注释, 要求wdl文件中每一个task都定义有parameter_meta，而且parameter_meta中参数的描述中必需包含"desc"字段，如下：
     #  parameter_meta {
     #         sample: {desc: "sample name", type='xx', other='xxx'}
     #         genome: {desc: "genome fasta file"}
+    """)
 
 infile = sys.argv[1]
 attr_annot = {
