@@ -11,6 +11,7 @@ workflow rnaseq_pipeline {
         Boolean skip_rsem_quant = false
         Boolean skip_fusion = false
         Boolean skip_circRNA = false
+        Boolean skip_arcasHLA = false
         # strandness ['none', 'rf', 'fr']
         String strandness = 'none'
     }
@@ -59,6 +60,15 @@ workflow rnaseq_pipeline {
                     chimeric_junction = align.chimeric_out,
                     left_fq = [select_first([fastp.out_read1_file, read1_file])],
                     right_fq = [select_first([fastp.out_read2_file, read2_file])]
+            }
+        }
+
+        if (! skip_arcasHLA) {
+            call arcasHLA {
+                input:
+                    bam = align.bam,
+                    bam_bai = align.bam_bai,
+                    threads = 6
             }
         }
 
@@ -174,7 +184,7 @@ task getFastqInfo{
 task fastp{
     input {
         String? other_parameters
-        Int threads = 4
+        Int threads = 5
         File read1
         File? read2
         String sample_name
@@ -241,13 +251,13 @@ task fastp{
 task star_alignment{
     input {
         String? other_parameters
-        Int runThreadN = 6
+        Int runThreadN = 5
         # https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/
         # Directory indexDir
         Array[File] indexFiles
         Array[File] read1
         # 下面得如果不默认为[],则cromwell会报错
-        Array[File] read2 = []
+        Array[File] read2 = [' ']
         String sample
         String platform = "Illumina"
         String outSAMtype = "BAM SortedByCoordinate"
@@ -285,7 +295,7 @@ task star_alignment{
         # for runtime
         String docker = "trinityctat/starfusion:1.10.0"
         String memory = "35 GiB"
-        Int cpu = 6
+        Int cpu = 5
         String disks = "50 GiB"
         Int time_minutes = 10080
     }
@@ -417,7 +427,7 @@ task rnaseqc{
         # for runtime
         String docker = "gudeqing/rnaseqc:2.4.2"
         String memory = "6 GiB"
-        Int cpu = 2
+        Int cpu = 5
         String disks = "6 GiB"
         Int time_minutes = 10080
     }
@@ -472,7 +482,7 @@ task rnaseqc{
 task rsem_quant{
     input {
         String? other_parameters
-        Int threads = 6
+        Int threads = 5
         String strandness = "none"
         Boolean estimate_rspd = true
         Boolean append_names = true
@@ -649,7 +659,7 @@ task geneBodyCoverage{
         # for runtime
         String docker = "gudeqing/rseqc:4.0.0"
         String memory = "10 GiB"
-        Int cpu = 2
+        Int cpu = 5
         String disks = "10 GiB"
         Int time_minutes = 10080
     }
@@ -705,7 +715,7 @@ task markDuplicates{
         # for runtime
         String docker = "broadinstitute/picard:latest"
         String memory = "6 GiB"
-        Int cpu = 2
+        Int cpu = 5
         String disks = "6 GiB"
         Int time_minutes = 10080
     }
@@ -764,7 +774,7 @@ task read_distribution{
         # for runtime
         String docker = "gudeqing/rseqc:4.0.0"
         String memory = "10 GiB"
-        Int cpu = 2
+        Int cpu = 5
         String disks = "10 GiB"
         Int time_minutes = 10080
     }
@@ -818,7 +828,7 @@ task CollectRnaSeqMetrics{
         # for runtime
         String docker = "broadinstitute/picard:latest"
         String memory = "6 GiB"
-        Int cpu = 2
+        Int cpu = 5
         String disks = "6 GiB"
         Int time_minutes = 10080
     }
@@ -898,6 +908,32 @@ task CIRCexplorer2{
         genome: {desc: "genome fasta file"}
         genome_annot: {desc: "genome annotation file, specially formated by CIRCexplore2"}
         chimeric_junction: {desc: "chimeric_junction file generated during star alignment"}
+    }
+
+}
+
+task arcasHLA {
+    input {
+        File bam
+        File bam_bai
+        Int threads = 5
+    }
+
+    command <<<
+        set -e
+        arcasHLA extract --unmapped -t ~{threads} -o ./ ~{bam}
+        arcasHLA genotype --min_count 75 -t ~{threads} -o ./ *.1.fq.gz *.2.fq.gz
+        arcasHLA merge
+    >>>
+
+    output {
+        File? hla_genotype = glob("*.genotype.json")[0]
+        File? hla_genes = glob("*.genes.json")[0]
+        File? hla_genotype_log = glob("*.genotype.log")[0]
+    }
+
+    runtime {
+        docker: "registry-xdp-v3-yifang.xdp.basebit.me/basebitai/arcashla:0.2.5"
     }
 
 }
