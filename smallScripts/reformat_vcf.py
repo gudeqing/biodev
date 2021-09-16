@@ -40,7 +40,10 @@ def reformat_vcf(vcf_file, out, reference, tumor_sample=None):
                 record.info['NDP'] = record.samples[normal_idx]['DP']
                 # re-calculate AF since caller like sentieon may report AF that is not consistent with AD info
                 record.info['TAF'] = round(record.samples[tumor_idx]['AD'][1]/record.samples[tumor_idx]['DP'], 3)
-                record.info['NAF'] = round(record.samples[normal_idx]['AD'][1]/record.samples[normal_idx]['DP'], 3)
+                if record.samples[normal_idx]['DP'] != 0:
+                    record.info['NAF'] = round(record.samples[normal_idx]['AD'][1]/record.samples[normal_idx]['DP'], 3)
+                else:
+                    record.info['NAF'] = 0
                 fw.write(record)
 
     os.remove('tmp_.vcf')
