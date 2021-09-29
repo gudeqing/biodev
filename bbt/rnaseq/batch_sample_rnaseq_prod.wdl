@@ -140,6 +140,7 @@ workflow rnaseq_pipeline {
         Array[File?] rsem_trans_quant = rsem_quant.isoforms
 #        Array[File?] read_distr = read_distribution.read_distr
         Array[File?] picard_metrics = CollectRnaSeqMetrics.rnaseq_metrics
+        Array[File?] coverage_pdf = CollectRnaSeqMetrics.coverage_pdf
         Array[File?] circRNA = CIRCexplorer2.circRNA
     }
 }
