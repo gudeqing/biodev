@@ -1,0 +1,31 @@
+import os
+import pandas as pd
+import scipy.stats as stats
+import matplotlib
+from matplotlib import pyplot as plt
+import matplotlib.patches as mpatches
+import seaborn as sns
+%matplotlib inline
+%config InlineBackend.figure_format = 'svg'
+
+# 画柱状图
+fig, ax = plt.subplots()
+df = mch1
+color_pool = plt.get_cmap('Set2').colors
+patch1 = mpatches.Patch(color=color_pool[0], label='adeno')
+patch2 = mpatches.Patch(color=color_pool[1], label='squamous')
+colors = [color_pool[0] if x=='adeno' else color_pool[1] for x in df['tumor_type']]
+# adeno
+ax.grid(axis='y', linestyle='--', linewidth=0.5, alpha=0.5)
+ax.bar(df['Sample'], df['epitopes_count'], color=colors, align='center', width=0.7)
+ax.legend(handles=[patch1, patch2])
+ax.xaxis.set_tick_params(labelsize=5, labelrotation=90)
+ax.set_title("Neoantigen count distribution", fontsize='small')
+ax.set_xlim(-1, len(df['Sample']))
+# ax.set_xticks(range(df.shape[0]))
+# ax.set_xticklabels(df['Sample'])
+plt.tight_layout()
+plt.savefig('MHC1.neoantigen.count.distribution.pdf')
+plt.show()
+
+
