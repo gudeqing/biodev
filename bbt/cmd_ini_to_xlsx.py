@@ -17,6 +17,7 @@ for arg_name in target_sections:
     detail.setdefault('input_dir', 'no')
     detail.setdefault('out_dir', 'no')
     detail.setdefault('value_candidates', 'none')
+    detail.setdefault('format', 'none')
     # info['name'] = info['name']
     info['prefix'] = detail['prefix'] if detail['prefix'] != 'none' else ''
     if detail['format'] == 'none':
@@ -72,4 +73,5 @@ for arg_name in target_sections:
 # pd.DataFrame(result).T.to_excel(f'{parser["tool"]["name"]}.arg_detail.xlsx')
 data = pd.DataFrame(result).T
 data.index.name = 'name'
-data.to_csv(f'{parser["tool"]["name"]}.arg_detail.csv')
+# data.to_csv(f'{parser["tool"]["name"]}.arg_detail.csv')
+data.to_excel(f'{parser["tool"]["name"]}.arg_detail.xlsx')
