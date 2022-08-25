@@ -156,13 +156,13 @@ def restore_data(target_path, threads=0):
             subprocess.check_call(each, shell=True)
 
 
-def download(files, outdir=os.getcwd(), bucket='epionengs', threads=3):
+def download(files, outdir=os.getcwd(), bucket='epionengs', threads=3, other_args=''):
     if type(files) == str:
         files = [x.strip() for x in open(files)]
     cmds = list()
     for each in files:
-        cmd = 'aws s3 cp --only-show-errors s3://{bucket}/{each} {outdir}'.format(
-            bucket=bucket, each=each, outdir=outdir
+        cmd = 'aws s3 cp {other_args} --only-show-errors s3://{bucket}/{each} {outdir}'.format(
+            bucket=bucket, each=each, outdir=outdir, other_args=other_args
         )
         cmds.append(cmd)
     with Pool(threads) as pool:
