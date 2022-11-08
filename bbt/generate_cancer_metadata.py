@@ -43,8 +43,23 @@ outdir = 'dataset'
 os.makedirs(outdir)
 su = shortuuid.ShortUUID(alphabet="0123456789")
 rows = []
+
+# 模拟生成某种疾病样本数量的范围设置
+min_number, max_number = 20, 50
+# 疾病范围设置
+meta_dict['Disease_type']['range'] = [
+    'Colon Adenocarcinoma',
+    'Rectum Adenocarcinoma',
+    'Pancreatic Adenocarcinoma',
+    'Stomach Adenocarcinoma',
+    'Liver Hepatocellular Carcinom',
+    'Breast Invasive Carcinoma',
+    'Lung Adenocarcinoma',
+    'Lung Squamous Cell Carcinoma'
+]
+
 for disease in meta_dict['Disease_type']['range']:
-    for i in range(random.randint(30, 80)):
+    for i in range(random.randint(min_number, max_number)):
         row = []
         ref = meta_dict['Reference_genome']['range'][random.randint(0, 2)]
         category = meta_dict['Data_category']['range'][random.randint(0, 3)]
