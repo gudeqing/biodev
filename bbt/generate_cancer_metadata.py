@@ -39,36 +39,42 @@ disease_to_primary_site = {
     'Lung Adenocarcinoma': 'Lung',
     'Lung Squamous Cell Carcinoma': 'Lung'
 }
-outdir = 'dataset'
-os.makedirs(outdir)
 su = shortuuid.ShortUUID(alphabet="0123456789")
-rows = []
-
-# 模拟生成某种疾病样本数量的范围设置
-min_number, max_number = 20, 50
 # 疾病范围设置
 meta_dict['Disease_type']['range'] = [
-    'Colon Adenocarcinoma',
-    'Rectum Adenocarcinoma',
     'Pancreatic Adenocarcinoma',
     'Stomach Adenocarcinoma',
     'Liver Hepatocellular Carcinom',
     'Breast Invasive Carcinoma',
     'Lung Adenocarcinoma',
-    'Lung Squamous Cell Carcinoma'
 ]
 
+# 一个数据集存储多种疾病的信息
+# outdir = 'dataset'
+# os.makedirs(outdir)
+# su = shortuuid.ShortUUID(alphabet="0123456789")
+# rows = [['* Path', '* Meta data'], list(meta_dict.keys())]
+# sample_id_set = set()
+
 for disease in meta_dict['Disease_type']['range']:
+    # 每种疾病创建一个数据集
+    outdir = disease.replace(' ', '')
+    os.makedirs(outdir)
+    rows = [['* Path', '* Meta data'], list(meta_dict.keys())]
+    sample_id_set = set()
+    # 模拟生成某种疾病样本数量的范围设置
+    min_number, max_number = 20, 50
     for i in range(random.randint(min_number, max_number)):
         row = []
         ref = meta_dict['Reference_genome']['range'][random.randint(0, 2)]
         category = meta_dict['Data_category']['range'][random.randint(0, 3)]
         sample_id = 'S' + str(su.random(length=6))
-        if ref and category=="Simple Nucleotide Variation":
+        sample_id_set.add(sample_id)
+        if ref and category == "Simple Nucleotide Variation":
             row.append(f'/{outdir}/{sample_id}.vcf')
         else:
             ref = ''
-            row.append(f'/{outdir}/{sample_id}.r1.fq.gz')
+            row.append(f'/{outdir}/{sample_id}.r1.fq')
         with open(f'{row[0][1:]}', 'w') as f:
             f.write('this is empty file for category function test\n')
         row.append(disease_to_primary_site[disease])
@@ -95,7 +101,7 @@ for disease in meta_dict['Disease_type']['range']:
         if ref and category == 'Simple Nucleotide Variation':
             file_format = 'VCF'
         else:
-            file_format = 'FASTQ.GZ'
+            file_format = 'FASTQ'
         row.append(file_format)
         row.append(meta_dict['Platform']['range'][0])
         if file_format == 'VCF':
@@ -106,9 +112,19 @@ for disease in meta_dict['Disease_type']['range']:
         rows.append(row.copy())
         if not ref:
             # add row of read2
-            row[0] = f'/{outdir}/{sample_id}.r2.fq.gz'
+            row[0] = f'/{outdir}/{sample_id}.r2.fq'
             rows.append(row)
             with open(f'{row[0][1:]}', 'w') as f:
-                f.write('this is empty file for category function test\n')
-df = pd.DataFrame(rows, columns=list(meta_dict.keys()))
-df.to_excel(f'{outdir}/Demo.metadata.xlsx', index=False)
+                contents = [
+                    '@SRR020138.15024316 SALK_2029:7:100:1672:1790 length=86',
+                    'TTTTTAGAAAGTTTATATGGAAATTAAGTTTTTTGTATATGTTTGTAAAG',
+                    '+SRR020138.15024316 SALK_2029:7:100:1672:1790 length=86',
+                    """BCB?).4'324&1;B###################################""",
+                    """@SRR020138.15024317 SALK_2029:7:100:1672:902 length=86""",
+                    """ATTTGGGGATGATTTTTTATTATTTTTAGGATTTATGGGATGGGAAAGAA""",
+                    """+SRR020138.15024317 SALK_2029:7:100:1672:902 length=86""",
+                    """ACCB88<=BCACCCCCCCCCCCCCCCCB6=ACCCB@)8+?@+=<@CA:@@"""
+                ]
+                f.write('\n'.join(contents)+'\n')
+    df = pd.DataFrame(rows)
+    df.to_excel(f'{outdir}/{outdir}.{len(sample_id_set)}.metadata.xlsx', index=False, header=False)
