@@ -40,13 +40,17 @@ disease_to_primary_site = {
     'Lung Squamous Cell Carcinoma': 'Lung'
 }
 su = shortuuid.ShortUUID(alphabet="0123456789")
+
 # 疾病范围设置
 meta_dict['Disease_type']['range'] = [
+    'Colon Adenocarcinoma',
+    'Rectum Adenocarcinoma',
     'Pancreatic Adenocarcinoma',
     'Stomach Adenocarcinoma',
     'Liver Hepatocellular Carcinom',
     'Breast Invasive Carcinoma',
     'Lung Adenocarcinoma',
+    'Lung Squamous Cell Carcinoma'
 ]
 
 # 一个数据集存储多种疾病的信息
@@ -63,7 +67,7 @@ for disease in meta_dict['Disease_type']['range']:
     rows = [['* Path', '* Meta data'], list(meta_dict.keys())]
     sample_id_set = set()
     # 模拟生成某种疾病样本数量的范围设置
-    min_number, max_number = 20, 50
+    min_number, max_number = 30, 80
     for i in range(random.randint(min_number, max_number)):
         row = []
         ref = meta_dict['Reference_genome']['range'][random.randint(0, 2)]
